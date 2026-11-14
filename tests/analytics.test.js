@@ -73,8 +73,8 @@ test('per-block transaction count requires every shard chunk to match the finali
     ],
   };
   const chunks = [
-    { header: { shard_id: 0, chunk_hash: 'chunk-0', height_included: 224_474_509 }, transactions: [{}, {}] },
-    { header: { shard_id: 1, chunk_hash: 'chunk-1', height_included: 224_474_509 }, transactions: [{}] },
+    { header: { shard_id: 0, chunk_hash: 'chunk-0', height_included: 224_474_509 }, transactions: [{ hash: 'tx-0' }, { hash: 'tx-1' }] },
+    { header: { shard_id: 1, chunk_hash: 'chunk-1', height_included: 224_474_509 }, transactions: [{ hash: 'tx-2' }] },
   ];
   const result = summarizeBlockTransactions(block, chunks);
   assert.equal(result.transactionCount, 3);
@@ -84,6 +84,7 @@ test('per-block transaction count requires every shard chunk to match the finali
   assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], header: { ...chunks[0].header, chunk_hash: 'wrong' } }, chunks[1]]), null);
   assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], header: { ...chunks[0].header, height_included: 1 } }, chunks[1]]), null);
   assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], transactions: null }, chunks[1]]), null);
+  assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], transactions: [{ signer_id: 'missing-hash' }] }, chunks[1]]), null);
 });
 
 test('missing block gas fields are unavailable rather than silently treated as zero', () => {

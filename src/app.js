@@ -1,6 +1,11 @@
 import { alignMarketAndTvl, assessLiveRisks, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
 import { DATA_SOURCES, fetchBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet } from './data.js';
+import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, BIGQUERY_REBUILD_NOTE, CHART_QUERY_RECIPES } from './query-registry.js';
 
+import { replayChartInputs, replayRpcObservations } from './replay.js';
+
+const LOCAL_HISTORY_KEY = 'near-signal.rpc-observations.v2';
+const MAX_LOCAL_OBSERVATIONS = 60;
 const $ = (selector) => document.querySelector(selector);
 const state = {
   market: null, marketChart: null, llamaPrice: null, tvlHistory: null, blockActivity: null,
@@ -13,8 +18,6 @@ const METRICS = {
   tvlUsd: { label: 'Daily NEAR DeFi TVL change', color: '#8bd3be', format: 'usd' },
   grossVolumeUsd: { label: 'Daily gross market-volume change', color: '#8ab9db', format: 'usd' },
 };
-const LOCAL_HISTORY_KEY = 'near-signal.rpc-observations.v1';
-const MAX_LOCAL_OBSERVATIONS = 360;
 const FAST_INTERVAL_MS = 60_000;
 const BLOCK_TRANSACTION_INTERVAL_MS = 300_000;
 const DEFI_PRICE_INTERVAL_MS = 120_000;
@@ -31,7 +34,7 @@ const RISK_SOURCE_IDS = {
 function readObservations() {
   try {
     const rows = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
-    return Array.isArray(rows) ? rows.filter((row) => row && Number.isFinite(Number(row.height)) && Number.isFinite(Date.parse(row.observedAt))).slice(-MAX_LOCAL_OBSERVATIONS) : [];
+    return Array.isArray(rows) ? replayRpcObservations(rows).slice(-MAX_LOCAL_OBSERVATIONS) : [];
   } catch { return []; }
 }
 function persistObservations() { try { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(state.observations.slice(-MAX_LOCAL_OBSERVATIONS))); } catch { /* Browser storage may be disabled. */ } }
@@ -39,15 +42,14 @@ function mergeSourceStatus(status) { if (status?.sourceId) state.sourceStatuses.
 function applyResult(field, result) { if (Object.hasOwn(result ?? {}, 'value')) state[field] = result.value; mergeSourceStatus(result?.status); }
 function appendBlockObservation(block) {
   if (!block || !Number.isFinite(block.height)) return;
-  const existingIndex = state.observations.findIndex((row) => row.height === block.height);
-  if (existingIndex >= 0) {
-    const existing = state.observations[existingIndex];
-    if (!Number.isSafeInteger(block.transactionCount) || existing.transactionCount === block.transactionCount) return;
-    state.observations[existingIndex] = { ...existing, transactionCount: block.transactionCount, transactionChunkCount: block.transactionChunkCount, transactionFetchedAt: block.transactionFetchedAt };
-  } else {
-    state.observations.push({ observedAt: new Date().toISOString(), height: block.height, blockTime: block.timestamp, gasUsed: block.gasUsed, estimatedGasFeeNear: block.estimatedGasFeeNear, activeChunks: block.activeChunks, transactionCount: Number.isSafeInteger(block.transactionCount) ? block.transactionCount : null, transactionChunkCount: block.transactionChunkCount ?? null, transactionFetchedAt: block.transactionFetchedAt ?? null });
-  }
-  state.observations = state.observations.slice(-MAX_LOCAL_OBSERVATIONS);
+  const existing = state.observations.find((row) => row.height === block.height);
+  const observation = {
+    observedAt: existing?.observedAt ?? block.fetchedAt ?? new Date().toISOString(),
+    rawBlock: block.raw ?? existing?.rawBlock,
+    rawChunks: block.rawChunks ?? existing?.rawChunks ?? null,
+    transactionFetchedAt: block.transactionFetchedAt ?? existing?.transactionFetchedAt ?? null,
+  };
+  state.observations = replayRpcObservations([...state.observations.filter((row) => row.height !== block.height), observation]).slice(-MAX_LOCAL_OBSERVATIONS);
   persistObservations();
 }
 function allDailyRows() {
@@ -109,10 +111,16 @@ function chartLabel(value, format) {
   if (format === 'percent') return `${Number(value).toFixed(1)}%`;
   return compact(value);
 }
+function chartQueryDisclosure(chartId) {
+  const recipe = CHART_QUERY_RECIPES[chartId];
+  if (!recipe) return '';
+  return `<details class="chart-query"><summary>View source query and interpretation</summary><div class="query-content"><p><strong>What it shows:</strong> ${escapeHtml(recipe.plainLanguage)}</p><p><strong>Source:</strong> ${escapeHtml(recipe.source)}</p><pre><code>${escapeHtml(recipe.query)}</code></pre><p class="timestamp">Rebuild rule: repeat the source request above and apply the stated date matching or validation steps. No missing value is filled. Export evidence, then run <code>npm run replay -- path/to/evidence.json</code> to reconstruct plotted inputs offline from the saved raw responses.</p></div></details>`;
+}
 function renderLineChart(container, rows, metric, { label, color = '#c8f27c', format = 'usd', dateKey = 'date', emptyText = 'Waiting for observations', yLabel = null } = {}) {
   if (!container) return;
+  const queryWasOpen = container.querySelector('.chart-query')?.open ?? false;
   const points = (rows ?? []).map((row) => ({ row, value: valueForChart(metric, row), date: row?.[dateKey] })).filter((point) => point.value !== null && point.date);
-  if (points.length < 2) { container.innerHTML = `<div class="chart-empty">${escapeHtml(emptyText)}</div>`; return; }
+  if (points.length < 2) { container.innerHTML = `<div class="chart-empty">${escapeHtml(emptyText)}</div>${chartQueryDisclosure(container.id)}`; const disclosure = container.querySelector('.chart-query'); if (disclosure) disclosure.open = queryWasOpen; return; }
   const width = 720, height = 220, margin = { top: 12, right: 18, bottom: 34, left: 64 };
   const plotWidth = width - margin.left - margin.right, plotHeight = height - margin.top - margin.bottom;
   let minValue = Math.min(...points.map((point) => point.value)), maxValue = Math.max(...points.map((point) => point.value));
@@ -139,6 +147,9 @@ function renderLineChart(container, rows, metric, { label, color = '#c8f27c', fo
   }).join('');
   const table = `<details class="chart-data"><summary>View data table (${points.length} observations)</summary><div class="chart-table-wrap"><table><caption class="sr-only">${escapeHtml(label || 'Chart')} plotted observations</caption><thead><tr><th scope="col">Observed at (UTC)</th><th scope="col">${escapeHtml(label || 'Value')}</th></tr></thead><tbody>${tableRows}</tbody></table></div></details>`;
   container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label || 'Dated line chart')}"><title>${escapeHtml(label || 'Dated line chart')}</title><desc>${points.length} sourced observations from ${escapeHtml(firstDate)} to ${escapeHtml(lastDate)}; missing daily dates are visibly broken and no values are filled.</desc>${grid}${area ? `<path d="${area}" fill="${color}" opacity=".06"/>` : ''}<path d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>${circles}<text x="${margin.left}" y="${height - 8}" fill="#86948a" font-size="9">${escapeHtml(firstDate)}</text><text x="${width - margin.right}" y="${height - 8}" fill="#86948a" text-anchor="end" font-size="9">${escapeHtml(lastDate)}</text><text x="${width - margin.right}" y="${margin.top + 10}" fill="#acb8ad" text-anchor="end" font-size="9">${escapeHtml(yLabel || label || '')}</text></svg>${table}`;
+  container.insertAdjacentHTML('beforeend', chartQueryDisclosure(container.id));
+  const disclosure = container.querySelector('.chart-query');
+  if (disclosure) disclosure.open = queryWasOpen;
 }
 
 function updateHeader() {
@@ -239,6 +250,16 @@ function renderValueCapture() {
   $('#blockHistoryStatus').textContent = observations.length > 1 ? `${observations.length} local block observations` : 'Collecting observations';
   $('#blockHistorySpan').textContent = observations.length > 1 ? `${utcDateTime(observations[0].observedAt)} to ${utcDateTime(observations.at(-1).observedAt)}` : 'A local time series appears after multiple polls.';
 }
+function renderBigQueryEvidence() {
+  const target = $('#bigqueryActivityQuery');
+  if (!target) return;
+  const queryWasOpen = target.querySelector('.chart-query')?.open ?? false;
+  const tables = BIGQUERY_INSPECTED_TABLES.join(', ');
+  const fields = BIGQUERY_INSPECTED_FIELDS.join(', ');
+  target.innerHTML = `<p><strong>Live-inspected dataset:</strong> <code>${escapeHtml(BIGQUERY_DATASET)}</code></p><p><strong>All 16 live dataset objects:</strong> ${escapeHtml(tables)}</p><p><strong>Inspected query fields and types:</strong> ${escapeHtml(fields)}</p><p><strong>Connection status:</strong> Not connected. No BigQuery job has been run. The live inventory and three query-table schemas were inspected on 14 Nov 2026. The actual origin relation is receipt_origin_transaction. Each scanned table is partitioned on block_date (DATE). Browser sign-in does not configure application credentials or authorize query spending.</p><details class="chart-query"><summary>View sample SQL for daily activity and contract usage</summary><div class="query-content"><p><strong>What it shows:</strong> Daily distinct transaction signers and transaction hashes, plus calls and signers for one contract. Signer accounts are an on-chain activity proxy, not people or proof of organic adoption.</p><pre><code>${escapeHtml(BIGQUERY_ACTIVITY_QUERY)}</code></pre><p class="timestamp">${escapeHtml(BIGQUERY_REBUILD_NOTE)}</p><p class="timestamp">The query filters each scanned relation by <code>block_date</code>; inspect estimated bytes processed in BigQuery before running.</p></div></details>`;
+  const disclosure = target.querySelector('.chart-query');
+  if (disclosure) disclosure.open = queryWasOpen;
+}
 function renderParticipation() {
   const validators = state.validators;
   const validatorStatus = state.sourceStatuses.get('near-rpc-validators');
@@ -255,7 +276,7 @@ function renderParticipation() {
   $('#blockTxLatest').textContent = activity ? compact(activity.transactionCount, 0) : activityPlaceholder;
   $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} shard chunks · ${utcDateTime(activity.blockTimestamp)}` : sourceStatus ? 'No complete all-shard count available' : 'Waiting for complete all-shard count';
   $('#blockTxChunks').textContent = activity ? compact(activity.chunkCount, 0) : activityPlaceholder;
-  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · transaction identities are not retained.` : sourceStatus ? 'A complete finalized-block sample is unavailable.' : 'Requesting a complete finalized-block sample.';
+  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · the finalized block and minimal matched-chunk fields plus transaction hashes are retained for offline replay; full transaction bodies and receipts are discarded.` : sourceStatus ? 'A complete finalized-block sample is unavailable.' : 'Requesting a complete finalized-block sample.';
   $('#activityStatus').textContent = activity ? (sourceStatus?.ok === false ? 'Last sample retained · latest read failed' : 'Live block count observed') : (sourceStatus?.ok === false ? 'Complete chunk sample unavailable' : 'Sampling finalized chunks');
   $('#activityStatus').className = `status-pill ${activity && sourceStatus?.ok !== false ? 'good' : 'warn'}`;
   const observations = state.observations;
@@ -263,6 +284,7 @@ function renderParticipation() {
   const samples = observations.filter((row) => Number.isSafeInteger(row.transactionCount));
   $('#blockTxHistoryStatus').textContent = `${samples.length} complete local samples`;
   $('#blockTxHistorySpan').textContent = samples.length > 1 ? `${utcDateTime(samples[0].transactionFetchedAt)} to ${utcDateTime(samples.at(-1).transactionFetchedAt)}` : 'A local sample history appears after more five-minute polls.';
+  renderBigQueryEvidence();
 }
 function riskPillClass(tone) { return tone === 'high' ? 'bad' : tone === 'positive' ? 'good' : 'warn'; }
 function renderRisks() {
@@ -382,7 +404,7 @@ async function refreshBlock() {
       state.lastChunkRequestAt = Date.now();
       const activityResult = await fetchAndApply('blockActivity', () => fetchBlockTransactionCount(block));
       const activity = activityResult?.value;
-      if (activity && activity.blockHeight === block.height) appendBlockObservation({ ...block, transactionCount: activity.transactionCount, transactionChunkCount: activity.chunkCount, transactionFetchedAt: activity.fetchedAt });
+      if (activity && activity.blockHeight === block.height) appendBlockObservation({ ...block, transactionCount: activity.transactionCount, transactionChunkCount: activity.chunkCount, transactionFetchedAt: activity.fetchedAt, rawChunks: activity.rawChunks });
     }
     return result;
   }
@@ -435,15 +457,19 @@ async function refreshEverything() {
 }
 function exportEvidence() {
   const bundle = {
-    project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), status: 'local prototype; not published or deployed',
+    project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), status: 'public read-only Vercel dashboard; hackathon submission not made',
     live: { market: state.market, independentSpotPrice: state.llamaPrice, finalizedBlock: state.block, sampledFinalizedBlockTransactions: state.blockActivity,
       rpcStatus: state.rpcStatus ? { chainId: state.rpcStatus.chain_id, syncing: state.rpcStatus.syncing, latestBlockHeight: state.rpcStatus.sync_info?.latest_block_height, latestBlockTime: state.rpcStatus.sync_info?.latest_block_time } : null,
       currentValidatorSet: state.validators },
     dailyAlignedMarketAndTvl: allDailyRows(), dailyHypothesisSeries: hypothesisRows(), rawTvlRows: state.tvlHistory?.rows ?? null, rawCoinGeckoMarketChart: state.marketChart,
     localRpcObservationHistory: state.observations,
+    chartSelections: { days: state.days, metric: state.chartMetric },
+    chartQueryRecipes: CHART_QUERY_RECIPES,
+    unexecutedBigQuery: { dataset: BIGQUERY_DATASET, inspectedTables: BIGQUERY_INSPECTED_TABLES, inspectedQueryFields: BIGQUERY_INSPECTED_FIELDS, sql: BIGQUERY_ACTIVITY_QUERY, status: 'Not connected; no query was submitted.' },
     sourceRegistry: DATA_SOURCES.map((source) => ({ ...source, status: state.sourceStatuses.get(source.id) ?? null })),
-    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts and retention remain unavailable; no provider API key is required or configured.', 'No canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'The NEAR Ecosystem Health Score is withheld because key evidence dimensions are missing.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
+    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction counts and contract activity remain unavailable; no BigQuery query was run.', 'BigQuery schemas were inspected, but no application credentials, cost-approved query or data result is connected.', 'No Intents Explorer JWT is configured and no canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'The NEAR Ecosystem Health Score is withheld because key evidence dimensions are missing.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
   };
+  bundle.replayedChartInputs = replayChartInputs(bundle);
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
   anchor.href = url; anchor.download = `near-signal-evidence-${new Date().toISOString().slice(0, 10)}.json`; anchor.click(); URL.revokeObjectURL(url);
 }

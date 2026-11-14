@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { replayChartInputs, replayRpcObservations } from '../src/replay.js';
+
+// Test-only fixtures, never used by the dashboard or evidence rebuild.
+const rawBlock = { header: { height: 1, hash: 'fixture-block', timestamp: '1704067200000000000', gas_price: '100000000' }, chunks: [{ chunk_hash: 'fixture-chunk', shard_id: 0, height_included: 1, gas_used: '1000000000000', gas_limit: '1000000000000000' }] };
+const rawChunks = [{ header: { shard_id: 0, chunk_hash: 'fixture-chunk', height_included: 1 }, transactions: [{ hash: 'fixture-tx' }] }];
+const observation = { observedAt: '2024-01-01T00:00:01.000Z', rawBlock, rawChunks };
+
+test('RPC replay derives gas and count from raw responses rather than saved summaries', () => {
+  const rows = replayRpcObservations([{ ...observation, gasUsed: 999, transactionCount: 999 }]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].gasTgas, 1);
+  assert.equal(rows[0].transactionCount, 1);
+  assert.equal(rows[0].height, 1);
+});
+
+test('legacy summary-only and mismatched shard data never create fabricated chart points', () => {
+  assert.deepEqual(replayRpcObservations([{ observedAt: observation.observedAt, height: 1, gasUsed: 999 }]), []);
+  const rows = replayRpcObservations([{ ...observation, rawChunks: [{ ...rawChunks[0], header: { ...rawChunks[0].header, chunk_hash: 'wrong' } }] }]);
+  assert.equal(rows[0].transactionCount, null);
+  assert.equal(rows[0].gasTgas, 1);
+});
+
+test('chart replay is deterministic, uses original UTC cutoff, and needs no network', () => {
+  const bundle = {
+    generatedAt: '2024-01-02T12:00:00.000Z',
+    rawReturnedData: {
+      defillamaTvlRows: [{ date: 1704067200, tvl: 10 }, { date: 1704153600, tvl: 20 }],
+      coinGeckoMarketChart: { prices: [[1704067200000, 2], [1704153600000, 3]] },
+    },
+    rawRpcObservationHistory: [observation],
+  };
+  const result = replayChartInputs(bundle);
+  assert.deepEqual(result, replayChartInputs(JSON.parse(JSON.stringify(bundle))));
+  assert.deepEqual(result.overviewChart.map((row) => row.date), ['2024-01-01']);
+  assert.equal(result.capitalChart[0].tvlUsd, 10);
+  assert.equal(result.gasChart[0].gasTgas, 1);
+  assert.equal(result.blockTxChart[0].transactionCount, 1);
+});
+
+test('browser export shape replays and missing series remain empty', () => {
+  const bundle = { exportedAt: observation.observedAt, rawTvlRows: [], rawCoinGeckoMarketChart: {}, localRpcObservationHistory: [observation], chartSelections: { days: 7, metric: 'tvlUsd' } };
+  assert.equal(replayChartInputs(bundle).selections.metric, 'tvlUsd');
+  assert.deepEqual(replayChartInputs(bundle).overviewChart, []);
+  assert.throws(() => replayChartInputs({}), /dated evidence/);
+});

@@ -1,33 +1,33 @@
 # Architecture
 
-NEAR SIGNAL is a small browser-rendered application with ES modules and no third-party runtime dependencies. The local `server.mjs` binds to loopback only and serves static files with restrictive security headers. There is no public API backend, account service, database, wallet connection, transaction-signing path or hosted deployment.
+NEAR SIGNAL is a static browser-rendered application using JavaScript ES modules and no third-party runtime dependencies. The existing Vercel project serves the static page; `server.mjs` remains a loopback-only local development server. There is no server-side data proxy, account service, database, wallet connection, or transaction-signing path.
 
-## Data flow
+## Data and query flow
 
-1. `src/data.js` owns source metadata, request timeouts, parsing, validation, provider timestamps and per-source errors. The browser sends direct read-only requests to FastNear’s public free mainnet RPC, CoinGecko’s keyless endpoints and DefiLlama endpoints. It never embeds an API key.
-2. The app fetches a finalized block, then requests every shard chunk referenced by it. The all-shard total is accepted only when every returned chunk matches the documented shard ID, hash and inclusion height and contains a transaction array. Raw transaction records are discarded after counting; only block metadata, chunk hashes, counts and times remain.
-3. Separate RPC reads expose current node status and the current active validator set. These are point-in-time provider observations. No historical validator epochs or uptime archive are synthesized.
-4. CoinGecko daily market arrays and DefiLlama daily TVL rows are joined on exact UTC dates. `src/analytics.js` contains pure calculation functions for window changes, daily correlations, block/validator metrics and risk states. Missing dates or invalid fields make calculations unavailable rather than filled.
-5. `src/app.js` renders source-specific status/freshness, charts and accessible data tables; local controls recalculate risk thresholds and the selected hypothesis. `updateHeader` waits for all eight connected feeds before saying all are responding. Errors retain only last-good values and timestamps.
-6. Browser JSON export contains current normalized/source data and browser-local RPC observation history. `scripts/rebuild-data.mjs` performs a reproducible local fetch and writes `data/latest-evidence.json`, including source statuses, calculations, selected raw responses and explicit limits. Neither path retains transaction identities or chunk contents.
+`src/data.js` owns connected source metadata, direct read-only HTTP/JSON-RPC requests, timeouts, parsing, validation, timestamps and source errors. The browser reads FastNear mainnet RPC, CoinGecko and DefiLlama. It does not embed API keys or query BigQuery/NEAR Intents.
+
+For a finalized block, the app requests every referenced shard chunk and displays a transaction total only when each response matches the block's referenced shard ID, hash and inclusion height and contains a transaction array. Transaction identities and receipts are discarded. The current validator set and node status are point-in-time provider observations.
+
+`src/analytics.js` contains deterministic calculations for exact-date market/TVL matching, window changes, daily descriptive correlations, block/validator metrics and scoped risk states. Missing dates/fields remain unavailable. `src/app.js` renders the five dashboard modules, live status, chart/table and each chart's query/derivation disclosure.
+
+`src/query-registry.js` is the source of truth for the documented BigQuery sample and chart source recipes. `scripts/export-queries.mjs` writes the checked-in `sql/near-signal.sql` from that definition. The BigQuery query template has `block_date` filters on each scanned relation, uses `receipt_actions.signer_account_id` for receipt signer attribution, and is not executed. The authenticated schema inspection confirmed `receipt_origin_transaction`; its dated inventory and fields are recorded in [`bigquery-live-schema.md`](bigquery-live-schema.md).
+
+`scripts/rebuild-data.mjs` fetches only currently connected public sources and builds a dated evidence bundle containing raw responses, aligned chart inputs, query recipes, calculations and disconnected-source states. `npm run rebuild` runs the SQL export and evidence refresh; `npm run replay` reconstructs charts from the saved raw block, minimal matched-chunk evidence and transaction hashes without network access. Neither command runs BigQuery or NEAR Intents. Thus the app reproduces connected-source chart inputs, not the unavailable daily-account/contract/Intents histories or a historical archive of browser observations.
 
 ## Refresh and access choices
 
-The finalized block is polled about once a minute; all-shard transaction sampling is limited to once per five minutes. RPC status and validators refresh every five minutes, DefiLlama spot every two minutes, and TVL about every 30 minutes. CoinGecko snapshot and history are requested on load/manual refresh, with a manual cooldown. Requests are deduplicated and failures use capped backoff. FastNear’s free-tier numeric request limit is not published, so the product deliberately avoids tight polling and historical backfill.
+The finalized block refreshes about once a minute. All-shard sampling is limited to once per five minutes. RPC status and validators refresh every five minutes, DefiLlama spot every two minutes and TVL about every 30 minutes. CoinGecko history/snapshot loads on page start or manual refresh, with a cooldown. Requests are deduplicated; errors use capped backoff. FastNear's free-tier numeric request limit is unpublished, so the app avoids tight polling and historical backfill.
 
-NEAR’s [official provider list](https://docs.near.org/api/rpc/providers) lists `https://free.rpc.fastnear.com` as a public free-tier endpoint, but archival access is paid-only. It is used only for current/finalized reads. CoinGecko’s [keyless API guidance](https://docs.coingecko.com/docs/keyless-public-api) describes its shared testing/open-source/educational service and attribution needs. Recheck provider terms and availability before any public release.
+The BigQuery dataset query requires Google Cloud access and may incur query-processing charges. The schema UI was inspected, but the app still has no server credentials, project, or budget configuration, and no query or dry-run was submitted. The Intents Explorer requires a Partner Dashboard JWT and is rate limited; a static browser should never contain that token. No server-side secret store or proxy exists, so both integrations remain visibly unavailable.
 
 ## Security and privacy
 
-The static server’s CSP allows only the local app and the explicit public feed hosts. There is no API-key proxy or credential. The local browser keeps its own small finalized-block observation history in `localStorage`; it is not uploaded. Exported evidence contains no user account or wallet information. The app performs no state-changing transaction.
+The static app only calls its configured public feeds. The loopback server sets restrictive headers. No provider credentials, secret values, user accounts or wallet data are stored in the repository or sent from the app. Browser-local block observations are not uploaded. Git ignores local `.env` files. The app performs no state-changing transaction.
 
 ## Verification
 
-- `npm test`: 21 deterministic analytics, source, import-safety, content-consistency and static-server tests.
-- `npm run check`: syntax validation for application, data, rebuild and test modules.
-- `npm run rebuild`: one-command live snapshot; the output labels each connection, timestamp and unavailable source separately.
-- Chromium end-to-end check: all eight connected feeds responded; current validator set and complete all-shard sample displayed; chart table, risk controls, selected hypothesis, JSON export and keyboard skip link worked; no console/page/request errors; 390px document width remained within the viewport.
+`npm run check` validates JavaScript syntax. `npm test` runs **24** deterministic analytics, data, content, import-safety, local-server and query-registry checks. `npm run rebuild` regenerates the query file and connected-source snapshot. The post-change browser and Vercel deployment checks are recorded in [implementation status](implementation-status.md).
 
 ## Not implemented
 
-There is no daily account/transaction-history feed, account cohort/retention measure, full contract/application concentration inventory, reconciled bridge or NEAR Intents net-flow series, multi-epoch validator history, long-run RPC uptime monitor, server-side provider credentials, scheduled alert delivery, public API, hosted demo, public repository or published post. The overall NEAR Ecosystem Health Score is withheld. See the [source inventory](data-sources.md) and [submission draft](submission-package.md).
+There is no daily account/transaction-history feed, account cohort/retention calculation, historical contract series, reconciled NEAR Intents/bridge flow, long-run fee/reward accounting, multi-epoch validator history, multi-provider uptime monitor, full app/dependency risk inventory or overall NEAR Ecosystem Health Score. No unavailable metric is filled with a proxy or a mock value.

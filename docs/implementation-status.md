@@ -1,28 +1,30 @@
 # Implementation status
 
-Updated **14 November 2026** during local MVP verification. This is a local project-state note, not a claim of public deployment.
+Updated **14 November 2026** during the NEAR AI Investment Thesis track alignment.
 
-## Implemented and locally verified
+## Implemented
 
-- Responsive, read-only dashboard with a loopback-only local server, source registry, provider/fetch times, stale/failure states and a header that remains in “checking” until all connected feeds are checked.
-- Direct FastNear public mainnet RPC reads for finalized blocks, all referenced shard chunks, node status and the current validator set. Transaction totals are fail-closed on incomplete/mismatched chunks; no transaction identities are retained.
-- Live block freshness and gas-cost estimate; a local browser observation chart; current active-set validator count, top-ten stake share, HHI and valid epoch production counters.
-- CoinGecko timestamped spot/24-hour market fields and daily history, an independent DefiLlama spot timestamp, and DefiLlama dated daily TVL. Price-spread comparison requires provider timestamps within five minutes.
-- Exact-date market/TVL joins, 7/14/30-day endpoint changes, gap-aware charts and accessible tables, a user-selectable daily Pearson test, six evidence-scoped risk cards, adjustable price/TVL alert threshold, withheld overall NEHS, and JSON evidence export.
-- Timestamped local rebuild snapshot with raw returned daily arrays/block response, source statuses, aligned data and calculations. Imports have no network side effects.
+- Five dashboard modules: **Value Capture Lab**, **Ecosystem Risk Radar**, **Organic Adoption Intelligence**, **Capital Flow Intelligence**, and **Thesis Challenge Engine**.
+- Existing live read-only sources remain FastNear public mainnet RPC, CoinGecko and DefiLlama. The existing Vercel project is the deployment target; changes are scoped to its current app/repository.
+- Each current chart exposes its source request or SQL, derivation/validation rule, and a plain-language sentence. Query disclosures remain visible when there are no plotted points and preserve their open state during refresh.
+- The authenticated Google Cloud console displayed the complete 16-object BigQuery inventory, including `receipt_origin_transaction` and no `receipt_origin` or `receipts` object. The inspected `transactions`, `receipt_actions`, and `receipt_origin_transaction` tables are partitioned on `block_date` DATE. The daily signer/transaction/contract-use SQL template is visible in the dashboard and checked in as `sql/near-signal.sql`; every scanned relation has a `block_date` range filter.
+- Intents Explorer requirements are visible in the dashboard: 1Click-only scope, JWT as a Bearer token, cursor pagination, and one request every five seconds per partner. No token is embedded or request made.
+- `npm run rebuild` regenerates SQL from the shared query registry and writes a dated evidence snapshot including raw connected-source inputs, aligned chart inputs, chart query recipes and disconnected-source status.
+- `THESIS.md` now contains the working hypothesis, timestamped evidence for/against it, what would change the view, and the data and access limitations.
 
-## Verification results
+## Verification performed
 
-The last full Chromium check at **2026-11-14 06:53 UTC** observed **all 8 connected feeds responding**. It displayed a current validator set of 343 records with 35.9% top-ten active-set stake share and a complete count of 3 transactions across 10 chunks in its sampled finalized block. It exercised the accessible skip link, source links, window/chart controls, risk threshold, selected hypothesis, JSON export and mobile view. No console errors, page errors or failed requests were reported; document width remained 390px at a 390px viewport (the section navigation scrolls horizontally by design). The subsequent local evidence rebuild at 06:54 UTC also received eight of eight connected-source responses, with zero failures.
+- `npm run check` passed JavaScript syntax validation.
+- `npm test` passed **24** deterministic tests, including `block_date` filter checks, query disclosure requirements, calculations and local-server security.
+- The SQL artifact was generated from the same query definition used by the dashboard. No BigQuery query was run, and no NEAR Intents request was made.
+- Final local/production browser checks and Vercel deployment confirmation are still pending for this change set.
 
-`npm test` passes **21** deterministic analytics, timestamp/source, import-safety and server tests. `npm run check` passes all JavaScript syntax checks. The checked-in evidence snapshot can be newer or older than a later browser view; always inspect its `generatedAt` and source timestamps.
+## Unavailable and intentionally not claimed
 
-## Partial or unavailable
+- The schema inspection used the authenticated console UI only and is recorded in [`bigquery-live-schema.md`](bigquery-live-schema.md). It opened no Preview, ran no query, performed no dry-run, and enabled no billing. The app's programmatic BigQuery integration remains disconnected: no server credentials, project, or budget is configured.
+- BigQuery query processing may be billable. The template has not been run or tested against returned data; no metrics are filled in meanwhile. It uses `receipt_actions.signer_account_id` for receipt signer attribution and does not add a redundant `transactions` join.
+- NEAR Intents Explorer needs a Partner Dashboard JWT and covers 1Click swaps only. No JWT was supplied, and no server-side integration exists.
+- Daily signer-account history, retention, historical contract activity, Intents volume or reconciled net flow, historical fee/reward accounting, long browser-block history, multi-provider uptime, and complete application/bridge risk history are unavailable.
+- The official one-command goal to rebuild **every intended chart** from raw data is only met for currently connected inputs. Browser observations retain the raw finalized block plus chunk verification fields and transaction hashes; they discard transaction bodies and receipt payloads. `npm run replay` reconstructs charts from saved evidence without network access; `npm run rebuild` refreshes connected sources before replay. BigQuery/Intents metrics and a historical chain archive cannot be reproduced until their inputs are available.
 
-FastNear’s free RPC is provider-listed, public and CORS-tested in the local browser, but its numeric free-tier request limit is not published and the endpoint is non-archival. CoinGecko’s keyless service is intended for testing, open-source and educational use; review its current terms before public release. Provider access, caches and response timing can change.
-
-Daily user/account cohorts, user retention, a daily transaction series, complete contract/application concentration, bridge/Intents net flows, a full delegated-stake map, multi-epoch validator history, network-wide uptime and incident history are not implemented. NearBlocks is not queried because test access did not establish third-party permission under its published terms. FastNear indexed history, Pikespeak, BigQuery and Intents history require credentials/project setup or additional scope/cost review. These are not presented as working features.
-
-## External release status
-
-The project remains local at `/workspace/near-signal`. No public repository was created, no app was deployed, and no X post or hackathon submission was made. Approval to publish the changed project is still pending; the previous Revenue Stress Lab approval does not carry over. GitHub repository creation remains unavailable through the current connected path. No license has been selected.
+No hackathon submission, new profile, or public post has been made. This update does not create additional public content beyond the user-authorized existing application and its deployment.

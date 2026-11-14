@@ -115,6 +115,7 @@ export function summarizeBlockTransactions(block, chunkResults) {
     seenShards.add(shardId);
     const match = chunkResults.find((chunk) => numeric(chunk?.header?.shard_id) === shardId);
     if (!match || !Array.isArray(match.transactions) || match.header?.chunk_hash !== ref.chunkHash) return null;
+    if (match.transactions.some((transaction) => typeof transaction?.hash !== 'string' || !transaction.hash)) return null;
     const includedHeight = numeric(match.header.height_included);
     if (includedHeight !== blockHeight) return null;
     chunks.push({ shardId, chunkHash: ref.chunkHash, transactionCount: match.transactions.length });

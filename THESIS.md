@@ -1,33 +1,65 @@
-# NEAR SIGNAL thesis: market and TVL have weakened; adoption trend remains unknown
+# NEAR SIGNAL — Investment Thesis
 
 ## Claim
 
-The current evidence supports caution, not a bullish growth conclusion. Over the complete daily series spanning **14 October to 13 November 2026**, NEAR’s daily market-price endpoint fell from about **$5.04 to $3.42 (−32.1%)**. DefiLlama’s reported NEAR DeFi TVL fell from about **$243.1 million to $159.2 million (−34.5%)**, while CoinGecko’s daily gross market-volume endpoint fell from about **$1.12 billion to $408.4 million (−63.6%)**. The 31 matched dates are observed market/TVL context—not a measure of net investment, protocol revenue or daily users.
+NEAR's long-term investment case depends on sustained, broad on-chain activity and cross-chain settlement translating into durable protocol-level value capture. The [official Investment Thesis prompt](https://github.com/nearai/near-hackathon-prompt-examples/blob/main/tracks/02-thesis.md) suggests testing whether NEAR Intents cross-chain volume is a better leading indicator of real network usage than token price.
 
-The short and medium windows point the same way: from 30 October to 13 November, daily price was **−15.6%**, TVL **−14.4%**, and gross market volume **−57.3%**; over the seven-day span, price was **−6.5%** and TVL **−8.0%**. These are endpoint-to-endpoint changes in dated provider observations, not averages or forecasts.
+**Current conclusion: not established; the available market evidence argues for caution.** Connected sources show a dated decline in price, TVL and gross market volume, but the data required to test organic activity, Intents settlement and protocol-wide value capture are not connected. This is an evidence assessment, not investment advice.
 
-## What the live chain evidence says
+## Evidence that cuts against a bullish growth reading
 
-In the local evidence snapshot generated at **2026-11-14 06:54:44 UTC**, the finalized block was height **224,478,873**. The app verified all **10** referenced shard chunks and counted **1 transaction** in that one block. A browser check about a minute earlier observed **3 transactions across 10 chunks** in a different finalized block. That variation is expected for a per-block sample; neither count is a daily activity trend.
+The dated evidence snapshot generated **14 November 2026 at 08:51 UTC** contains 31 matched daily market/TVL dates from **14 October to 13 November**. Across those dates, the NEAR price endpoint fell **32.11%** (about $5.04 to $3.42), NEAR DeFi TVL fell **34.53%** (about $243.1 million to $159.2 million), and gross market-volume endpoint fell **63.62%** (about $1.12 billion to $408.4 million). These are provider-reported USD observations; they are not net investment, on-chain activity, protocol revenue, or user counts.
 
-The RPC-reported current active validator set contained **343 validators**. The top ten held **35.9%** of stake in that returned set; its stake HHI was about **216**. The returned epoch counters showed about **99.97%** block production. This is one current-set/epoch snapshot, not the full distribution of delegated NEAR, a historical performance series, or a security guarantee.
+From 30 October to 13 November, price was down **15.61%**, TVL **14.41%**, and gross market volume **57.34%**. Over the seven-day span, price was down **6.54%**, TVL **7.98%**, and gross market volume **33.61%**. These endpoint changes describe that sample only; they do not predict future performance.
 
-At the snapshot timestamp, CoinGecko reported NEAR at **$3.36** and −**2.68%** over 24 hours. DefiLlama’s independent spot observation was **$3.3600**, with provider timestamps about nine seconds apart. The dashboard compares timestamped spot prices only when they are no more than five minutes apart; these live market points may move after the snapshot.
+The default selectable test found Pearson **r ≈ 0.98** between 14 matched daily price and TVL changes from 31 October to 13 November. Both series declined. “Supported” in the interface means same-direction co-movement under a visible product threshold; it does not mean growth, causal influence, statistical significance, or a forecast.
 
-## How to read the selected test
+## What the live chain sample does—and does not—show
 
-Across **14** matched daily changes from 31 October to 13 November, the default test that “NEAR price and TVL daily changes move in the same direction” reported Pearson **r ≈ 0.98** under its visible rule for positive co-movement. In that same period, both price and TVL declined. “Supported” here means the daily changes tended to move in the same direction; it does **not** mean either value increased, nor does it establish cause, statistical significance, or a forecast.
+The refreshed snapshot recorded finalized block **224,491,125** at **08:51:22 UTC**, protocol version **88**. All **10** referenced shard chunks were available and the sampled block contained **4 transactions**. This is one block, not a daily trend or user count.
 
-## What is still unknown
+The RPC-reported current validator set contained **345 records**. The top ten held **35.92%** of stake in that returned set; the reported stake HHI was **216.55**, and returned epoch counters showed **100%** block production. The current block-level gas estimate was **0.005322 Ⓝ**. These are current provider observations, not a historical validator series, full delegation map, protocol-wide fee ledger, or security guarantee.
 
-No permitted daily transaction/account history is connected. One block count cannot show whether activity is rising, falling, concentrated, or driven by returning people. Addresses are not people, and this build does not measure retention. The dashboard has no reconciled bridge or Intents net-flow history, no full application/contract inventory, and no long-run RPC uptime series. TVL can also move with token prices and provider coverage; exchange volume is gross market activity.
+At the same refresh window, CoinGecko reported NEAR at **$3.32**, down **6.18%** over 24 hours. DefiLlama reported **$3.3167**; provider timestamps were **3 seconds** apart. They are timestamped market observations, not on-chain price or value-capture measures.
 
-## What would change the view
+## Evidence that could support the thesis, but has not yet been measured
 
-The assessment would improve if a longer, reproducible chain-activity series showed sustained usage across blocks and dates, an authorized account cohort series demonstrated returning participation, and independently supported fees or other value-capture indicators strengthened. A price-adjusted TVL view, a complete asset-level bridge/Intents flow series, multi-epoch validator history, and a documented dependency inventory would test the unresolved capital and resilience questions.
+NEAR's [public BigQuery guide](https://docs.near.org/data-infrastructure/big-query) documents historical transaction, receipt/action, execution-outcome, block/chunk and account-change data. The [Intents Explorer API](https://docs.near-intents.org/integration/distribution-channels/1click-api/explorer/introduction) documents historical 1Click Swap records. Those sources could support the relevant tests after their schemas, access and coverage are validated. Their existence is not evidence that the missing metrics are increasing.
 
-The view would weaken further if the price/TVL declines persisted or if broader transaction and validator histories showed concentrated, deteriorating participation. None of those conclusions can be derived from the current single-block sample.
+## What is unknown or cuts against the hypothesis
 
-## Reproduce and inspect
+- No daily active signer-account series, daily transaction trend, contract-function-call history, or account-retention cohort has been queried. A signer account is not a person, and activity counts do not prove organic or non-incentivized usage.
+- No NEAR Intents swap-volume data has been pulled. The Explorer covers 1Click swaps only, not every Intents route, and a status record alone does not prove final destination delivery.
+- The live gas estimate is a recent block-level calculation, not a reconciled fee ledger. It does not account for finalized refunds, protocol-version changes, issuance, epoch rewards, treasury flows or economic beneficiaries; it cannot establish tokenholder value capture.
+- TVL is a USD-denominated asset stock and can move with token prices or provider coverage. Gross exchange volume is turnover, not chain transactions or directional net capital flow.
+- No multi-provider uptime history, multi-epoch validator trend, complete app/contract inventory or bridge/security dependency history is available.
 
-Run `npm run rebuild` to fetch a new local evidence snapshot and `npm test` to rerun the deterministic calculation tests. The snapshot includes source timestamps, raw daily market/TVL data, the finalized block response, matched-window calculations, the descriptive test and explicit limitations. It does not retain transaction identities. NEAR SIGNAL is an analytical prototype, not investment advice; its overall NEAR Ecosystem Health Score remains withheld because important evidence dimensions are missing.
+Missing data is neither support nor disproof. It leaves the working hypothesis untested.
+
+## What would change my mind
+
+I would move toward supporting the long-term thesis if a reproducible period of at least 90 days showed sustained or broadening daily signer activity and contract calls, meaningful returning-account cohorts under a published definition, and rising finalized Intents completions reconciled across deposits, `intents.near` settlement and destination delivery. A separate protocol-version-aware ledger would need to reconcile `tokens_burnt`, refund receipts, issuance, validator rewards and treasury flows before I would claim durable value capture.
+
+I would move against the thesis if those validated series showed persistent activity contraction, usage concentrated in a shrinking set of accounts/contracts, a large share of Intents records failing or not completing at destination, or fee burns remaining small relative to issuance and rewards throughout the measured period. Definitions, date ranges, thresholds and exclusions must be published before evaluating the result.
+
+## Methodology and connected data sources
+
+The app reads [FastNear's public mainnet RPC](https://free.rpc.fastnear.com) for finalized blocks/chunks, node status and the current validator response; CoinGecko for price, market capitalization, gross market volume and daily history; and DefiLlama for an independent spot price and [daily NEAR TVL](https://api.llama.fi/v2/historicalChainTvl/NEAR). Each observation retains its provider/fetch timestamps and status. The [source inventory](docs/data-sources.md) lists cadence and scope.
+
+Daily market and TVL series are matched on exact UTC dates, exclude the partial current day and never fill missing dates. A 30-day endpoint change requires 31 consecutive dates. Each finalized-block transaction sample requires all referenced shard chunks to match their documented hash, shard ID and inclusion height. The descriptive test uses percentage changes and Pearson correlation on the full selected consecutive sample; its ±0.30 threshold is a declared product rule. Risk severity and evidence confidence are separate, and the configurable decline threshold applies only to price/TVL signals. Calculations are deterministic and tested; no unavailable source receives a synthetic value. The [full definitions](docs/methodology.md) record the remaining limitations.
+
+## BigQuery tables, fields and sample SQL
+
+The dataset is `bigquery-public-data.crypto_near_mainnet_us`. On 14 November 2026, the authenticated Google Cloud console displayed 16 objects: `account_changes`, `accounts` (view), `blocks`, `chunks`, `circulating_supply`, `execution_outcomes`, `ft_balances_daily`, `ft_events`, `ft_events_contracts_by_account` (materialized view), `nft_events`, `nft_events_contracts_by_account` (materialized view), `receipt_actions`, `receipt_details`, `receipt_origin_transaction`, `transaction_actions`, and `transactions`. No objects named `receipt_origin` or `receipts` appeared. See [`docs/bigquery-live-schema.md`](docs/bigquery-live-schema.md).
+
+The console inspection showed `transactions`, `receipt_actions`, and `receipt_origin_transaction` partitioned on nullable `block_date` DATE fields. It also confirmed `transactions.transaction_hash` and `transactions.signer_account_id`; `receipt_actions.signer_account_id`, `receipt_id`, `action_kind`, and `receipt_receiver_account_id`; and the origin fields `block_date`, `block_height`, `receipt_kind`, `receipt_id`, `data_id`, `originated_from_transaction_hash`, and `_record_last_updated_utc`. The schema UI inspection did not run a query, open Preview, perform a dry-run, or enable billing. **No BigQuery query was submitted.** Google may charge for query processing, so review estimated bytes and approve spending before running the [sample SQL](sql/near-signal.sql). It counts distinct transaction hashes and signing accounts per day, then counts function-call receipts, transactions and signers for a contract parameter. Every scanned relation is filtered on `block_date`; receipt signer attribution uses `receipt_actions.signer_account_id` without a redundant `transactions` join. The SQL has not been tested against returned data.
+
+## Intents API access
+
+The Explorer is read-only historical **1Click Swap** coverage at `https://explorer.near-intents.org/api/v0`. Its docs require a partner JWT from the [Partner Dashboard](https://partners.near-intents.org/) in `Authorization: Bearer <JWT>`, use cursor-based pagination and limit requests to one every five seconds per partner. No token was configured and no request was made. A future integration must keep the JWT server-side and reconcile records with finalized settlement and destination-chain/bridge evidence.
+
+## Rebuild and track status
+
+Run `npm test`, `npm run check`, then `npm run rebuild`. The rebuild regenerates the SQL file from the shared query definition and writes `data/latest-evidence.json` with connected public-source responses, aligned market/TVL chart inputs, query recipes, calculations and disconnected-source states. Each current dashboard chart displays its source request or query, derivation and a plain-language description.
+
+This is a static dashboard with a rebuild for the sources currently connected, **not yet a complete rebuild of every intended track metric**: no BigQuery or Explorer data is fetched, and browser-local block histories are not an archive. Browser observations retain the raw finalized block and only the matched-chunk fields and transaction hashes needed to replay sampled counts; full transaction bodies and receipt payloads are discarded. `npm run replay` reconstructs charts from saved evidence without network access; `npm run rebuild` refreshes connected sources before replay. Those metrics stay unavailable until the remaining access, cost, and integration prerequisites are met. See [track alignment](docs/track-alignment.md), [methodology](docs/methodology.md) and [data-source inventory](docs/data-sources.md). No hackathon submission or public post was made.

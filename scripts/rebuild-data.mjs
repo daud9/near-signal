@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -19,6 +19,8 @@ import {
   fetchValidatorSet,
   statusFromMissingSource,
 } from '../src/data.js';
+import { replayChartInputs, replayRpcObservations } from '../src/replay.js';
+import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, CHART_QUERY_RECIPES } from '../src/query-registry.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -53,7 +55,14 @@ export async function rebuildSnapshot() {
     'defillama-tvl': tvl,
   };
   const sourceStatuses = DATA_SOURCES.map((source) => resultBySource[source.id]?.status ?? statusFromMissingSource(source));
-  const daily = alignMarketAndTvl(tvl.value?.rows ?? [], marketChart.value ?? {});
+  const generatedAt = new Date().toISOString();
+  const daily = alignMarketAndTvl(tvl.value?.rows ?? [], marketChart.value ?? {}, generatedAt.slice(0, 10));
+  let previousObservations = [];
+  try {
+    const previous = JSON.parse(await readFile(resolve(root, 'data/latest-evidence.json'), 'utf8'));
+    previousObservations = previous.rawRpcObservationHistory ?? (previous.rawReturnedData?.finalizedBlock ? [{ observedAt: previous.generatedAt, rawBlock: previous.rawReturnedData.finalizedBlock }] : []);
+  } catch { /* First build or unreadable previous evidence: never invent history. */ }
+  const rawRpcObservationHistory = replayRpcObservations([...previousObservations, ...(block.value ? [{ observedAt: block.value.fetchedAt, rawBlock: block.value.raw, rawChunks: blockTransactions.value?.rawChunks ?? null, transactionFetchedAt: blockTransactions.value?.fetchedAt ?? null }] : [])]).slice(-60);
   const matchedWindows = Object.fromEntries([7, 14, 30].map((days) => [days, {
     tvlUsd: windowChange(daily, 'tvlUsd', days),
     priceUsd: windowChange(daily, 'priceUsd', days),
@@ -69,12 +78,11 @@ export async function rebuildSnapshot() {
     rpcStatus: rpcStatus.value ?? null,
     blockActivity: blockTransactions.value ?? null,
   });
-  const generatedAt = new Date().toISOString();
   const snapshot = {
     product: 'NEAR SIGNAL',
     generatedAt,
     mode: 'Observed public-source responses only; failed or unconfigured sources remain unavailable; no synthetic fallback',
-    externalStatus: 'Local snapshot only; no hosting, publication or submission performed',
+    externalStatus: 'Existing public Vercel dashboard; no hackathon submission or public post made',
     sourceDefinitions: DATA_SOURCES,
     sourceStatuses,
     liveObservations: {
@@ -92,6 +100,16 @@ export async function rebuildSnapshot() {
       latestCompleteMatchedUtcDate: daily.at(-1)?.date ?? null,
     },
     dailyAlignedMarketAndTvl: daily,
+    rawRpcObservationHistory,
+    chartRebuildInputs: {
+      overviewMarketTvl: daily,
+      capitalTvlStock: daily.map(({ date, tvlUsd }) => ({ date, tvlUsd })),
+      latestFinalizedBlockGas: block.value ?? null,
+      latestCompleteBlockTransactionSample: blockTransactions.value ?? null,
+      localGasAndBlockSampleHistory: 'Raw-response-backed observations are saved in this bundle and replayable offline. They are samples, not a historical chain archive.',
+    },
+    chartQueryRecipes: CHART_QUERY_RECIPES,
+    unexecutedBigQuery: { dataset: BIGQUERY_DATASET, sql: BIGQUERY_ACTIVITY_QUERY, status: 'Not connected; no query was submitted.' },
     matchedWindows,
     selectedDescriptiveTest: {
       claimLabel: 'NEAR price and TVL daily changes move in the same direction',
@@ -117,6 +135,7 @@ export async function rebuildSnapshot() {
     ],
   };
 
+  snapshot.replayedChartInputs = replayChartInputs(snapshot);
   const output = resolve(root, 'data/latest-evidence.json');
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');

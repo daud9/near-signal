@@ -41,7 +41,7 @@ export const DATA_SOURCES = [
     url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/block-chunk',
     kind: 'Read-only JSON-RPC', fields: 'transaction-array lengths for every shard chunk referenced by one finalized block; matched chunk hashes and per-shard counts',
     cadence: 'Sampled on initial load and no more than once every five minutes; one chunk read per shard in that block.',
-    caveat: 'A count for one finalized block is not a daily series, unique-user count or adoption trend. Identities, receipts and transaction contents are not retained. FastNear’s free-tier request limit is not published; the app samples conservatively.', connected: true, staleAfterSeconds: 600,
+    caveat: 'A count for one finalized block is not a daily series, unique-user count or adoption trend. The finalized block and minimal chunk verification fields plus transaction hashes are retained locally for replay; full transaction bodies and receipt payloads are discarded. FastNear’s free-tier request limit is not published; the app samples conservatively.', connected: true, staleAfterSeconds: 600,
   },
   {
     id: 'near-rpc-status', name: 'FastNear public mainnet RPC (free tier) — node status',
@@ -103,17 +103,17 @@ export const DATA_SOURCES = [
   },
   {
     id: 'bigquery-history', name: 'NEAR public BigQuery dataset',
-    url: 'https://docs.near.org/data-infrastructure/big-query', docUrl: 'https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs/query',
-    kind: 'Not connected — Google project/auth required', fields: 'Historical blocks, transactions, actions, receipts and account changes',
+    url: 'https://console.cloud.google.com/bigquery?p=bigquery-public-data&d=crypto_near_mainnet_us&page=dataset', docUrl: 'https://docs.near.org/data-infrastructure/big-query',
+    kind: 'Not connected — Google Cloud project/auth required', fields: '16 objects inspected in the live console; query tables transactions, receipt_actions and receipt_origin_transaction are partitioned on block_date DATE; signer/hash/receiver fields are STRING',
     cadence: 'No queries are made by this static app.',
-    caveat: 'A query project, OAuth/permissions and billing configuration are required; browser CORS and a fixed freshness SLA were not verified.', connected: false,
+    caveat: 'Live inventory and three query-table schemas inspected on 14 Nov 2026; application data integration remains disconnected. No query or dry-run was submitted. Review estimated bytes and obtain spending approval before execution.', connected: false,
   },
   {
     id: 'intents-history', name: 'NEAR Intents Explorer',
-    url: 'https://docs.near-intents.org/integration/distribution-channels/1click-api/explorer/introduction', docUrl: 'https://docs.near-intents.org/security-compliance/terms-of-service',
+    url: 'https://explorer.near-intents.org/api/v0/transactions', docUrl: 'https://docs.near-intents.org/integration/distribution-channels/1click-api/explorer/introduction',
     kind: 'Not connected — partner JWT required', fields: 'Historical 1Click swap records and statuses only',
     cadence: 'No requests are made by this app.',
-    caveat: 'A JWT must not be embedded in the browser; scope is not all NEAR Intents or canonical ecosystem-wide net flow.', connected: false,
+    caveat: 'Explorer requests require a Partner Dashboard JWT in the Bearer header and are limited to one request every five seconds per partner. Scope is historical 1Click Swap only, not all NEAR Intents or canonical ecosystem-wide net flow. A JWT must not be embedded in browser code.', connected: false,
   },
 ];
 
@@ -188,7 +188,11 @@ export async function fetchBlockTransactionCount(block) {
   }, (chunkResults, checkedAt) => {
     const value = summarizeBlockTransactions(block, chunkResults);
     if (!value) throw new Error('A shard chunk was missing, mismatched or malformed; the full-block transaction total is withheld');
-    return { ...value, fetchedAt: checkedAt };
+    const rawChunks = chunkResults.map((chunk) => ({
+      header: { shard_id: chunk.header.shard_id, chunk_hash: chunk.header.chunk_hash, height_included: chunk.header.height_included },
+      transactions: chunk.transactions.map((transaction) => ({ hash: transaction.hash })),
+    }));
+    return { ...value, fetchedAt: checkedAt, rawChunks };
   });
   if (result.value) result.status.providerAt = block.timestamp;
   return result;
