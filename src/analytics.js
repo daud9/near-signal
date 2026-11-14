@@ -106,28 +106,46 @@ export function summarizeBlock(block, nowMs = Date.now()) {
 export function summarizeBlockTransactions(block, chunkResults) {
   const blockHeight = numeric(block?.height);
   const refs = block?.chunkRefs;
-  if (!Number.isSafeInteger(blockHeight) || typeof block?.hash !== 'string' || !block.hash || !Number.isFinite(Date.parse(block.timestamp)) || !Array.isArray(refs) || refs.length === 0 || !Array.isArray(chunkResults) || chunkResults.length !== refs.length) return null;
-  const seenShards = new Set();
+  if (!Number.isSafeInteger(blockHeight) || typeof block?.hash !== 'string' || !block.hash || !Number.isFinite(Date.parse(block.timestamp)) || !Array.isArray(refs) || refs.length === 0 || !Array.isArray(chunkResults)) return null;
+  const returnedChunks = new Map();
+  for (const chunk of chunkResults) {
+    const shardId = numeric(chunk?.header?.shard_id);
+    if (!Number.isSafeInteger(shardId) || shardId < 0 || returnedChunks.has(shardId) || !refs.some((ref) => numeric(ref?.shardId) === shardId)) return null;
+    returnedChunks.set(shardId, chunk);
+  }
+  const referencedShards = new Set();
   const chunks = [];
+  let includedChunkCount = 0;
+  let reusedShardCount = 0;
   for (const ref of refs) {
     const shardId = numeric(ref?.shardId);
-    if (shardId === null || !Number.isSafeInteger(shardId) || seenShards.has(shardId) || typeof ref?.chunkHash !== 'string') return null;
-    seenShards.add(shardId);
-    const match = chunkResults.find((chunk) => numeric(chunk?.header?.shard_id) === shardId);
+    if (shardId === null || !Number.isSafeInteger(shardId) || shardId < 0 || referencedShards.has(shardId) || typeof ref?.chunkHash !== 'string' || !ref.chunkHash) return null;
+    referencedShards.add(shardId);
+    const expectedHeight = numeric(ref.heightIncluded) ?? blockHeight;
+    if (expectedHeight > blockHeight) return null;
+    const match = returnedChunks.get(shardId);
+    if (expectedHeight < blockHeight) {
+      if (match && (match.header?.chunk_hash !== ref.chunkHash || numeric(match.header.height_included) !== expectedHeight)) return null;
+      reusedShardCount += 1;
+      chunks.push({ shardId, chunkHash: ref.chunkHash, transactionCount: 0 });
+      continue;
+    }
     if (!match || !Array.isArray(match.transactions) || match.header?.chunk_hash !== ref.chunkHash) return null;
     if (match.transactions.some((transaction) => typeof transaction?.hash !== 'string' || !transaction.hash)) return null;
     const includedHeight = numeric(match.header.height_included);
-    const expectedHeight = numeric(ref.heightIncluded) ?? blockHeight;
     if (includedHeight !== expectedHeight) return null;
+    includedChunkCount += 1;
     chunks.push({ shardId, chunkHash: ref.chunkHash, transactionCount: match.transactions.length });
   }
-  if (chunks.length !== seenShards.size) return null;
+  if (chunks.length !== referencedShards.size) return null;
   return {
     blockHeight,
     blockHash: block.hash ?? null,
     blockTimestamp: block.timestamp ?? null,
     transactionCount: chunks.reduce((sum, chunk) => sum + chunk.transactionCount, 0),
-    chunkCount: chunks.length,
+    chunkCount: includedChunkCount,
+    shardCount: chunks.length,
+    reusedShardCount,
     chunks,
   };
 }
@@ -139,7 +157,7 @@ export function summarizeNeardataBlockTransactions(requestedBlock, payload) {
   const height = numeric(header?.height);
   if (!Number.isSafeInteger(height) || height !== requestedBlock?.height || header?.hash !== requestedBlock?.hash ||
       !Array.isArray(refs) || !Array.isArray(expectedRefs) || refs.length === 0 || refs.length !== expectedRefs.length ||
-      !Array.isArray(payload?.shards) || payload.shards.length !== refs.length) return null;
+      !Array.isArray(payload?.shards)) return null;
 
   const refByShard = new Map();
   for (const ref of refs) {
@@ -153,20 +171,31 @@ export function summarizeNeardataBlockTransactions(requestedBlock, payload) {
     if (!Number.isSafeInteger(shardId) || shardId < 0 || shardById.has(shardId)) return null;
     shardById.set(shardId, shard);
   }
+  for (const shardId of shardById.keys()) if (!refByShard.has(shardId)) return null;
 
   const chunks = [];
   const rawChunks = [];
+  let includedChunkCount = 0;
+  let reusedShardCount = 0;
   for (const expected of expectedRefs) {
     const shardId = numeric(expected?.shardId);
     const ref = refByShard.get(shardId);
     const expectedHeight = numeric(expected?.heightIncluded);
-    if (!Number.isSafeInteger(shardId) || !ref || ref.chunk_hash !== expected.chunkHash ||
-        (expectedHeight !== null && numeric(ref.height_included) !== expectedHeight)) return null;
+    if (!Number.isSafeInteger(shardId) || !ref || ref.chunk_hash !== expected.chunkHash || expectedHeight === null ||
+        expectedHeight > height || numeric(ref.height_included) !== expectedHeight) return null;
+    if (expectedHeight < height) {
+      const oldChunk = shardById.get(shardId)?.chunk;
+      if (oldChunk && (oldChunk.header?.chunk_hash !== ref.chunk_hash || numeric(oldChunk.header.height_included) !== expectedHeight)) return null;
+      reusedShardCount += 1;
+      chunks.push({ shardId, chunkHash: ref.chunk_hash, transactionCount: 0 });
+      continue;
+    }
     const chunk = shardById.get(shardId)?.chunk;
     const chunkHeader = chunk?.header;
     const transactions = chunk?.transactions;
     if (chunkHeader?.chunk_hash !== ref.chunk_hash || numeric(chunkHeader.height_included) !== numeric(ref.height_included) ||
         !Array.isArray(transactions) || transactions.some((item) => typeof item?.transaction?.hash !== 'string' || !item.transaction.hash)) return null;
+    includedChunkCount += 1;
     chunks.push({ shardId, chunkHash: ref.chunk_hash, transactionCount: transactions.length });
     rawChunks.push({
       header: { shard_id: shardId, chunk_hash: ref.chunk_hash, height_included: numeric(ref.height_included) },
@@ -178,7 +207,9 @@ export function summarizeNeardataBlockTransactions(requestedBlock, payload) {
     blockHash: header.hash,
     blockTimestamp: requestedBlock.timestamp,
     transactionCount: chunks.reduce((sum, chunk) => sum + chunk.transactionCount, 0),
-    chunkCount: chunks.length,
+    chunkCount: includedChunkCount,
+    shardCount: chunks.length,
+    reusedShardCount,
     chunks,
     rawChunks,
   };
@@ -307,6 +338,10 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
   const priceMove = numeric(market?.priceChange24h);
   const blockTxCount = numeric(blockActivity?.transactionCount);
   const blockTxHeight = numeric(blockActivity?.blockHeight);
+  const blockTxShardCount = numeric(blockActivity?.shardCount) ?? numeric(blockActivity?.chunkCount) ?? 0;
+  const blockTxChunkCount = numeric(blockActivity?.chunkCount) ?? 0;
+  const blockTxReusedShardCount = numeric(blockActivity?.reusedShardCount) ?? 0;
+  const blockTxScope = blockTxCount === null ? '' : `${Math.round(blockTxCount).toLocaleString()} transactions across ${blockTxShardCount} shards (${blockTxChunkCount} newly included chunks${blockTxReusedShardCount > 0 ? `; ${blockTxReusedShardCount} prior-height references counted as zero` : ''})`;
   const blockAge = numeric(block?.ageSeconds);
   const rpcAvailable = Boolean(block && rpcStatus?.chain_id === 'mainnet');
   return [
@@ -324,9 +359,9 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
       id: 'adoption', title: 'Network activity / adoption quality',
       state: blockTxCount !== null ? 'Block transactions observed · adoption unmeasured' : 'Not measured', tone: 'caution',
       severity: blockTxCount !== null ? 'Unrated — one finalized-block count cannot establish user adoption' : 'Unrated — no sampled finalized-block transaction count; daily account history is unavailable',
-      trend: blockTxCount !== null ? `One finalized block sample: ${Math.round(blockTxCount).toLocaleString()} transactions across ${blockActivity.chunkCount} shard chunks; no daily or unique-user trend.` : 'Unavailable — no complete sampled finalized-block transaction count or daily account series is connected.',
+      trend: blockTxCount !== null ? `One finalized block sample: ${blockTxScope}; no daily or unique-user trend.` : 'Unavailable — no complete sampled finalized-block transaction count or daily account series is connected.',
       confidence: blockTxCount !== null ? 'High for the returned transaction arrays in this block; insufficient for adoption, retention or a trend' : 'Insufficient evidence',
-      evidence: blockTxCount !== null ? `${Math.round(blockTxCount).toLocaleString()} transactions across ${blockActivity.chunkCount} shard chunks in finalized block ${blockTxHeight?.toLocaleString() ?? '—'} (${blockActivity.blockTimestamp ?? 'time unavailable'}). Transaction identities are not retained.` : 'No complete sampled per-block transaction count or daily account history is available.',
+      evidence: blockTxCount !== null ? `${blockTxScope} in finalized block ${blockTxHeight?.toLocaleString() ?? '—'} (${blockActivity.blockTimestamp ?? 'time unavailable'}). Transaction identities are not retained.` : 'No complete sampled per-block transaction count or daily account history is available.',
       impact: 'A block-local transaction count indicates activity in one sample; it does not identify users, returning behaviour, application diversity or adoption quality.',
       next: 'Collect a permitted consecutive block series, then add independently authorized account cohorts, retention and application-diversity evidence.',
     },

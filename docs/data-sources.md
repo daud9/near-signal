@@ -7,7 +7,7 @@ NEAR SIGNAL currently uses eight read-only feeds and lists five disconnected can
 | Source | Data used | Cadence | Important limit |
 |---|---|---|---|
 | FastNEAR public NEAR mainnet RPC | Finalized block/chunk gas, node status and current validator set | Block about once a minute; status/validators every five minutes | Public-provider point-in-time view only. NEAR lists the free-tier request limit as unpublished. One block is not a network-wide health guarantee. |
-| FastNEAR Neardata | Exact-height finalized block's all-shard transaction sample, read at the RPC block height | One bundle request at most every five minutes while the page is open | The tested no-key endpoint returns block and shard data; every referenced chunk must match before a count is shown. No numeric request quota or gapless archive guarantee is published. One block is not daily activity, unique users or an adoption trend. |
+| FastNEAR Neardata | Exact-height finalized block's all-shard transaction sample, read at the RPC block height | One bundle request at most every five minutes while the page is open | Every newly included chunk must match; a shard reference with an earlier inclusion height contributes zero for this block and needs no old chunk payload. No numeric request quota or gapless archive guarantee is published. One block is not daily activity, unique users or an adoption trend. |
 | CoinGecko market snapshot | Timestamped NEAR spot price, market cap, gross 24-hour exchange volume and change | On page load or user refresh | Keyless access is intended for testing/open-source/education and is dynamically rate-limited. Gross volume is not on-chain flow. |
 | CoinGecko daily market history | Daily price, market-cap and gross-volume observations | On load or user refresh | External market context, not network activity. The partial current UTC date is excluded. |
 | DefiLlama spot price | Independently timestamped price check | About every two minutes while the page is open | Cross-check only; not an executable quote or on-chain oracle. |
@@ -42,7 +42,7 @@ No JWT is configured and the app makes no Explorer request. A static browser bun
 ## Collection and quality rules
 
 - Connected sources are fetched directly by the browser; the local server is loopback-only and has no provider proxy or stored credentials.
-- A sampled block count is withheld if any referenced shard chunk is missing or mismatched. The documented chunk response has no separate `block_hash` field; checks use the documented returned fields.
+- A sampled block count is withheld if the block identity/references mismatch or a newly included shard chunk is missing or mismatched. A shard reference with an earlier inclusion height contributes zero transactions to this block. The documented chunk response has no separate `block_hash` field; checks use the documented returned fields.
 - Daily market/TVL dates are joined exactly in UTC. Missing dates are not interpolated, and the partial current day is excluded.
 - A 7-, 14- or 30-day endpoint change requires 8, 15 or 31 consecutive daily observations.
 - Source failures, stale observations and missing data stay visible. Last-good values retain their last successful timestamp.

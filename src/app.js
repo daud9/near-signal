@@ -211,7 +211,7 @@ function renderOverview() {
   const tvl7d = windowChange(daily, 'tvlUsd', 7), tvl30d = windowChange(daily, 'tvlUsd', 30);
   const dims = [
     ['Network execution', state.block ? 'Live block + gas observed' : 'Unavailable'],
-    ['Per-block transactions', state.blockActivity ? 'All returned shard chunks counted' : 'Waiting for complete chunk sample'],
+    ['Per-block transactions', state.blockActivity ? 'All shards accounted for; new chunks verified' : 'Waiting for complete chunk sample'],
     ['Validator participation', state.validators ? 'Current active set observed' : 'Unavailable'],
     ['Market / TVL context', state.market && state.tvlHistory ? 'Live snapshot + daily history' : 'Partial / unavailable'],
     ['Daily accounts / retention', 'Not measured'],
@@ -221,7 +221,7 @@ function renderOverview() {
   $('#dimensionList').innerHTML = dims.map(([name, status]) => `<div class="dimension-row"><span>${escapeHtml(name)}</span><span class="dim-status">${escapeHtml(status)}</span></div>`).join('');
   const nodeSync = typeof state.rpcStatus?.syncing === 'boolean' ? (state.rpcStatus.syncing ? 'syncing' : 'not syncing') : 'not reported';
   const nodeHeight = state.rpcStatus?.sync_info?.latest_block_height ? ` · RPC node latest height ${compact(state.rpcStatus.sync_info.latest_block_height, 0)}` : '';
-  const activityText = state.blockActivity ? ` Most recent sampled block ${compact(state.blockActivity.blockHeight, 0)} contains ${compact(state.blockActivity.transactionCount, 0)} transactions across ${state.blockActivity.chunkCount} shard chunks.` : ' No complete per-block transaction sample is available.';
+  const activityText = state.blockActivity ? ` Most recent sampled block ${compact(state.blockActivity.blockHeight, 0)} contains ${compact(state.blockActivity.transactionCount, 0)} transactions across ${state.blockActivity.shardCount ?? state.blockActivity.chunkCount} shards; ${state.blockActivity.chunkCount} newly included chunks were verified${state.blockActivity.reusedShardCount ? ` and ${state.blockActivity.reusedShardCount} prior-height reference${state.blockActivity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''}.` : ' No complete per-block transaction sample is available.';
   $('#liveSummary').textContent = state.block ? `Finalized block ${compact(state.block.height, 0)} · ${state.block.activeChunks}/${state.block.chunkCount} chunks used gas · ${state.block.gasUtilizationPct?.toFixed(2) ?? '—'}% of reported chunk gas limits.${activityText} RPC node reports ${nodeSync}${nodeHeight}.` : `No live finalized block returned. RPC node reports ${nodeSync}${nodeHeight}.`;
   $('#contextSummary').textContent = daily.length ? `${daily.length} complete matched daily dates; current UTC date excluded. TVL change: 7-day ${tvl7d ? formatSignedPercent(tvl7d.changePct) : 'unavailable'}, 30-day ${tvl30d ? formatSignedPercent(tvl30d.changePct) : 'unavailable'}.` : 'Historical market/TVL context is not yet matched to complete UTC dates.';
   $('#gapSummary').textContent = 'The sampled transaction count is block-local, not a daily series or user count. Account cohorts/retention, app diversity, net bridge/Intents flows, historical fees and dependency maps remain unavailable.';
@@ -283,9 +283,9 @@ function renderParticipation() {
   const sourceStatus = state.sourceStatuses.get('fastnear-neardata-block-transactions');
   const activityPlaceholder = sourceStatus ? 'Unavailable' : 'Checking';
   $('#blockTxLatest').textContent = activity ? compact(activity.transactionCount, 0) : activityPlaceholder;
-  $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} shard chunks · ${utcDateTime(activity.blockTimestamp)}` : sourceStatus ? 'No complete all-shard count available' : 'Waiting for complete all-shard count';
+  $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} new chunks / ${activity.shardCount ?? activity.chunkCount} shards${activity.reusedShardCount ? ` · ${activity.reusedShardCount} prior-height reference${activity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''} · ${utcDateTime(activity.blockTimestamp)}` : sourceStatus ? 'No complete all-shard count available' : 'Waiting for complete all-shard count';
   $('#blockTxChunks').textContent = activity ? compact(activity.chunkCount, 0) : activityPlaceholder;
-  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · the finalized block and minimal matched-chunk fields plus transaction hashes are retained for offline replay; full transaction bodies and receipts are discarded.` : sourceStatus ? 'A complete finalized-block sample is unavailable.' : 'Requesting a complete finalized-block sample.';
+  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · current-height chunk matches, prior-height references and transaction hashes are retained for offline replay; full transaction bodies and receipts are discarded.` : sourceStatus ? 'A complete finalized-block sample is unavailable.' : 'Requesting a complete finalized-block sample.';
   $('#activityStatus').textContent = activity ? (sourceStatus?.ok === false ? 'Last sample retained · latest read failed' : 'Live block count observed') : (sourceStatus?.ok === false ? 'Complete chunk sample unavailable' : 'Sampling finalized chunks');
   $('#activityStatus').className = `status-pill ${activity && sourceStatus?.ok !== false ? 'good' : 'warn'}`;
   const observations = state.observations;

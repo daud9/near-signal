@@ -9,7 +9,7 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   await page.goto('/');
   await expect(page.locator('#finalizedBlock')).not.toHaveText('—');
   await expect(page.locator('#sourceList .source-row').filter({ hasText: 'FastNEAR Neardata' }).locator('.status-pill')).toHaveText('Responding');
-  await expect(page.locator('#blockTxAsOf')).toContainText('shard chunks');
+  await expect(page.locator('#blockTxAsOf')).toContainText('new chunks');
   await expect(page.locator('#overviewChart svg')).toBeVisible();
   for (const route of routes) {
     await page.locator(`.nav a[href="#${route}"]`).click();

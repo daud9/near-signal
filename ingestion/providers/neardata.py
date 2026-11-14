@@ -105,17 +105,27 @@ def _summaries(payload: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
             warnings.append('Block contains a malformed chunk reference; transaction rows withheld.')
             continue
         shard_id = _positive_int(ref.get('shard_id'))
+        height_included = _positive_int(ref.get('height_included'))
+        chunk_hash = ref.get('chunk_hash')
         shard = by_shard.get(ref.get('shard_id'))
         chunk = shard.get('chunk') if isinstance(shard, dict) else None
         chunk_header = chunk.get('header') if isinstance(chunk, dict) else None
         transactions = chunk.get('transactions') if isinstance(chunk, dict) else None
+        if shard_id is None or height_included is None or height_included > height or not isinstance(chunk_hash, str) or not chunk_hash:
+            complete = False
+            warnings.append('Block contains an invalid shard reference; full-block transaction count withheld.')
         matches = bool(
             isinstance(chunk_header, dict)
-            and chunk_header.get('chunk_hash') == ref.get('chunk_hash')
-            and _positive_int(chunk_header.get('height_included')) == _positive_int(ref.get('height_included'))
+            and chunk_header.get('chunk_hash') == chunk_hash
+            and _positive_int(chunk_header.get('height_included')) == height_included
             and isinstance(transactions, list)
         )
-        if not matches:
+        is_reused_prior_chunk = height_included is not None and height_included < height
+        if is_reused_prior_chunk:
+            # No new chunk was included in this block for this shard; any older
+            # chunk body must not be counted again as this block's transactions.
+            matches = False
+        elif not matches:
             complete = False
             warnings.append('At least one shard chunk is missing or mismatched; all transaction rows and full-block transaction count were withheld.')
         gas_used = _positive_int(ref.get('gas_used'))
@@ -136,8 +146,9 @@ def _summaries(payload: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
             'gas_used': ref.get('gas_used'),
             'gas_limit': ref.get('gas_limit'),
             'matched_returned_shard': matches,
+            'reused_prior_block_chunk': is_reused_prior_chunk,
         })
-        if matches:
+        if matches and not is_reused_prior_chunk:
             for item in transactions:
                 tx = item.get('transaction') if isinstance(item, dict) else None
                 if not isinstance(tx, dict) or not isinstance(tx.get('hash'), str) or not tx.get('hash'):

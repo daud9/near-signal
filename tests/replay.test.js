@@ -12,7 +12,25 @@ test('RPC replay derives gas and count from raw responses rather than saved summ
   assert.equal(rows.length, 1);
   assert.equal(rows[0].gasTgas, 1);
   assert.equal(rows[0].transactionCount, 1);
+  assert.equal(rows[0].transactionChunkCount, 1);
+  assert.equal(rows[0].transactionShardCount, 1);
+  assert.equal(rows[0].transactionReusedShardCount, 0);
   assert.equal(rows[0].height, 1);
+});
+
+test('offline replay ignores reused prior-height transactions and accounts for their shard', () => {
+  const blockWithReused = {
+    header: rawBlock.header,
+    chunks: [
+      ...rawBlock.chunks,
+      { chunk_hash: 'old-chunk', shard_id: 1, height_included: 0, gas_used: '0', gas_limit: '1000000000000000' },
+    ],
+  };
+  const rows = replayRpcObservations([{ observedAt: observation.observedAt, rawBlock: blockWithReused, rawChunks }]);
+  assert.equal(rows[0].transactionCount, 1);
+  assert.equal(rows[0].transactionChunkCount, 1);
+  assert.equal(rows[0].transactionShardCount, 2);
+  assert.equal(rows[0].transactionReusedShardCount, 1);
 });
 
 test('legacy summary-only and mismatched shard data never create fabricated chart points', () => {

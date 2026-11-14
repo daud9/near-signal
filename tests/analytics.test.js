@@ -63,7 +63,7 @@ test('latest finalized block fee estimate sums chunk gas and applies block gas p
   assert.ok(Math.abs(result.estimatedGasFeeNear - 0.001) < 1e-12);
 });
 
-test('per-block transaction count requires every shard chunk to match the finalized block', () => {
+test('per-block transaction count requires every newly included shard chunk to match the finalized block', () => {
   const block = {
     height: 224_474_509,
     hash: 'block-hash',
@@ -88,7 +88,23 @@ test('per-block transaction count requires every shard chunk to match the finali
   assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], transactions: [{ signer_id: 'missing-hash' }] }, chunks[1]]), null);
 });
 
-test('Neardata sample requires the exact block and every referenced shard chunk to match', () => {
+test('a shard chunk included in an earlier block contributes zero without its old payload', () => {
+  const block = {
+    height: 100, hash: 'block-100', timestamp: '2026-11-14T06:11:00.000Z',
+    chunkRefs: [
+      { shardId: 0, chunkHash: 'current-chunk', heightIncluded: 100 },
+      { shardId: 1, chunkHash: 'reused-chunk', heightIncluded: 99 },
+    ],
+  };
+  const currentChunk = { header: { shard_id: 0, chunk_hash: 'current-chunk', height_included: 100 }, transactions: [{ hash: 'new-tx' }] };
+  const result = summarizeBlockTransactions(block, [currentChunk]);
+  assert.equal(result.transactionCount, 1);
+  assert.deepEqual(result.chunks.map((chunk) => chunk.transactionCount), [1, 0]);
+  const oldChunk = { header: { shard_id: 1, chunk_hash: 'reused-chunk', height_included: 99 }, transactions: [{ hash: 'old-tx' }] };
+  assert.equal(summarizeBlockTransactions(block, [currentChunk, oldChunk]).transactionCount, 1);
+});
+
+test('Neardata sample validates the exact block and counts prior-height references as zero', () => {
   const block = {
     height: 12, hash: 'block-12', timestamp: '2026-11-14T06:11:00.000Z',
     chunkRefs: [
@@ -103,15 +119,20 @@ test('Neardata sample requires the exact block and every referenced shard chunk 
     ] },
     shards: [
       { shard_id: 0, chunk: { header: { chunk_hash: 'chunk-0', height_included: 12 }, transactions: [{ transaction: { hash: 'tx-0' } }] } },
-      { shard_id: 1, chunk: { header: { chunk_hash: 'chunk-1', height_included: 11 }, transactions: [{ transaction: { hash: 'tx-1' } }, { transaction: { hash: 'tx-2' } }] } },
+      { shard_id: 1 },
     ],
   };
   const result = summarizeNeardataBlockTransactions(block, payload);
-  assert.equal(result.transactionCount, 3);
-  assert.equal(result.chunkCount, 2);
-  assert.deepEqual(result.chunks.map((row) => row.transactionCount), [1, 2]);
-  assert.deepEqual(result.rawChunks[1].transactions, [{ hash: 'tx-1' }, { hash: 'tx-2' }]);
-  assert.equal(summarizeBlockTransactions(block, result.rawChunks).transactionCount, 3);
+  assert.equal(result.transactionCount, 1);
+  assert.equal(result.chunkCount, 1);
+  assert.equal(result.shardCount, 2);
+  assert.equal(result.reusedShardCount, 1);
+  assert.deepEqual(result.chunks.map((row) => row.transactionCount), [1, 0]);
+  assert.equal(result.rawChunks.length, 1);
+  assert.deepEqual(result.rawChunks[0].transactions, [{ hash: 'tx-0' }]);
+  assert.equal(summarizeBlockTransactions(block, result.rawChunks).transactionCount, 1);
+  const oldPayload = { ...payload, shards: [payload.shards[0], { shard_id: 1, chunk: { header: { chunk_hash: 'chunk-1', height_included: 11 }, transactions: [{ transaction: { hash: 'old-tx' } }] } }] };
+  assert.equal(summarizeNeardataBlockTransactions(block, oldPayload).transactionCount, 1);
   assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, block: { ...payload.block, header: { height: 13, hash: 'block-13' } } }), null);
   assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: payload.shards.slice(1) }), null);
   assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: [{ ...payload.shards[0], chunk: { ...payload.shards[0].chunk, header: { chunk_hash: 'wrong', height_included: 12 } } }, payload.shards[1]] }), null);

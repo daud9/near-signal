@@ -69,6 +69,24 @@ class NeardataNormalizationTests(unittest.TestCase):
         self.assertEqual(batch.records[0].fields['dimensions']['transaction_count'], 0)
         self.assertEqual(len(batch.records), 1)
 
+    def test_reused_prior_height_chunk_is_zero_and_does_not_require_old_payload(self):
+        payload = self.make_payload()
+        payload['block']['chunks'][1]['height_included'] = 99
+        payload['shards'][1]['chunk'] = None
+        batch = self.batch(payload)
+        self.assertEqual(batch.completeness, 'complete_for_returned_block_chunks')
+        self.assertEqual(batch.records[0].fields['dimensions']['transaction_count'], 1)
+        self.assertEqual(len(batch.records), 2)
+
+        payload = self.make_payload()
+        payload['block']['chunks'][1]['height_included'] = 99
+        payload['shards'][1]['chunk']['header']['height_included'] = 99
+        payload['shards'][1]['chunk']['transactions'] = [{'transaction': {'hash': 'old-tx', 'signer_id': 'old.near', 'receiver_id': 'old.near', 'actions': []}}]
+        batch = self.batch(payload)
+        self.assertEqual(batch.completeness, 'complete_for_returned_block_chunks')
+        self.assertEqual(batch.records[0].fields['dimensions']['transaction_count'], 1)
+        self.assertNotIn('old-tx', [record.fields.get('transaction_hash') for record in batch.records])
+
 
 class BigQueryDryRunTests(unittest.TestCase):
     def test_dry_run_only_request_is_parameterized_and_never_executes(self):

@@ -42,7 +42,7 @@ export const DATA_SOURCES = [
     url: `${NEARDATA_BASE_URL}/v0/last_block/final`, docUrl: 'https://docs.fastnear.com/neardata',
     kind: 'Read-only block/shard bundle; no API key on the tested endpoint', fields: 'transaction-array lengths for each shard at the exact finalized RPC block height; matched block hash, chunk hashes and inclusion heights',
     cadence: 'One exact-height block request at most every five minutes while the page is open.',
-    caveat: 'A count for one finalized block is not a daily series, unique-user count or adoption trend. All referenced shard chunks must match or the count is withheld. Only minimal chunk fields and transaction hashes are retained locally for replay; full transaction bodies and receipt payloads are discarded. No numeric request quota or gapless archive guarantee is published.', connected: true, staleAfterSeconds: 600,
+    caveat: 'A count for one finalized block is not a daily series, unique-user count or adoption trend. Every chunk included at this block must match; a shard reference whose inclusion height is earlier contributes zero transactions for this block and does not need a new chunk payload. Only minimal chunk fields and transaction hashes are retained locally for replay; full transaction bodies and receipt payloads are discarded. No numeric request quota or gapless archive guarantee is published.', connected: true, staleAfterSeconds: 600,
   },
   {
     id: 'near-rpc-status', name: 'FastNear public mainnet RPC (free tier) — node status',

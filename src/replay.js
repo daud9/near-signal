@@ -19,7 +19,8 @@ function compactChunkEvidence(chunks) {
 }
 
 // Summary-only legacy observations are deliberately excluded: every plotted RPC point
-// must be reproducible from its retained raw block and (for counts) all shard chunks.
+// must be reproducible from its retained raw block and (for counts) every newly
+// included shard chunk; earlier-height references contribute zero.
 export function replayRpcObservations(observations = []) {
   const byHeight = new Map();
   for (const observation of observations) {
@@ -35,6 +36,8 @@ export function replayRpcObservations(observations = []) {
       estimatedGasFeeNear: block.estimatedGasFeeNear, activeChunks: block.activeChunks,
       transactionCount: activity?.transactionCount ?? null,
       transactionChunkCount: activity?.chunkCount ?? null,
+      transactionShardCount: activity?.shardCount ?? null,
+      transactionReusedShardCount: activity?.reusedShardCount ?? null,
     });
   }
   return [...byHeight.values()].sort((a, b) => a.height - b.height);

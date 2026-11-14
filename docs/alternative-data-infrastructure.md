@@ -6,6 +6,8 @@ NEAR SIGNAL now has a server-side, read-only ingestion path for FastNEAR Neardat
 
 A live Neardata read returned HTTP 200 after following the documented `/v0/last_block/final` redirect. The adapter validated all 10 shard chunk hashes and inclusion heights before accepting the block's 15 transaction rows (sample block 224,536,570, observed 14 November 2026). A live `/v0/first_block` request resolved to block 9,820,210. These tests establish that those endpoints and returned records were accessible at that time; they do not prove gapless archival history, completeness across every block, or a numeric request quota. The block and transaction JSON is normalized to small evidence records; signatures, public keys and opaque function-call arguments are not persisted.
 
+A later production-page check on block 224,544,213 found one shard reference with `height_included` 224,544,212 and no new chunk payload; the other newly included chunks matched. This is a reused prior-height chunk, so it contributes zero transactions to block 224,544,213 rather than making the sample incomplete or recounting its old transactions. The live dashboard and optional Python adapter now validate every newly included chunk, account for earlier-height references as zero, and retain regression tests for both cases.
+
 If Neardata's latest-block request fails, the optional fallback fetches one finalized block from the already-used FastNEAR public JSON-RPC endpoint. That fallback is explicitly block-only: it does not create transaction history, daily activity, or adoption metrics. Its source identity is kept separate in PostgreSQL provenance.
 
 ## Provider access checks

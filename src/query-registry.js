@@ -75,9 +75,9 @@ export const CHART_QUERY_RECIPES = {
   },
   blockTxChart: {
     title: 'Transactions per sampled finalized block',
-    plainLanguage: 'The total is shown only after every shard chunk for a finalized block matches its referenced shard, chunk hash, and inclusion height.',
-    source: 'NEAR mainnet JSON-RPC through FastNear',
-    query: '{"jsonrpc":"2.0","id":"near-signal-block","method":"block","params":{"finality":"final"}}\n\nFor every returned block.chunks[] entry, call chunk with {"block_id": block.header.height, "shard_id": chunk.shard_id}. Verify chunk_hash, shard_id, and height_included; sum the length of each chunk.transactions array. A missing or mismatched chunk withholds the total. Retain the raw block plus each matched chunk’s shard/hash/inclusion fields and transaction hashes in the evidence export; full transaction bodies and receipt payloads are discarded; npm run replay -- path/to/evidence.json repeats validation offline.',
+    plainLanguage: 'The total is shown only when the returned Neardata block matches the finalized RPC block and every newly included chunk matches its shard, hash, and inclusion height. An earlier-height reference contributes zero transactions for this block.',
+    source: 'FastNEAR Neardata at the exact finalized RPC block height',
+    query: 'GET https://free.rpc.fastnear.com JSON-RPC block(finality=final)\nGET https://mainnet.neardata.xyz/v0/block/{finalizedHeight}\n\nMatch block identity/hash and each block shard reference to the finalized RPC block. For height_included equal to this block height, require the exact chunk hash and a valid transaction array, then count its transactions. A reference with an earlier height_included contributes zero; its old chunk body is not recounted. A missing or mismatched newly included chunk withholds the total. Retain the raw block references, current-height matched chunks and transaction hashes; full transaction bodies and receipt payloads are discarded. npm run replay -- path/to/evidence.json repeats validation offline.',
   },
   capitalChart: {
     title: 'NEAR DeFi total value locked',
