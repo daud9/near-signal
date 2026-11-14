@@ -6,10 +6,11 @@
   "description": "Read-only evidence-first NEAR ecosystem intelligence MVP",
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "build:vercel": "node scripts/build-vercel.mjs",
     "test:ingestion": "python3 -m unittest discover -s ingestion -v",
     "ingest:near": "python3 -m ingestion.cli",
     "backfill:neardata": "python3 -m ingestion.backfill_neardata",
-    "check": "node --check src/analytics.js && node --check src/data.js && node --check src/query-registry.js && node --check src/app.js && node --check src/thesis.js && node --check scripts/rebuild-data.mjs && node --check server.mjs && node --check tests/analytics.test.js && node --check tests/data.test.js && node --check tests/import-safety.test.js && node --check tests/server.test.js && node --check tests/content.test.js && node --check tests/query-registry.test.js && node --check tests/thesis.test.js && node --check src/replay.js && node --check scripts/replay-data.mjs && node --check tests/replay.test.js && node --check src/workspace.js && node --check tests/workspace.test.js && node --check e2e/workspace.spec.js",
+    "check": "node --check src/analytics.js && node --check src/data.js && node --check src/query-registry.js && node --check src/app.js && node --check src/thesis.js && node --check scripts/rebuild-data.mjs && node --check scripts/build-vercel.mjs && node --check server.mjs && node --check tests/analytics.test.js && node --check tests/data.test.js && node --check tests/import-safety.test.js && node --check tests/server.test.js && node --check tests/content.test.js && node --check tests/query-registry.test.js && node --check tests/thesis.test.js && node --check tests/vercel-build.test.js && node --check src/replay.js && node --check scripts/replay-data.mjs && node --check tests/replay.test.js && node --check src/workspace.js && node --check tests/workspace.test.js && node --check e2e/workspace.spec.js",
     "rebuild": "node scripts/rebuild-data.mjs && node scripts/replay-data.mjs",
     "dev": "node server.mjs",
     "replay": "node scripts/replay-data.mjs",
