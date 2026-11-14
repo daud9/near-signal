@@ -17,6 +17,7 @@ export function createThesisTestEvidence({
 }) {
   return {
     schemaVersion: 1,
+    calculationVersion: 'daily-change-v2-direction-and-leave-one-out',
     project: 'NEAR SIGNAL',
     exportedAt,
     hypothesis,

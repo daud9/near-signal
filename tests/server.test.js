@@ -57,6 +57,13 @@ test('local server serves the dashboard with restrictive headers and no API prox
   assert.match(html, /id="thesisProvenance"/);
   assert.doesNotMatch(html, /id="methodology"/);
   assert.doesNotMatch(html, /PIKESPEAK_API_KEY/);
+  for (const asset of ['/src/app.js', '/src/data.js', '/src/analytics.js', '/src/workspace.css', '/favicon.svg']) {
+    assert.equal((await fetch(`${base}${asset}`)).status, 200, `${asset} is a required public asset`);
+  }
+  for (const forbidden of ['/.git/config', '/data/latest-evidence.json', '/package.json', '/README.md', '/tests/server.test.js', '/src/not-an-app-file.js']) {
+    const response = await fetch(`${base}${forbidden}`);
+    assert.equal(response.status, 404, `${forbidden} must not be exposed`);
+  }
 
   const head = await fetch(`${base}/`, { method: 'HEAD' });
   assert.equal(head.status, 200);

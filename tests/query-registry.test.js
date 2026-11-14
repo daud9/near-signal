@@ -34,6 +34,9 @@ test('Thesis Challenge source recipe is visible in the feature and included in i
   assert.ok(THESIS_TEST_RECIPE.query.includes('api.llama.fi'));
   assert.ok(THESIS_TEST_RECIPE.method.length >= 3);
   assert.ok(THESIS_TEST_RECIPE.limitations.length >= 3);
+  assert.ok(THESIS_TEST_RECIPE.method.some((line) => /exact selected paired changes/.test(line)));
+  assert.ok(THESIS_TEST_RECIPE.method.some((line) => /omitting each selected date once/.test(line)));
+  assert.ok(THESIS_TEST_RECIPE.limitations.some((line) => /not confidence intervals, robustness proofs/.test(line)));
   assert.ok(html.includes('id="thesisSourceQuery"'));
   assert.ok(html.includes('id="thesisSourceStatus"'));
   assert.ok(app.includes('createThesisTestEvidence'));

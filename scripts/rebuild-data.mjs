@@ -4,6 +4,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   alignMarketAndTvl,
   assessLiveRisks,
+  downgradeStaleRiskFindings,
+  stablecoinSupplyWindowChange,
   testHypothesis,
   windowChange,
 } from '../src/analytics.js';
@@ -19,6 +21,7 @@ import {
   fetchValidatorSet,
   fetchNearProtocolTvls,
   fetchNearStablecoins,
+  fetchNearStablecoinSupplyHistory,
   fetchNearDexVolumeHistory,
   fetchNearFeesHistory,
   fetchNearPoolSnapshot,
@@ -34,7 +37,7 @@ function failedResult(sourceId, detail) {
 }
 
 export async function rebuildSnapshot() {
-  const [block, market, marketChart, llamaPrice, tvl, nearProtocolTvls, nearStablecoins, nearDexVolume, nearFees, nearPools] = await Promise.all([
+  const [block, market, marketChart, llamaPrice, tvl, nearProtocolTvls, nearStablecoins, nearStablecoinSupply, nearDexVolume, nearFees, nearPools] = await Promise.all([
     fetchFinalizedBlock(),
     fetchCoinGeckoMarket(),
     fetchCoinGeckoHistory(),
@@ -42,6 +45,7 @@ export async function rebuildSnapshot() {
     fetchTvlHistory(),
     fetchNearProtocolTvls(),
     fetchNearStablecoins(),
+    fetchNearStablecoinSupplyHistory(),
     fetchNearDexVolumeHistory(),
     fetchNearFeesHistory(),
     fetchNearPoolSnapshot(),
@@ -54,7 +58,7 @@ export async function rebuildSnapshot() {
   // Keep these shared public RPC reads sequential and conservative.
   const rpcStatus = await fetchRpcStatus();
   const validators = await fetchValidatorSet();
-  const results = { block, protocolConfig, blockTransactions, market, marketChart, llamaPrice, tvl, nearProtocolTvls, nearStablecoins, nearDexVolume, nearFees, nearPools, rpcStatus, validators };
+  const results = { block, protocolConfig, blockTransactions, market, marketChart, llamaPrice, tvl, nearProtocolTvls, nearStablecoins, nearStablecoinSupply, nearDexVolume, nearFees, nearPools, rpcStatus, validators };
   const resultBySource = {
     'near-rpc-finalized': block,
     'near-rpc-protocol-config': protocolConfig,
@@ -67,6 +71,7 @@ export async function rebuildSnapshot() {
     'defillama-tvl': tvl,
     'defillama-near-protocol-tvls': nearProtocolTvls,
     'defillama-near-stablecoins': nearStablecoins,
+    'defillama-near-stablecoin-history': nearStablecoinSupply,
     'defillama-near-dex-volume': nearDexVolume,
     'defillama-near-fees': nearFees,
     'geckoterminal-near-pools': nearPools,
@@ -86,7 +91,8 @@ export async function rebuildSnapshot() {
     grossMarketVolumeUsd: windowChange(daily, 'grossVolumeUsd', days),
   }]));
   const hypothesis = testHypothesis(daily, 'priceUsd', 'tvlUsd', 'positive', 14);
-  const risks = assessLiveRisks({
+  const nearStablecoinSupply7d = stablecoinSupplyWindowChange(nearStablecoinSupply.value?.rows ?? [], 7);
+  const risks = downgradeStaleRiskFindings(assessLiveRisks({
     market: market.value ? { priceChange24h: market.value.priceChange24hPct, priceUsd: market.value.priceUsd, timestamp: market.value.timestamp } : null,
     tvl7d: matchedWindows[7].tvlUsd,
     tvl30d: matchedWindows[30].tvlUsd,
@@ -96,7 +102,8 @@ export async function rebuildSnapshot() {
     blockActivity: blockTransactions.value ?? null,
     nearProtocolTvls: nearProtocolTvls.value ?? null,
     nearStablecoins: nearStablecoins.value ?? null,
-  });
+    stablecoinSupply7d: nearStablecoinSupply7d,
+  }), sourceStatuses, DATA_SOURCES, Date.parse(generatedAt));
   const snapshot = {
     product: 'NEAR SIGNAL',
     generatedAt,
@@ -119,6 +126,7 @@ export async function rebuildSnapshot() {
       independentDefiLlamaSpot: llamaPrice.value ?? null,
       selectedNearProtocolTvls: nearProtocolTvls.value ?? null,
       nearStablecoins: nearStablecoins.value ?? null,
+      nearStablecoinSupplyHistory: nearStablecoinSupply.value ?? null,
       nearDexVolumeHistory: {
         observationCount: nearDexVolume.value?.rows?.length ?? 0,
         firstDate: nearDexVolume.value?.rows?.[0]?.date ?? null,
@@ -156,7 +164,7 @@ export async function rebuildSnapshot() {
     selectedDescriptiveTest: {
       claimLabel: 'NEAR price and TVL daily changes move in the same direction',
       calculation: hypothesis,
-      rule: 'Pearson r threshold ±0.30; requires the full selected consecutive sample; no p-value or causal interpretation',
+      rule: 'Pearson r threshold ±0.30; requires the full selected consecutive sample; directional agreement excludes zero-change ties; leave-one-day-out influence is descriptive; no p-value or causal interpretation',
       recipe: THESIS_TEST_RECIPE,
       sourceObservations: {
         'coingecko-history': { fetchedAt: marketChart.value?.fetchedAt ?? null, providerAt: marketChart.status?.providerAt ?? null },
@@ -170,6 +178,7 @@ export async function rebuildSnapshot() {
       coinGeckoMarketChart: marketChart.value ?? null,
       nearProtocolTvls: nearProtocolTvls.value ?? null,
       nearStablecoins: nearStablecoins.value ?? null,
+      nearStablecoinSupplyHistory: nearStablecoinSupply.value ?? null,
       nearDexVolumeHistory: nearDexVolume.value ?? null,
       nearFeeHistory: nearFees.value ?? null,
       nearPoolSnapshot: nearPools.value ?? null,
@@ -180,6 +189,7 @@ export async function rebuildSnapshot() {
       'No canonical, deduplicated bridge or NEAR Intents net-flow history is connected.',
       'The validator summary covers the RPC-reported current active set, not all stakers or historical validator performance.',
       'Protocol risk covers only the up to eight largest non-CEX DefiLlama rows with a reported NEAR-chain TVL of at least $100,000; stablecoin prices lack provider timestamps and are a market quote, not proof of redemption or reserves.',
+      'Stablecoin-supply contraction is based on an aggregate provider series; migrations, classification changes or historical corrections can affect coverage, so a decline is not proof of withdrawals or solvency stress.',
       'DEX turnover is not net flow or pool depth; GeckoTerminal page 1 is a bounded pool snapshot and is not a complete NEAR pool census.',
       'DefiLlama indexed chain-fee observations are not a reconciled receipt-level fee ledger, realized protocol revenue, validator income or APY.',
       'Block gas multiplied by gas price is an execution-value proxy, not exact signer debit or total burned fees. The block-specific protocol rule is separate from realized fee accounting.',
@@ -204,7 +214,7 @@ if (isDirectRun) {
   rebuildSnapshot().then(({ snapshot, output, successful, unavailable, results }) => {
     console.log(`Wrote ${output}`);
     console.log(`Observed ${successful}/${snapshot.sourceStatuses.length} connected feeds successfully; ${unavailable} failed.`);
-    console.log(`Finalized block: ${results.block.value?.height ?? 'unavailable'}; complete block transaction count: ${results.blockTransactions.value?.transactionCount ?? 'unavailable'}; current validators: ${results.validators.value?.validatorCount ?? 'unavailable'}; selected NEAR protocols: ${results.nearProtocolTvls.value?.protocols?.length ?? 'unavailable'}; NEAR stablecoins: ${results.nearStablecoins.value?.assets?.length ?? 'unavailable'}; DEX/fee histories: ${results.nearDexVolume.value?.rows?.length ?? 'unavailable'} / ${results.nearFees.value?.rows?.length ?? 'unavailable'} dated rows; pool-page rows: ${results.nearPools.value?.returnedCount ?? 'unavailable'}; active risk findings: ${snapshot.riskStates.filter((risk) => risk.active).length}; matched market/TVL dates: ${snapshot.dailyAlignedMarketAndTvl.length}; full 30-day TVL window: ${snapshot.matchedWindows[30].tvlUsd ? 'available' : 'unavailable'}.`);
+    console.log(`Finalized block: ${results.block.value?.height ?? 'unavailable'}; complete block transaction count: ${results.blockTransactions.value?.transactionCount ?? 'unavailable'}; current validators: ${results.validators.value?.validatorCount ?? 'unavailable'}; selected NEAR protocols: ${results.nearProtocolTvls.value?.protocols?.length ?? 'unavailable'}; NEAR stablecoins: ${results.nearStablecoins.value?.assets?.length ?? 'unavailable'}; stablecoin supply history: ${results.nearStablecoinSupply.value?.rows?.length ?? 'unavailable'} dated rows; DEX/fee histories: ${results.nearDexVolume.value?.rows?.length ?? 'unavailable'} / ${results.nearFees.value?.rows?.length ?? 'unavailable'} dated rows; pool-page rows: ${results.nearPools.value?.returnedCount ?? 'unavailable'}; active risk findings: ${snapshot.riskStates.filter((risk) => risk.active).length}; matched market/TVL dates: ${snapshot.dailyAlignedMarketAndTvl.length}; full 30-day TVL window: ${snapshot.matchedWindows[30].tvlUsd ? 'available' : 'unavailable'}.`);
   }).catch((error) => {
     console.error(`Snapshot rebuild failed: ${error?.message || 'unexpected error'}`);
     process.exitCode = 1;

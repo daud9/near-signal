@@ -6,9 +6,11 @@ import {
   completeWindowSum,
   completeWindowSumChange,
   dailyChangeRows,
+  downgradeStaleRiskFindings,
   formatSignedPercent,
   pearsonCorrelation,
   protocolTvlWindowChange,
+  stablecoinSupplyWindowChange,
   summarizeBlock,
   summarizeBlockTransactions,
   summarizeNeardataBlockTransactions,
@@ -24,6 +26,18 @@ import {
 
 const utcSeconds = (date) => Math.floor(Date.parse(`${date}T00:00:00Z`) / 1000);
 const utcMillis = (date) => Date.parse(`${date}T00:00:00Z`);
+
+function makeReturnSeries(returnsA, returnsB, start = '2026-11-01') {
+  const first = Date.parse(`${start}T00:00:00Z`);
+  let priceUsd = 100, tvlUsd = 200;
+  const rows = [{ date: new Date(first).toISOString().slice(0, 10), priceUsd, tvlUsd }];
+  for (let index = 0; index < returnsA.length; index += 1) {
+    priceUsd *= 1 + returnsA[index] / 100;
+    tvlUsd *= 1 + returnsB[index] / 100;
+    rows.push({ date: new Date(first + (index + 1) * 86_400_000).toISOString().slice(0, 10), priceUsd, tvlUsd });
+  }
+  return rows;
+}
 
 function makeSeries(length = 40, start = '2026-10-01') {
   const first = Date.parse(`${start}T00:00:00Z`);
@@ -324,6 +338,66 @@ test('hypothesis test does not bridge missing dates to fill the selected window'
   assert.equal(result.verdict, 'Insufficient evidence');
 });
 
+test('thesis diagnostics count directions without letting a single magnitude set the agreement rate', () => {
+  const returnsA = [1, -1, 0, 1, -1, 1, -1];
+  const returnsB = [1, 1, 3, -1, -1, 1, 1];
+  const result = testHypothesis(makeReturnSeries(returnsA, returnsB), 'priceUsd', 'tvlUsd', 'positive', 7);
+  assert.equal(result.diagnostics.directionalAgreement.sameDirectionCount, 3);
+  assert.equal(result.diagnostics.directionalAgreement.oppositeDirectionCount, 3);
+  assert.equal(result.diagnostics.directionalAgreement.tieCount, 1);
+  assert.equal(result.diagnostics.directionalAgreement.agreementPct, 50);
+  assert.deepEqual(result.pairedChanges.map((row) => row.date), ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']);
+
+  const regular = Array.from({ length: 8 }, (_, index) => index + 1);
+  const extreme = regular.map((value, index) => index === 7 ? 80 : value);
+  const baseline = testHypothesis(makeReturnSeries(regular, regular), 'priceUsd', 'tvlUsd', 'positive', 8);
+  const outlier = testHypothesis(makeReturnSeries(regular, extreme), 'priceUsd', 'tvlUsd', 'positive', 8);
+  assert.equal(baseline.diagnostics.directionalAgreement.sameDirectionCount, 8);
+  assert.equal(outlier.diagnostics.directionalAgreement.sameDirectionCount, 8);
+  assert.notEqual(outlier.r, baseline.r);
+});
+
+test('leave-one-day-out diagnostics replay from the exact selected pairs and resolve tied influence by UTC date', () => {
+  const values = Array.from({ length: 8 }, (_, index) => index + 1);
+  const result = testHypothesis(makeReturnSeries(values, values), 'priceUsd', 'tvlUsd', 'positive', 8);
+  const loo = result.diagnostics.leaveOneOut;
+  assert.equal(loo.exclusions.length, 8);
+  assert.equal(loo.undefinedCount, 0);
+  assert.equal(loo.minR, 1);
+  assert.equal(loo.maxR, 1);
+  assert.equal(loo.maxAbsDeltaR, 0);
+  assert.equal(loo.mostInfluentialDate, result.pairedChanges[0].date);
+  for (const item of loo.exclusions) {
+    const replay = pearsonCorrelation(result.pairedChanges.filter((row) => row.date !== item.excludedDate), 'a', 'b').r;
+    assert.equal(item.r, replay);
+    assert.equal(item.deltaR, replay - result.r);
+  }
+});
+
+test('stablecoin supply window requires an exact full daily sample and applies the disclosed contraction screen', () => {
+  const first = Date.parse('2026-11-01T00:00:00Z');
+  const rows = Array.from({ length: 8 }, (_, index) => ({
+    date: new Date(first + index * 86_400_000).toISOString().slice(0, 10),
+    totalCirculatingPeggedUsd: 100_000_000 - index * 1_500_000,
+    totalCirculatingUsdPeggedUsd: 99_000_000 - index * 1_400_000,
+    totalMintedUsdPeggedUsd: 120_000_000,
+  }));
+  const change = stablecoinSupplyWindowChange(rows, 7, '2026-11-10');
+  assert.equal(change.startDate, '2026-11-01');
+  assert.equal(change.endDate, '2026-11-08');
+  assert.ok(Math.abs(change.changePct - (-10.5)) < 1e-9);
+  const risk = assessLiveRisks({ stablecoinSupply7d: change }).find((item) => item.id === 'stablecoin-supply-contraction');
+  assert.equal(risk.active, true);
+  assert.equal(risk.tone, 'high');
+  assert.match(risk.query, /stablecoincharts\/Near/);
+  assert.match(risk.impact, /does not prove user withdrawals/);
+  assert.deepEqual(risk.sourceIds, ['defillama-near-stablecoin-history']);
+  assert.equal(stablecoinSupplyWindowChange(rows.slice(1), 7, '2026-11-10'), null);
+  assert.equal(stablecoinSupplyWindowChange([...rows, rows.at(-1)], 7, '2026-11-10'), null);
+  const currentDateOnly = [...rows.slice(0, 7), { ...rows.at(-1), date: '2026-11-10' }];
+  assert.equal(stablecoinSupplyWindowChange(currentDateOnly, 7, '2026-11-10'), null);
+});
+
 test('risk threshold flags only configured live price/TVL signals and omits unobserved indicators', () => {
   const risks = assessLiveRisks({
     market: { priceChange24h: -21 },
@@ -345,6 +419,26 @@ test('risk threshold flags only configured live price/TVL signals and omits unob
   assert.deepEqual(gaps, []);
   const incompleteRpc = assessLiveRisks({ block: { height: 42 }, rpcStatus: { chain_id: 'mainnet' } });
   assert.equal(incompleteRpc.some((item) => item.id === 'infrastructure'), false);
+});
+
+test('stale threshold findings remain visible as context but do not count as active alerts', () => {
+  const risk = { id: 'test-risk', active: true, tone: 'high', state: 'Threshold crossed', severity: 'High', sourceIds: ['old-source'], requiredSourceIds: ['old-source'] };
+  const definitions = [
+    { id: 'old-source', name: 'Old source', staleAfterSeconds: 3600 },
+    { id: 'fresh-source', name: 'Fresh source', staleAfterSeconds: 3600 },
+  ];
+  const asOf = Date.parse('2026-11-14T12:00:00Z');
+  const old = [{ sourceId: 'old-source', checkedAt: '2026-11-14T09:00:00Z', providerAt: '2026-11-14T09:00:00Z' }];
+  const downgraded = downgradeStaleRiskFindings([risk], old, definitions, asOf)[0];
+  assert.equal(downgraded.active, false);
+  assert.equal(downgraded.tone, 'caution');
+  assert.match(downgraded.state, /^Stale observation/);
+  assert.match(downgraded.severity, /not counted as a live finding/);
+  assert.equal(downgradeStaleRiskFindings([risk], [{ ...old[0], providerAt: '2026-11-14T11:30:00Z' }], definitions, asOf)[0].active, true);
+  const multiSource = { ...risk, sourceIds: ['old-source', 'fresh-source'], requiredSourceIds: ['old-source', 'fresh-source'] };
+  assert.equal(downgradeStaleRiskFindings([multiSource], [...old, { sourceId: 'fresh-source', checkedAt: '2026-11-14T11:30:00Z' }], definitions, asOf)[0].active, false);
+  const optionalContext = { ...risk, sourceIds: ['old-source', 'fresh-source'], requiredSourceIds: ['fresh-source'] };
+  assert.equal(downgradeStaleRiskFindings([optionalContext], [...old, { sourceId: 'fresh-source', checkedAt: '2026-11-14T11:30:00Z' }], definitions, asOf)[0].active, true);
 });
 
 test('stablecoin risk requires an observed USD peg and current NEAR circulation, with token exposure disclosed', () => {

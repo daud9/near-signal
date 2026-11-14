@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DATA_SOURCES, fetchCoinGeckoHistory, fetchTvlHistory, fetchNearProtocolTvls, fetchNearStablecoins, fetchNearDexVolumeHistory, fetchNearFeesHistory, fetchNearPoolSnapshot, fetchProtocolConfig, parseProviderTimestamp } from '../src/data.js';
+import { DATA_SOURCES, fetchCoinGeckoHistory, fetchTvlHistory, fetchNearProtocolTvls, fetchNearStablecoins, fetchNearStablecoinSupplyHistory, fetchNearDexVolumeHistory, fetchNearFeesHistory, fetchNearPoolSnapshot, fetchProtocolConfig, parseProviderTimestamp } from '../src/data.js';
 
 async function withJsonResponse(payload, callback) {
   const originalFetch = globalThis.fetch;
@@ -38,13 +38,15 @@ test('all live NEAR RPC sources use the documented FastNear free mainnet endpoin
 });
 
 test('runtime source registry contains only connected feeds and gives daily history a freshness limit', () => {
-  assert.equal(DATA_SOURCES.length, 14);
+  assert.equal(DATA_SOURCES.length, 15);
   assert.ok(DATA_SOURCES.every((source) => source.connected));
   for (const sourceId of ['coingecko-history', 'defillama-tvl']) {
     assert.equal(DATA_SOURCES.find((source) => source.id === sourceId)?.staleAfterSeconds, 172800);
   }
   assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-protocol-tvls')?.url, /api\.llama\.fi\/protocols/);
   assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-stablecoins')?.url, /stablecoins\.llama\.fi\/stablecoins\?includePrices=true/);
+  assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-stablecoin-history')?.url, /stablecoins\.llama\.fi\/stablecoincharts\/Near/);
+  assert.equal(DATA_SOURCES.find((source) => source.id === 'defillama-near-stablecoin-history')?.staleAfterSeconds, 172800);
   assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-dex-volume')?.url, /api\.llama\.fi\/overview\/dexs\/Near/);
   assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-fees')?.url, /api\.llama\.fi\/overview\/fees\/Near/);
   assert.match(DATA_SOURCES.find((source) => source.id === 'geckoterminal-near-pools')?.caveat, /page 1 is bounded coverage/i);
@@ -100,6 +102,21 @@ test('NEAR stablecoin adapter preserves observed peg, price source and chain-spe
   assert.equal(result.value.assets[0].priceUsd, 0.086);
   assert.equal(result.value.assets[0].currentNearCirculationUsd, 69_854);
   assert.ok(Number.isFinite(Date.parse(result.value.fetchedAt)));
+});
+
+test('NEAR stablecoin history adapter preserves dated circulation, minted/circulating diagnostics and raw rows', async () => {
+  const date = Math.floor(Date.parse('2026-11-14T00:00:00Z') / 1000);
+  const fixture = [
+    { date, totalCirculating: { peggedUSD: 12_000_000 }, totalCirculatingUSD: { peggedUSD: 11_800_000 }, totalMintedUSD: { peggedUSD: 13_000_000 } },
+    { date: date + 86_400, totalCirculating: { peggedUSD: 11_000_000 }, totalCirculatingUSD: { peggedUSD: 10_900_000 }, totalMintedUSD: { peggedUSD: 13_100_000 } },
+  ];
+  const result = await withJsonResponse(fixture, fetchNearStablecoinSupplyHistory);
+  assert.equal(result.status.ok, true);
+  assert.equal(result.status.providerAt, '2026-11-15T00:00:00.000Z');
+  assert.deepEqual(result.value.rows.map((row) => row.totalCirculatingPeggedUsd), [12_000_000, 11_000_000]);
+  assert.equal(result.value.rows[0].totalCirculatingUsdPeggedUsd, 11_800_000);
+  assert.equal(result.value.rows[0].totalMintedUsdPeggedUsd, 13_000_000);
+  assert.deepEqual(result.value.rawRows, fixture);
 });
 
 test('NEAR protocol adapter skips CEX rows and retains dated NEAR-only protocol history', async () => {

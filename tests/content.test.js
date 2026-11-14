@@ -30,3 +30,11 @@ test('overview exposes direct links to the two priority analysis features', () =
   assert.ok(html.includes('href="#risk-radar">Open risk radar</a>'));
   assert.ok(!html.includes('Composite health score unavailable'));
 });
+
+test('the Risk Radar and Thesis Challenge explain the new diagnostics and their limits', () => {
+  assert.match(html, /eight consecutive complete daily observations/);
+  assert.match(html, /not proof of withdrawals, redemption, reserves or solvency stress/);
+  assert.match(html, /leave-one-day-out influence range/);
+  assert.match(html, /An incomplete window exports as insufficient evidence/);
+  assert.match(html, /Stale threshold crossings remain visible as historical context/);
+});

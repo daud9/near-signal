@@ -1,5 +1,5 @@
-import { alignMarketAndTvl, assessLiveRisks, completeWindowSum, completeWindowSumChange, formatSignedPercent, summarizeBlock, summarizeBlockTransactions, summarizeIndexedProtocolConcentration, summarizeShardExecution, summarizeStablecoinExposure, summarizeWeeklyTurnoverIntensity, testHypothesis, toUtcDate, windowChange } from './analytics.js';
-import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchProtocolConfig, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchNearProtocolTvls, fetchNearStablecoins, fetchNearDexVolumeHistory, fetchNearFeesHistory, fetchNearPoolSnapshot, fetchAccountSnapshot } from './data.js';
+import { alignMarketAndTvl, assessLiveRisks, completeWindowSum, completeWindowSumChange, downgradeStaleRiskFindings, formatSignedPercent, stablecoinSupplyWindowChange, summarizeBlock, summarizeBlockTransactions, summarizeIndexedProtocolConcentration, summarizeShardExecution, summarizeStablecoinExposure, summarizeWeeklyTurnoverIntensity, testHypothesis, toUtcDate, windowChange } from './analytics.js';
+import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchProtocolConfig, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchNearProtocolTvls, fetchNearStablecoins, fetchNearStablecoinSupplyHistory, fetchNearDexVolumeHistory, fetchNearFeesHistory, fetchNearPoolSnapshot, fetchAccountSnapshot } from './data.js';
 import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from './query-registry.js';
 
 import { replayChartInputs, replayRpcObservations } from './replay.js';
@@ -14,7 +14,7 @@ const STABLECOIN_HISTORY_KEY = 'near-signal.stablecoin-observations.v1';
 const MAX_LOCAL_OBSERVATIONS = 60;
 const $ = (selector) => document.querySelector(selector);
 const state = {
-  market: null, marketChart: null, llamaPrice: null, tvlHistory: null, nearProtocolTvls: null, nearStablecoins: null,
+  market: null, marketChart: null, llamaPrice: null, tvlHistory: null, nearProtocolTvls: null, nearStablecoins: null, nearStablecoinSupply: null,
   dexVolumeHistory: null, feeHistory: null, nearPoolSnapshot: null, protocolConfig: null, blockActivity: null,
   block: null, rpcStatus: null, validators: null, sourceStatuses: new Map(), observations: readObservations(),
   stablecoinObservations: readStablecoinObservations(),
@@ -36,12 +36,13 @@ const FEE_HISTORY_INTERVAL_MS = 1_800_000;
 const PROTOCOL_CONFIG_INTERVAL_MS = 1_800_000;
 const RISK_FEED_INTERVAL_MS = 1_800_000;
 const MARKET_MANUAL_COOLDOWN_MS = 60_000;
-const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', protocolConfig: 'near-rpc-protocol-config', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl', nearProtocolTvls: 'defillama-near-protocol-tvls', nearStablecoins: 'defillama-near-stablecoins', dexVolumeHistory: 'defillama-near-dex-volume', feeHistory: 'defillama-near-fees', nearPoolSnapshot: 'geckoterminal-near-pools' };
+const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', protocolConfig: 'near-rpc-protocol-config', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl', nearProtocolTvls: 'defillama-near-protocol-tvls', nearStablecoins: 'defillama-near-stablecoins', nearStablecoinSupply: 'defillama-near-stablecoin-history', dexVolumeHistory: 'defillama-near-dex-volume', feeHistory: 'defillama-near-fees', nearPoolSnapshot: 'geckoterminal-near-pools' };
 const RISK_SOURCE_IDS = {
   concentration: ['near-rpc-validators'], activity: ['fastnear-neardata-block-transactions'],
   capital: ['defillama-tvl', 'coingecko-history'], infrastructure: ['near-rpc-finalized', 'near-rpc-status'],
   economics: ['coingecko-market', 'near-rpc-finalized'],
   'validator-performance': ['near-rpc-validators'],
+  'stablecoin-supply-contraction': ['defillama-near-stablecoin-history'],
 };
 
 function readObservations() {
@@ -440,12 +441,14 @@ function renderRisks() {
   const market = state.market ? { priceChange24h: state.market.priceChange24hPct, priceUsd: state.market.priceUsd, timestamp: state.market.timestamp } : null;
   const rpcStatus = state.rpcStatus?.chain_id === 'mainnet' ? state.rpcStatus : null;
   const block = state.block ? { ...state.block, ageSeconds: (Date.now() - state.block.timestampMs) / 1000 } : null;
-  const risks = assessLiveRisks({ market, tvl7d, tvl30d, validators: state.validators, block, rpcStatus, blockActivity: state.blockActivity, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins, stablecoinHistory: state.stablecoinObservations, declineThreshold: state.declineThreshold });
+  const stablecoinSupply7d = stablecoinSupplyWindowChange(state.nearStablecoinSupply?.rows ?? [], 7);
+  const assessedRisks = assessLiveRisks({ market, tvl7d, tvl30d, validators: state.validators, block, rpcStatus, blockActivity: state.blockActivity, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins, stablecoinHistory: state.stablecoinObservations, stablecoinSupply7d, declineThreshold: state.declineThreshold });
+  const risks = downgradeStaleRiskFindings(assessedRisks.map((risk) => ({ ...risk, sourceIds: risk.sourceIds || RISK_SOURCE_IDS[risk.id] || [] })), state.sourceStatuses, DATA_SOURCES);
   const filter = $('#riskFilter')?.value || 'all';
   const activeRisk = (risk) => risk.active === true || ['high', 'critical'].includes(risk.tone) || (risk.id === 'infrastructure' && risk.tone === 'caution');
   const visibleRisks = risks.filter((risk) => filter === 'all' || activeRisk(risk));
   const alerts = risks.filter(activeRisk).length;
-  $('#riskFilterStatus').textContent = `${visibleRisks.length} live signals · ${alerts} active finding${alerts === 1 ? '' : 's'} · decline threshold ${state.declineThreshold}%`;
+  $('#riskFilterStatus').textContent = `${visibleRisks.length} signals shown · ${alerts} active findings · decline threshold ${state.declineThreshold}%`;
   $('#riskGrid').innerHTML = visibleRisks.map((risk) => {
     const sourceLinks = renderRiskSources(risk);
     return `<article class="card risk-card"><div class="risk-top"><h3>${escapeHtml(risk.title)}</h3><span class="status-pill ${riskPillClass(risk.tone)}">${escapeHtml(risk.state)}</span></div><p><strong>Severity:</strong> ${escapeHtml(risk.severity)}</p><p><strong>Trend:</strong> ${escapeHtml(risk.trend)}</p><p><strong>Evidence:</strong> ${escapeHtml(risk.evidence)}</p>${risk.query ? `<p><strong>Reproduction:</strong> <code>${escapeHtml(risk.query)}</code></p>` : ''}<p class="risk-source"><strong>Sources:</strong> ${sourceLinks || 'No source attribution available'}</p><p><strong>Confidence:</strong> ${escapeHtml(risk.confidence)}</p><p class="risk-impact"><strong>Potential impact:</strong> ${escapeHtml(risk.impact)}</p><p class="risk-next"><strong>Next check:</strong> ${escapeHtml(risk.next)}</p></article>`;
@@ -672,6 +675,15 @@ function renderHypothesis() {
   else if (result.verdict === 'Supported by available evidence') details.push('Observed co-movement matches the declared direction under the visible |r| ≥ 0.30 product rule.');
   else if (result.verdict === 'Not supported') details.push('Observed co-movement is strong in the direction opposite the selected hypothesis under the visible |r| ≥ 0.30 product rule.');
   else details.push('The selected series do not cross the product-rule threshold in either direction; this does not prove independence.');
+  if (result.diagnostics) {
+    const agreement = result.diagnostics.directionalAgreement;
+    details.push(`${agreement.sameDirectionCount}/${agreement.directionalPairCount} non-neutral daily pairs moved in the same direction${agreement.agreementPct === null ? '' : ` (${agreement.agreementPct.toFixed(1)}% agreement)`}; ${agreement.tieCount} pair${agreement.tieCount === 1 ? '' : 's'} included a zero change and are excluded from that percentage.`);
+    const influence = result.diagnostics.leaveOneOut;
+    const thresholdMisses = influence.exclusions.filter((item) => item.r !== null && (direction === 'negative' ? item.r > -0.3 : item.r < 0.3)).length;
+    const range = influence.minR === null ? 'undefined for every omission' : `${influence.minR.toFixed(2)} to ${influence.maxR.toFixed(2)}`;
+    const mostInfluential = influence.mostInfluentialDate ? `${influence.mostInfluentialDate} (absolute Δr ${influence.maxAbsDeltaR.toFixed(2)})` : 'not defined';
+    details.push(`Leave-one-day-out r range: ${range}; largest influence from ${mostInfluential}. ${thresholdMisses}/${influence.exclusions.length} defined omissions fall below the declared product threshold; ${influence.undefinedCount} omissions are undefined. This is an influence check, not a confidence interval or robustness proof.`);
+  }
   details.push('No p-value, causal attribution or forecast is calculated. Daily observations can be autocorrelated; address counts are not verified people or retention, and market/TVL values are not independent evidence of user adoption.');
   $('#hypothesisDetails').innerHTML = details.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
 }
@@ -692,7 +704,7 @@ function renderThesisProvenance() {
   $('#thesisLimitations').innerHTML = THESIS_TEST_RECIPE.limitations.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
 }
 function dataAvailableFor(sourceId) {
-  return ({ 'near-rpc-finalized': Boolean(state.block), 'near-rpc-protocol-config': Boolean(state.protocolConfig), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length), 'defillama-near-protocol-tvls': Boolean(state.nearProtocolTvls?.protocols?.length || state.nearProtocolTvls?.indexProtocols?.length), 'defillama-near-stablecoins': Boolean(state.nearStablecoins?.assets?.length), 'defillama-near-dex-volume': Boolean(state.dexVolumeHistory?.rows?.length), 'defillama-near-fees': Boolean(state.feeHistory?.rows?.length), 'geckoterminal-near-pools': Boolean(state.nearPoolSnapshot?.pools?.length) })[sourceId] ?? false;
+  return ({ 'near-rpc-finalized': Boolean(state.block), 'near-rpc-protocol-config': Boolean(state.protocolConfig), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length), 'defillama-near-protocol-tvls': Boolean(state.nearProtocolTvls?.protocols?.length || state.nearProtocolTvls?.indexProtocols?.length), 'defillama-near-stablecoins': Boolean(state.nearStablecoins?.assets?.length), 'defillama-near-stablecoin-history': Boolean(state.nearStablecoinSupply?.rows?.length), 'defillama-near-dex-volume': Boolean(state.dexVolumeHistory?.rows?.length), 'defillama-near-fees': Boolean(state.feeHistory?.rows?.length), 'geckoterminal-near-pools': Boolean(state.nearPoolSnapshot?.pools?.length) })[sourceId] ?? false;
 }
 function renderAll() {
   const renderers = {
@@ -783,12 +795,13 @@ async function refreshDatedAnalytics() {
 }
 async function refreshPoolSnapshot() { const result = await fetchAndApply('nearPoolSnapshot', fetchNearPoolSnapshot); renderAll(); return result; }
 async function refreshRiskFeeds() {
-  const [protocolResult, stablecoinResult] = await Promise.all([
+  const [protocolResult, stablecoinResult, supplyResult] = await Promise.all([
     fetchAndApply('nearProtocolTvls', fetchNearProtocolTvls),
     fetchAndApply('nearStablecoins', fetchNearStablecoins),
+    fetchAndApply('nearStablecoinSupply', fetchNearStablecoinSupplyHistory),
   ]);
   renderAll();
-  return Boolean(protocolResult?.status?.ok && stablecoinResult?.status?.ok);
+  return Boolean(protocolResult?.status?.ok && stablecoinResult?.status?.ok && supplyResult?.status?.ok);
 }
 async function refreshCoinGecko() {
   if (Date.now() - state.lastMarketRefresh < MARKET_MANUAL_COOLDOWN_MS) {
@@ -815,7 +828,7 @@ async function initialLoad() {
       refreshBlock(), fetchThenRender('llamaPrice', fetchDefiLlamaPrice),
       fetchThenRender('tvlHistory', fetchTvlHistory), fetchThenRender('market', fetchCoinGeckoMarket),
       fetchThenRender('marketChart', fetchCoinGeckoHistory),
-      fetchThenRender('nearProtocolTvls', fetchNearProtocolTvls), fetchThenRender('nearStablecoins', fetchNearStablecoins),
+      fetchThenRender('nearProtocolTvls', fetchNearProtocolTvls), fetchThenRender('nearStablecoins', fetchNearStablecoins), fetchThenRender('nearStablecoinSupply', fetchNearStablecoinSupplyHistory),
       fetchThenRender('dexVolumeHistory', fetchNearDexVolumeHistory), fetchThenRender('feeHistory', fetchNearFeesHistory),
       fetchThenRender('nearPoolSnapshot', fetchNearPoolSnapshot),
     ]);
@@ -841,19 +854,20 @@ function exportEvidence() {
     project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), status: 'public read-only Vercel dashboard; hackathon submission not made',
     live: { market: state.market, independentSpotPrice: state.llamaPrice, finalizedBlock: state.block, blockMatchedProtocolConfig: state.protocolConfig, sampledFinalizedBlockTransactions: state.blockActivity,
       rpcStatus: state.rpcStatus ? { chainId: state.rpcStatus.chain_id, syncing: state.rpcStatus.syncing, latestBlockHeight: state.rpcStatus.sync_info?.latest_block_height, latestBlockTime: state.rpcStatus.sync_info?.latest_block_time } : null,
-      currentValidatorSet: state.validators, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins,
+      currentValidatorSet: state.validators, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins, nearStablecoinSupplyHistory: state.nearStablecoinSupply,
       nearDexVolumeHistory: state.dexVolumeHistory, nearFeeHistory: state.feeHistory, nearPoolSnapshot: state.nearPoolSnapshot },
     flightRecorder: { selectedBlock: flight.selected.execution, selectedBlockObservedAt: flight.selected.observedAt, currentContext: { dex7d: flight.dex7d, fees7d: flight.fees7d, tvl7d: flight.tvl7d, tvl30d: flight.tvl30d, weeklyTurnoverIntensity: flight.turnover, indexedProtocolConcentration: flight.protocolConcentration, stablecoinExposure: flight.stablecoins }, recipe: CHART_QUERY_RECIPES.flightRecorder, note: 'The selected block sample is separate from current rolling economic and market observations; no synchronization or composite score is inferred.' },
     dailyAlignedMarketAndTvl: allDailyRows(), dailyHypothesisSeries: hypothesisRows(), rawTvlRows: state.tvlHistory?.rows ?? null, rawCoinGeckoMarketChart: state.marketChart,
     rawNearDexVolumeRows: state.dexVolumeHistory?.rows ?? null, rawNearFeeRows: state.feeHistory?.rows ?? null, rawNearPoolSnapshot: state.nearPoolSnapshot ?? null,
     localRpcObservationHistory: state.observations, localStablecoinPriceObservations: state.stablecoinObservations,
+    riskEvidence: { nearStablecoinSupply7d: stablecoinSupplyWindowChange(state.nearStablecoinSupply?.rows ?? [], 7), rule: 'Compare totalCirculating.peggedUSD over 8 consecutive complete daily observations; flag a decline of at least 10%; provider coverage changes are not proof of withdrawals.' },
     chartSelections: { days: state.days, metric: state.chartMetric, capitalDays: Number($('#capitalWindowSelect').value), flightRecorderHeight: flight.selected.block?.height ?? null },
     onDemandAccountInspection: accountInspection,
     executionCostScenario: { gasTgas: Number($('#feeGasInput').value), gasPriceNearPerTgas: state.block?.gasPriceNearPerTgas ?? null, priceUsd: state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null, estimate: estimateExecutionCost($('#feeGasInput').value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd) },
     chartQueryRecipes: CHART_QUERY_RECIPES,
     thesisTestRecipe: THESIS_TEST_RECIPE,
     sourceRegistry: DATA_SOURCES.map((source) => ({ ...source, status: state.sourceStatuses.get(source.id) ?? null })),
-    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction trends and contract activity are unavailable; no such metrics are inferred from a block sample.', 'No canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'DEX volume is turnover, not net flow; GeckoTerminal page 1 is a bounded pool snapshot, not every NEAR pool or chain-wide liquidity.', 'DefiLlama indexed fee data is not a reconciled receipt-level fee ledger, realized protocol revenue, validator income or APY.', 'Block gas multiplied by gas price is an execution-value proxy, not exact signer debit, total fees burned or revenue; the protocol rule is shown separately.', 'The protocol-index universe is provider coverage with a $100,000 threshold; detailed history reads cover at most eight selected records.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
+    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction trends and contract activity are unavailable; no such metrics are inferred from a block sample.', 'No canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'DEX volume is turnover, not net flow; GeckoTerminal page 1 is a bounded pool snapshot, not every NEAR pool or chain-wide liquidity.', 'DefiLlama indexed fee data is not a reconciled receipt-level fee ledger, realized protocol revenue, validator income or APY.', 'Block gas multiplied by gas price is an execution-value proxy, not exact signer debit, total fees burned or revenue; the protocol rule is shown separately.', 'The protocol-index universe is provider coverage with a $100,000 threshold; detailed history reads cover at most eight selected records.', 'Stablecoin supply history is provider aggregate coverage; a series break is not a withdrawal or solvency ledger.', 'The hypothesis calculation and influence summaries are descriptive; they do not establish causation, statistical significance or robustness.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
   };
   bundle.replayedChartInputs = replayChartInputs(bundle);
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');

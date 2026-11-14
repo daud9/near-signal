@@ -11,6 +11,7 @@ const LLAMA_STABLECOINS_URL = 'https://stablecoins.llama.fi/stablecoins?includeP
 const LLAMA_DEX_OVERVIEW_URL = 'https://api.llama.fi/overview/dexs/Near';
 const LLAMA_FEES_OVERVIEW_URL = 'https://api.llama.fi/overview/fees/Near';
 const GECKOTERMINAL_POOLS_URL = 'https://api.geckoterminal.com/api/v2/networks/near/pools?page=1';
+const LLAMA_NEAR_STABLECOIN_HISTORY_URL = 'https://stablecoins.llama.fi/stablecoincharts/Near';
 function finiteNumber(value) {
   if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
   const parsed = Number(value);
@@ -108,6 +109,13 @@ export const DATA_SOURCES = [
     kind: 'Public aggregate stablecoin snapshot', fields: 'USD peg classification, current USD price and reported NEAR-chain circulating value',
     cadence: 'Fetched on load and then every 30 minutes; browser check time is shown because the response does not expose a price timestamp.',
     caveat: 'A market quote does not prove redemption or reserves. Chain circulation is aggregator coverage and not a protocol-liability measure.', connected: true, staleAfterSeconds: 7200,
+  },
+  {
+    id: 'defillama-near-stablecoin-history', name: 'DefiLlama — dated NEAR stablecoin circulation',
+    url: LLAMA_NEAR_STABLECOIN_HISTORY_URL, docUrl: 'https://api-docs.defillama.com/',
+    kind: 'Public aggregate daily stablecoin history', fields: 'Dated totalCirculating.peggedUSD, totalCirculatingUSD.peggedUSD and totalMintedUSD.peggedUSD series for NEAR',
+    cadence: 'Fetched on load and then every 30 minutes; only complete dated observations enter the seven-day comparison.',
+    caveat: 'Provider coverage can change with migrations, classification or historical corrections. Aggregate circulation is not a withdrawal, redemption, reserve or solvency ledger.', connected: true, staleAfterSeconds: 172800,
   },
   {
     id: 'defillama-near-dex-volume', name: 'DefiLlama — NEAR DEX volume history',
@@ -453,6 +461,24 @@ export async function fetchNearStablecoins() {
       })).filter((asset) => asset.id && asset.currentNearCirculationUsd !== null && asset.currentNearCirculationUsd >= 0);
     return { assets, fetchedAt };
   });
+}
+
+export async function fetchNearStablecoinSupplyHistory() {
+  const result = await sourceCall('defillama-near-stablecoin-history', () => getJson(LLAMA_NEAR_STABLECOIN_HISTORY_URL), (data, fetchedAt) => {
+    if (!Array.isArray(data)) throw new Error('DefiLlama stablecoin history is not an array');
+    const rows = data.map((row) => ({
+      date: toUtcDate(row?.date, 's'),
+      totalCirculatingPeggedUsd: finiteNumber(row?.totalCirculating?.peggedUSD),
+      totalCirculatingUsdPeggedUsd: finiteNumber(row?.totalCirculatingUSD?.peggedUSD),
+      totalMintedUsdPeggedUsd: finiteNumber(row?.totalMintedUSD?.peggedUSD),
+    })).filter((row) => row.date && row.totalCirculatingPeggedUsd !== null && row.totalCirculatingPeggedUsd >= 0)
+      .sort((left, right) => left.date.localeCompare(right.date));
+    if (rows.length < 2) throw new Error('DefiLlama returned fewer than two valid dated NEAR stablecoin supply observations');
+    return { rows, rawRows: data, fetchedAt };
+  });
+  const latestDate = result.value?.rows?.at(-1)?.date;
+  if (latestDate) result.status.providerAt = `${latestDate}T00:00:00.000Z`;
+  return result;
 }
 
 // On-demand public account state only. No wallet, signing, account history or JWT.

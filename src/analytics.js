@@ -535,12 +535,40 @@ export function testHypothesis(rows, metricA, metricB, expectedDirection = 'posi
   const b = new Map(dailyChangeRows(rows, metricB).map((row) => [row.date, row.value]));
   const matched = a.filter((row) => b.has(row.date)).map((row) => ({ date: row.date, a: row.value, b: b.get(row.date) })).slice(-days);
   const correlation = pearsonCorrelation(matched, 'a', 'b');
+  const pairedChanges = matched.map((row) => ({ ...row }));
   if (matched.length !== days || !consecutiveDates(matched) || correlation.r === null) {
-    return { verdict: 'Insufficient evidence', r: null, n: correlation.n, startDate: matched[0]?.date ?? null, endDate: matched.at(-1)?.date ?? null, expectedDirection, summary: 'There are too few complete, consecutive daily changes or one series is constant. No verdict is calculated.' };
+    return { verdict: 'Insufficient evidence', r: null, n: correlation.n, startDate: matched[0]?.date ?? null, endDate: matched.at(-1)?.date ?? null, expectedDirection, pairedChanges, diagnostics: null, summary: 'There are too few complete, consecutive daily changes or one series is constant. No verdict is calculated.' };
   }
   const matchesExpectation = expectedDirection === 'negative' ? correlation.r <= -0.3 : correlation.r >= 0.3;
   const contradictsExpectation = expectedDirection === 'negative' ? correlation.r >= 0.3 : correlation.r <= -0.3;
   const verdict = matchesExpectation ? 'Supported by available evidence' : contradictsExpectation ? 'Not supported' : 'Partially supported';
+  const pairs = matched.map((row) => [row.a, row.b]);
+  const ties = pairs.filter(([valueA, valueB]) => valueA === 0 || valueB === 0).length;
+  const sameDirection = pairs.filter(([valueA, valueB]) => (valueA > 0 && valueB > 0) || (valueA < 0 && valueB < 0)).length;
+  const oppositeDirection = pairs.filter(([valueA, valueB]) => valueA * valueB < 0).length;
+  const directionalPairs = sameDirection + oppositeDirection;
+  const leaveOneOut = matched.map((row, index) => {
+    const withoutDate = matched.filter((_, rowIndex) => rowIndex !== index);
+    const leaveOutR = pearsonCorrelation(withoutDate, 'a', 'b').r;
+    return { excludedDate: row.date, r: leaveOutR, deltaR: leaveOutR === null ? null : leaveOutR - correlation.r };
+  });
+  const definedLeaveOneOut = leaveOneOut.filter((item) => item.r !== null);
+  const influenceOrder = definedLeaveOneOut.slice().sort((left, right) => Math.abs(right.deltaR) - Math.abs(left.deltaR) || left.excludedDate.localeCompare(right.excludedDate));
+  const diagnostics = {
+    directionalAgreement: {
+      sameDirectionCount: sameDirection, oppositeDirectionCount: oppositeDirection, tieCount: ties,
+      directionalPairCount: directionalPairs,
+      agreementPct: directionalPairs ? sameDirection / directionalPairs * 100 : null,
+    },
+    leaveOneOut: {
+      minR: definedLeaveOneOut.length ? Math.min(...definedLeaveOneOut.map((item) => item.r)) : null,
+      maxR: definedLeaveOneOut.length ? Math.max(...definedLeaveOneOut.map((item) => item.r)) : null,
+      maxAbsDeltaR: influenceOrder.length ? Math.abs(influenceOrder[0].deltaR) : null,
+      mostInfluentialDate: influenceOrder[0]?.excludedDate ?? null,
+      undefinedCount: leaveOneOut.length - definedLeaveOneOut.length,
+      exclusions: leaveOneOut,
+    },
+  };
   return {
     verdict,
     r: correlation.r,
@@ -548,6 +576,8 @@ export function testHypothesis(rows, metricA, metricB, expectedDirection = 'posi
     startDate: matched[0].date,
     endDate: matched.at(-1).date,
     expectedDirection,
+    pairedChanges,
+    diagnostics,
     summary: `Pearson r=${correlation.r.toFixed(2)} across ${correlation.n} matched daily changes (${matched[0].date} to ${matched.at(-1).date}). The declared rule treats |r| ≥ 0.30 in the expected direction as support. This is descriptive co-movement, not causation or a significance test.`,
   };
 }
@@ -573,6 +603,24 @@ export function protocolTvlWindowChange(points, days) {
     startAt: new Date(prior.date * 1000).toISOString(), endAt: new Date(latest.date * 1000).toISOString(),
     startValueUsd: prior.value, endValueUsd: latest.value,
     changePct: (latest.value - prior.value) / prior.value * 100,
+  };
+}
+
+export function stablecoinSupplyWindowChange(rows, days = 7, todayUtc = new Date().toISOString().slice(0, 10)) {
+  if (!Array.isArray(rows) || !Number.isSafeInteger(days) || days <= 0) return null;
+  const valid = rows.map((row) => ({
+    date: typeof row?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.date) ? toUtcDate(row.date) : toUtcDate(row?.date, 's'),
+    supplyUsd: numeric(row?.totalCirculatingPeggedUsd),
+  })).filter((row) => row.date && row.date < todayUtc && row.supplyUsd !== null && row.supplyUsd >= 0)
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const window = valid.slice(-(days + 1));
+  if (window.length !== days + 1 || !consecutiveDates(window) || window[0].supplyUsd <= 0) return null;
+  const start = window[0], end = window.at(-1);
+  return {
+    days, startDate: start.date, endDate: end.date,
+    startSupplyUsd: start.supplyUsd, endSupplyUsd: end.supplyUsd,
+    changePct: (end.supplyUsd - start.supplyUsd) / start.supplyUsd * 100,
+    rows: window,
   };
 }
 
@@ -610,7 +658,7 @@ function stablecoinDepegFindings(stablecoins = [], stablecoinHistory = {}) {
   });
 }
 
-export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcStatus, blockActivity, nearProtocolTvls = [], nearStablecoins = [], stablecoinHistory = {}, declineThreshold = DEFAULT_ALERT_DECLINE_PCT, staleBlockSeconds = DEFAULT_BLOCK_STALE_SECONDS }) {
+export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcStatus, blockActivity, nearProtocolTvls = [], nearStablecoins = [], stablecoinHistory = {}, stablecoinSupply7d = null, declineThreshold = DEFAULT_ALERT_DECLINE_PCT, staleBlockSeconds = DEFAULT_BLOCK_STALE_SECONDS }) {
   const threshold = Math.max(5, Math.min(50, Number(declineThreshold) || DEFAULT_ALERT_DECLINE_PCT));
   const tvlDecline = numeric(tvl30d?.changePct);
   const priceMove = numeric(market?.priceChange24h);
@@ -648,6 +696,8 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
     },
     {
       id: 'capital', title: 'Liquidity stock (TVL)',
+      active: tvlDecline !== null && tvlDecline <= -threshold,
+      sourceIds: ['defillama-tvl', 'coingecko-history'], requiredSourceIds: ['defillama-tvl', 'coingecko-history'],
       observed: tvlDecline !== null, state: tvlDecline === null ? '' : tvlDecline <= -threshold ? 'Drawdown watch' : 'Daily TVL observed',
       tone: tvlDecline !== null && tvlDecline <= -threshold ? 'high' : 'neutral',
       severity: tvlDecline === null ? '' : tvlDecline <= -threshold ? `Configured signal — ${threshold}% 30-day decline threshold crossed` : 'No configured 30-day TVL decline threshold crossed',
@@ -659,6 +709,8 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
     },
     {
       id: 'infrastructure', title: 'Infrastructure freshness',
+      active: Boolean(rpcAvailable && (rpcStatus.syncing || blockAge > staleBlockSeconds)),
+      sourceIds: ['near-rpc-finalized', 'near-rpc-status'], requiredSourceIds: ['near-rpc-finalized', 'near-rpc-status'],
       observed: rpcAvailable, state: !rpcAvailable ? '' : rpcStatus.syncing ? 'Node reports syncing' : blockAge > staleBlockSeconds ? 'Finalized block is stale' : 'Finalized block observed',
       tone: !rpcAvailable || rpcStatus?.syncing || blockAge > staleBlockSeconds ? 'caution' : 'positive',
       severity: !rpcAvailable ? '' : rpcStatus.syncing || blockAge > staleBlockSeconds ? 'Operational warning on this endpoint only' : 'No single-check warning observed',
@@ -670,6 +722,8 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
     },
     {
       id: 'economics', title: '24-hour NEAR market change',
+      active: priceMove !== null && priceMove <= -threshold,
+      sourceIds: ['coingecko-market', 'near-rpc-finalized'], requiredSourceIds: ['coingecko-market'],
       observed: priceMove !== null, state: priceMove === null ? '' : priceMove <= -threshold ? 'Price decline watch' : 'Market snapshot observed',
       tone: priceMove !== null && priceMove <= -threshold ? 'high' : 'neutral',
       severity: priceMove === null ? '' : priceMove <= -threshold ? `Configured signal — ${threshold}% 24-hour market decline threshold crossed` : 'No configured 24-hour market decline threshold crossed',
@@ -724,7 +778,54 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
     });
   }
   risks.push(...stablecoinDepegFindings(nearStablecoins?.assets, stablecoinHistory));
+  if (stablecoinSupply7d) {
+    const changePct = numeric(stablecoinSupply7d.changePct);
+    if (changePct !== null) {
+      const active = changePct <= -10;
+      risks.push({
+        id: 'stablecoin-supply-contraction', title: 'NEAR aggregate USD stablecoin circulation',
+        observed: true, active, tone: active ? 'high' : 'neutral',
+        state: active ? 'Seven-day supply contraction' : 'Seven-day supply observed',
+        severity: active ? `High supply-contraction watch — ${Math.abs(changePct).toFixed(1)}% below the prior dated observation` : 'No configured 10% seven-day supply-contraction threshold crossed',
+        trend: `DefiLlama-reported USD-pegged NEAR circulation changed ${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}% across ${stablecoinSupply7d.days} complete days.`,
+        confidence: 'Moderate — provider aggregate daily supply coverage; not a redemption, reserve or protocol-withdrawal ledger.',
+        evidence: `Reported USD-pegged NEAR circulation changed from $${stablecoinSupply7d.startSupplyUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} on ${stablecoinSupply7d.startDate} to $${stablecoinSupply7d.endSupplyUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} on ${stablecoinSupply7d.endDate} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%). The rule requires ${stablecoinSupply7d.days + 1} consecutive daily records; no values are interpolated.`,
+        impact: 'A sustained fall can mean less reported USD-pegged liquidity, but provider coverage changes, reclassification or migration can also explain it; it does not prove user withdrawals or solvency stress.',
+        next: 'Compare asset-level circulation, peg quotes and provider coverage changes before attributing the aggregate move to outflows.',
+        query: 'GET https://stablecoins.llama.fi/stablecoincharts/Near; read totalCirculating.peggedUSD, exclude the current UTC date, require 8 consecutive dates, and compare the first and last daily observations.',
+        sourceIds: ['defillama-near-stablecoin-history'],
+      });
+    }
+  }
   return risks.filter((risk) => risk.observed).map(({ observed, ...risk }) => risk);
+}
+
+export function downgradeStaleRiskFindings(risks, sourceStatuses = [], sourceDefinitions = [], asOfMs = Date.now()) {
+  const statuses = sourceStatuses instanceof Map
+    ? sourceStatuses
+    : new Map((Array.isArray(sourceStatuses) ? sourceStatuses : []).map((status) => [status?.sourceId, status]));
+  const definitions = new Map((Array.isArray(sourceDefinitions) ? sourceDefinitions : []).map((source) => [source?.id, source]));
+  return (Array.isArray(risks) ? risks : []).map((risk) => {
+    const isAlert = risk?.active === true || ['high', 'critical'].includes(risk?.tone) || (risk?.id === 'infrastructure' && risk?.tone === 'caution');
+    const sourceIds = Array.isArray(risk?.sourceIds) ? risk.sourceIds : [];
+    const requiredSourceIds = Array.isArray(risk?.requiredSourceIds) && risk.requiredSourceIds.length ? risk.requiredSourceIds : sourceIds;
+    if (!isAlert || requiredSourceIds.length === 0) return risk;
+    const staleIds = requiredSourceIds.filter((sourceId) => {
+      const definition = definitions.get(sourceId), status = statuses.get(sourceId);
+      const observedAt = Date.parse(status?.providerAt ?? status?.lastProviderAt ?? status?.lastDataAt ?? status?.checkedAt);
+      return Boolean(definition?.staleAfterSeconds && Number.isFinite(observedAt) && asOfMs - observedAt > definition.staleAfterSeconds * 1000);
+    });
+    if (staleIds.length === 0) return risk;
+    const staleNames = staleIds.map((sourceId) => definitions.get(sourceId)?.name || sourceId).join(', ');
+    return {
+      ...risk,
+      active: false,
+      tone: 'caution',
+      state: `Stale observation · ${risk.state}`,
+      severity: `Previously crossed threshold, but ${staleNames} is stale; not counted as a live finding.`,
+      next: 'Refresh the source and check whether the threshold is still crossed by a current provider observation.',
+    };
+  });
 }
 
 export function formatSignedPercent(value, digits = 1) {

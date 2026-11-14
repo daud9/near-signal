@@ -24,6 +24,7 @@ test('thesis export retains only the passed source-backed inputs and complete pr
     rawCoinGeckoMarketChart: rawMarket, rawTvlRows: rawTvl, sourceObservations: observations, sources: [source], sourceStatuses: [status],
   });
   assert.equal(bundle.schemaVersion, 1);
+  assert.equal(bundle.calculationVersion, 'daily-change-v2-direction-and-leave-one-out');
   assert.equal(bundle.exportedAt, '2026-11-14T12:01:00.000Z');
   assert.deepEqual(bundle.selection, { metricA: 'priceUsd', metricB: 'tvlUsd', direction: 'positive', days: 14 });
   assert.deepEqual(bundle.rawInputs.coinGeckoMarketChart, rawMarket);

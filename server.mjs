@@ -8,6 +8,11 @@ const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const DEFAULT_HOST = process.env.HOST || '127.0.0.1';
 const DEFAULT_PORT = Number(process.env.PORT ?? 8000);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+const PUBLIC_FILES = new Set([
+  '/index.html', '/favicon.svg',
+  '/src/app.js', '/src/analytics.js', '/src/data.js', '/src/query-registry.js',
+  '/src/replay.js', '/src/thesis.js', '/src/workspace.js', '/src/workspace.css',
+]);
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
@@ -32,6 +37,7 @@ async function handleStatic(request, response, url, root) {
   try { pathname = decodeURIComponent(url.pathname); }
   catch { sendJson(response, 400, { error: 'Invalid URL path.' }); return; }
   if (pathname === '/') pathname = '/index.html';
+  if (!PUBLIC_FILES.has(pathname)) { sendJson(response, 404, { error: 'Not found.' }); return; }
   const filePath = resolve(root, `.${pathname}`);
   if (filePath !== root && !filePath.startsWith(`${root}${sep}`)) {
     sendJson(response, 403, { error: 'Forbidden.' });

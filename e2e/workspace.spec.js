@@ -55,7 +55,7 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   for (let index = 0; index < 6; index += 1) await riskThreshold.press('ArrowRight');
   await expect(page.locator('#riskThresholdOutput')).toHaveText('50%');
   await page.locator('#riskFilter').selectOption('alerts');
-  await expect(page.locator('#riskFilterStatus')).toContainText('live signals');
+  await expect(page.locator('#riskFilterStatus')).toContainText('signals shown');
   await expect(page.locator('#riskFilter')).not.toContainText('Evidence gaps');
 
   await page.locator('.nav a[href="#capital-flows"]').click();
@@ -68,13 +68,16 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   await page.locator('#metricB').selectOption('tvlUsd');
   await page.locator('#runHypothesisButton').click();
   await expect(page.locator('#hypothesisSummary')).toContainText('Pearson r');
+  await expect(page.locator('#hypothesisDetails')).toContainText('Leave-one-day-out r range');
   await page.locator('#thesisProvenance summary').click();
   await expect(page.locator('#thesisSourceQuery')).toContainText('api.coingecko.com');
   await expect(page.locator('#thesisMethodList')).toContainText('Pearson correlation');
   await expect(page.locator('#thesisSourceStatus')).toContainText('DefiLlama');
   const thesisDownload = page.waitForEvent('download'); await page.locator('#exportHypothesisButton').click();
   const result = JSON.parse(await readFile(await (await thesisDownload).path(), 'utf8'));
-  expect(result.result.n).toBe(14); expect(result.rawInputs.coinGeckoMarketChart.prices.length).toBeGreaterThan(14);
+  expect(result.result.n).toBe(14); expect(result.result.pairedChanges).toHaveLength(14); expect(result.result.diagnostics.leaveOneOut.exclusions).toHaveLength(14);
+  expect(result.calculationVersion).toBe('daily-change-v2-direction-and-leave-one-out');
+  expect(result.rawInputs.coinGeckoMarketChart.prices.length).toBeGreaterThan(14);
   expect(result.provenance.recipe.query).toContain('api.coingecko.com');
   expect(result.provenance.sourceStatuses).toHaveLength(2);
   const evidenceDownload = page.waitForEvent('download'); await page.locator('#exportButton').click();
@@ -86,6 +89,14 @@ test('desktop workspace tools use live sources and all navigation/actions work e
 
 test('Risk Radar renders observed stablecoin and NEAR protocol TVL findings from live-schema responses', async ({ page }) => {
   const now = Math.floor(Date.now() / 1000);
+  const midnightUtc = new Date(); midnightUtc.setUTCHours(0, 0, 0, 0);
+  const supplyEnd = Math.floor(midnightUtc.getTime() / 1000) - 86_400;
+  const supplyHistory = Array.from({ length: 8 }, (_, index) => ({
+    date: supplyEnd - (7 - index) * 86_400,
+    totalCirculating: { peggedUSD: 100_000_000 - index * 2_000_000 },
+    totalCirculatingUSD: { peggedUSD: 98_000_000 - index * 1_900_000 },
+    totalMintedUSD: { peggedUSD: 120_000_000 },
+  }));
   const dailyTvl = Array.from({ length: 8 }, (_, index) => ({ date: now - (7 - index) * 86_400, totalLiquidityUSD: 10_000_000 - index * 500_000 }));
   await page.route('https://stablecoins.llama.fi/stablecoins?includePrices=true', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ peggedAssets: [{
@@ -93,6 +104,7 @@ test('Risk Radar renders observed stablecoin and NEAR protocol TVL findings from
       chainCirculating: { Near: { current: { peggedUSD: 100_000 } } },
     }] }),
   }));
+  await page.route('https://stablecoins.llama.fi/stablecoincharts/Near', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(supplyHistory) }));
   await page.route('https://api.llama.fi/protocols', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify([
       { slug: 'test-near-app', name: 'Test NEAR App', category: 'Lending', chains: ['Near'], chainTvls: { Near: 6_500_000 } },
@@ -109,6 +121,10 @@ test('Risk Radar renders observed stablecoin and NEAR protocol TVL findings from
   await expect(stablecoin).toContainText('$0.8000');
   await expect(stablecoin).toContainText('DefiLlama — stablecoin');
   await expect(stablecoin).toContainText('stablecoins.llama.fi/stablecoins?includePrices=true');
+  const supply = page.locator('#riskGrid .risk-card').filter({ hasText: 'NEAR aggregate USD stablecoin circulation' });
+  await expect(supply).toContainText('High supply-contraction watch');
+  await expect(supply).toContainText('14.0%');
+  await expect(supply).toContainText('stablecoincharts/Near');
   const protocol = page.locator('#riskGrid .risk-card').filter({ hasText: 'Test NEAR App' });
   await expect(protocol).toContainText('TVL drawdown threshold crossed');
   await expect(protocol).toContainText('35.0%');
@@ -129,6 +145,25 @@ test('historical TVL beyond its freshness threshold is visibly marked stale', as
   await expect(page.locator('#capitalStatus')).toHaveText('Stale TVL snapshot');
   await expect(page.locator('#capitalStatus')).toHaveClass(/warn/);
   await expect(page.locator('#capitalLastChecked')).toContainText('provider observation is stale');
+});
+
+test('stale protocol threshold crossings remain as context but are excluded from active findings', async ({ page }) => {
+  const latest = Math.floor(Date.now() / 1000) - 5 * 86_400;
+  const points = Array.from({ length: 8 }, (_, index) => ({ date: latest - (7 - index) * 86_400, totalLiquidityUSD: 10_000_000 - index * 500_000 }));
+  await page.route('https://api.llama.fi/protocols', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+    { slug: 'stale-near-app', name: 'Stale NEAR App', category: 'Lending', chains: ['Near'], chainTvls: { Near: 6_500_000 } },
+  ]) }));
+  await page.route('https://api.llama.fi/protocol/stale-near-app', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ name: 'Stale NEAR App', chainTvls: { Near: { tvl: points } } }) }));
+  await page.route('https://stablecoins.llama.fi/stablecoins?includePrices=true', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ peggedAssets: [] }) }));
+  await page.route('https://stablecoins.llama.fi/stablecoincharts/Near', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  await page.route('https://api.coingecko.com/**', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await page.route('https://coins.llama.fi/**', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await page.goto('/#risk-radar');
+  const stale = page.locator('#riskGrid .risk-card').filter({ hasText: 'Stale NEAR App' });
+  await expect(stale).toContainText('Stale observation');
+  await expect(stale).toContainText('not counted as a live finding');
+  await page.locator('#riskFilter').selectOption('alerts');
+  await expect(page.locator('#riskGrid')).not.toContainText('Stale NEAR App');
 });
 
 test('failed public feeds show unavailable values and explain the failed reads', async ({ page }) => {

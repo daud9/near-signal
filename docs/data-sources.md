@@ -1,6 +1,6 @@
 # Data-source inventory
 
-NEAR SIGNAL uses 14 read-only public feeds. Failed, malformed, stale or pending data is labeled rather than replaced with a proxy. A successful response is not an SLA, permission to exceed a provider's limits, or proof of complete historical coverage.
+NEAR SIGNAL uses 15 read-only public feeds. Failed, malformed, stale or pending data is labeled rather than replaced with a proxy. A successful response is not an SLA, permission to exceed a provider's limits, or proof of complete historical coverage.
 
 ## Connected feeds
 
@@ -17,6 +17,7 @@ NEAR SIGNAL uses 14 read-only public feeds. Failed, malformed, stale or pending 
 | [DefiLlama — historical NEAR TVL](https://api.llama.fi/v2/historicalChainTvl/near) | Long-run dated daily USD total value locked | On load and about every 30 minutes | Asset stock, not deposits, net inflow, retention or protocol revenue; the TVL chart does not require CoinGecko date matches. |
 | [DefiLlama — NEAR protocol index and selected TVL histories](https://api.llama.fi/protocols) | Filtered index of non-CEX rows with reported NEAR TVL ≥ $100,000; dated `chainTvls.Near.tvl` histories for up to eight selected protocols | Index and detail reads on load and about every 30 minutes | Provider-indexed coverage, not a complete app census. A USD balance can move with token prices and adapter coverage; it is not a withdrawal or solvency ledger. |
 | [DefiLlama — stablecoin price and NEAR circulation](https://stablecoins.llama.fi/stablecoins?includePrices=true) | USD-peg classification, price and reported NEAR-chain circulating value | On load and about every 30 minutes | No provider price timestamp/confidence field. Browser check time is recorded; a quote is not redemption or reserve proof. |
+| [DefiLlama — dated NEAR stablecoin circulation](https://stablecoins.llama.fi/stablecoincharts/Near) | Daily `totalCirculating.peggedUSD`, with `totalCirculatingUSD.peggedUSD` and `totalMintedUSD.peggedUSD` preserved as coverage diagnostics | On load and about every 30 minutes; only complete consecutive dates enter the 7-day comparison | A 10% 7-day contraction is an investigation watch. Provider coverage may change with migrations, reclassification or history corrections; it is not a withdrawal, redemption, reserve or solvency ledger. |
 | [DefiLlama — NEAR DEX overview](https://api.llama.fi/overview/dexs/Near) | Dated chain DEX-volume observations and the provider's daily protocol breakdown when returned | On load and about every 30 minutes | DEX notional turnover can include arbitrage and routed trades; it is not pool depth, deposits, net inflow or investment. Exact seven-day sums and comparisons require complete consecutive daily points. |
 | [DefiLlama — NEAR fees overview](https://api.llama.fi/overview/fees/Near) | Dated provider-indexed chain-fee observations | On load and about every 30 minutes | Not a reconciled transaction/receipt fee ledger, realized revenue, validator income or APY. Exact rolling sums require consecutive dated points. |
 | [GeckoTerminal — NEAR pool page 1](https://api.geckoterminal.com/api/v2/networks/near/pools?page=1) | Up to 20 returned pool reserves, rolling volumes, buy/sell transaction counts and price changes | On load and about every five minutes; provider cache is one minute | Beta API with an approximate 10-call/minute public limit. Page 1 is bounded coverage, not all pools; pool reserves may overlap and are not chain TVL. |
@@ -29,10 +30,11 @@ The Network Activity & Validators workspace offers a user-initiated, read-only `
 
 ## Collection and quality rules
 
-- The browser calls connected sources directly. The local server is loopback-only and stores no provider credentials.
+- The browser calls connected sources directly. The local server is loopback-only, serves an explicit allowlist of app assets, and stores no provider credentials.
 - The sampled block total is withheld if block identity/references do not match or a newly included shard is missing, duplicated or mismatched. Earlier-height references contribute zero. Full transaction bodies and receipt payloads are discarded.
 - Market/TVL joins used by the overview and thesis test match exact UTC dates. The standalone TVL chart uses DefiLlama's own dated history. Missing dates are not interpolated and the current partial UTC date is excluded.
 - A 7-, 14- or 30-day endpoint change requires 8, 15 or 31 consecutive daily observations. A seven-day sum requires seven consecutive dates; comparing adjacent seven-day sums requires 14.
+- Stablecoin-supply contraction requires eight consecutive full daily records and compares the first and last `totalCirculating.peggedUSD` values. No gaps are filled; the latest partial UTC date is excluded.
 - Pool-page aggregates describe only rows actually returned on page 1, and report how many rows contributed values. They are not presented as chain-wide totals.
 - Browser block history accrues only while the page is open; it is not a chain archive. Evidence exports include transformed source rows and the chart requests needed for offline replay.
 
