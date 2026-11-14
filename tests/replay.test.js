@@ -16,6 +16,9 @@ test('RPC replay derives gas and count from raw responses rather than saved summ
   assert.equal(rows[0].transactionShardCount, 1);
   assert.equal(rows[0].transactionReusedShardCount, 0);
   assert.equal(rows[0].height, 1);
+  assert.equal(rows[0].transactionSampleVerified, true);
+  assert.equal(rows[0].shardExecution.shards[0].transactionCount, 1);
+  assert.equal(rows[0].shardExecution.shards[0].gasTgas, 1);
 });
 
 test('offline replay ignores reused prior-height transactions and accounts for their shard', () => {
@@ -59,6 +62,8 @@ test('chart replay is deterministic, uses original UTC cutoff, and needs no netw
   assert.deepEqual(result.feeHistoryChart, [{ date: '2024-01-01', valueUsd: 1 }]);
   assert.equal(result.gasChart[0].gasTgas, 1);
   assert.equal(result.blockTxChart[0].transactionCount, 1);
+  assert.equal(result.flightRecorderSamples[0].shardExecution.transactionSampleVerified, true);
+  assert.equal(result.flightRecorderSamples[0].shardExecution.shards[0].transactionSharePct, 100);
 });
 
 test('browser export shape replays and missing series remain empty', () => {

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-const routes = ['overview', 'thesis-challenge', 'risk-radar', 'value-capture', 'adoption', 'capital-flows'];
+const routes = ['overview', 'thesis-challenge', 'risk-radar', 'flight-recorder', 'value-capture', 'adoption', 'capital-flows'];
 
 test('desktop workspace tools use live sources and all navigation/actions work end to end', async ({ page }) => {
   const errors = [], forbiddenRequests = [];
@@ -157,6 +157,10 @@ test('mobile side menu opens, routes, closes and does not overflow', async ({ pa
   await expect(page.locator('#adoption')).toBeVisible();
   await expect(page.locator('#menuToggle')).toHaveAttribute('aria-expanded', 'false');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#menuToggle').click();
+  await page.locator('.nav a[href="#flight-recorder"]').click();
+  await expect(page.locator('#flight-recorder')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator('#menuToggle').click(); await page.keyboard.press('Escape');
   await expect(page.locator('#menuToggle')).toHaveAttribute('aria-expanded', 'false');
 });
@@ -238,6 +242,22 @@ test('expanded liquidity, validator, shard and value-capture panels render only 
   await expect(page.locator('#protocolIndexTable')).toContainText('Fixture NEAR One');
   await expect(page.locator('#protocolHistoryTable')).toContainText('Fixture NEAR Two');
   await expect(page.locator('#protocolHistoryTable')).toContainText('7-day change');
+  await page.locator('.nav a[href="#flight-recorder"]').click();
+  await expect(page.locator('#flightBlockHeight')).toHaveText('100');
+  await expect(page.locator('#flightSampleTx')).toHaveText('2');
+  await expect(page.locator('#flightShardTable')).toContainText('2');
+  await expect(page.locator('#flightShardChart .shard-fingerprint-row')).toHaveCount(1);
+  await expect(page.locator('#flightShardStatus')).toHaveText('All shard chunks verified');
+  await expect(page.locator('#flightTurnover')).not.toHaveText('Unavailable');
+  await expect(page.locator('#flightIndexTop3')).not.toHaveText('Unavailable');
+  await expect(page.locator('#flightRecorderReadout')).toContainText('2 verified transactions');
+  await page.locator('#flightMethod summary').click();
+  await expect(page.locator('#flightRecipeText')).toContainText('api.llama.fi/overview/dexs/Near');
+  const flightDownload = page.waitForEvent('download'); await page.locator('#flightExportButton').click();
+  const flightBundle = JSON.parse(await readFile(await (await flightDownload).path(), 'utf8'));
+  expect(flightBundle.selectedBlock.execution.transactionSampleVerified).toBe(true);
+  expect(flightBundle.selectedBlock.execution.shards[0].transactionCount).toBe(2);
+  expect(flightBundle.replayed.flightRecorderSamples[0].transactionSampleVerified).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

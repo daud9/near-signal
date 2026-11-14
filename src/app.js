@@ -1,4 +1,4 @@
-import { alignMarketAndTvl, assessLiveRisks, completeWindowSum, completeWindowSumChange, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
+import { alignMarketAndTvl, assessLiveRisks, completeWindowSum, completeWindowSumChange, formatSignedPercent, summarizeBlock, summarizeBlockTransactions, summarizeIndexedProtocolConcentration, summarizeShardExecution, summarizeStablecoinExposure, summarizeWeeklyTurnoverIntensity, testHypothesis, toUtcDate, windowChange } from './analytics.js';
 import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchProtocolConfig, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchNearProtocolTvls, fetchNearStablecoins, fetchNearDexVolumeHistory, fetchNearFeesHistory, fetchNearPoolSnapshot, fetchAccountSnapshot } from './data.js';
 import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from './query-registry.js';
 
@@ -19,7 +19,7 @@ const state = {
   block: null, rpcStatus: null, validators: null, sourceStatuses: new Map(), observations: readObservations(),
   stablecoinObservations: readStablecoinObservations(),
   chartMetric: 'priceUsd', days: 14, declineThreshold: 20, isRefreshing: false, rpcBusy: false, lastMarketRefresh: 0, lastChunkRequestAt: 0,
-  inFlight: new Set(), failureCounts: new Map(), retryAt: new Map(),
+  inFlight: new Set(), failureCounts: new Map(), retryAt: new Map(), flightRecorderHeight: null,
 };
 const METRICS = {
   priceUsd: { label: 'Daily NEAR price', color: '#167965', format: 'usd' },
@@ -514,6 +514,147 @@ function renderCapital() {
   }), sourceFailureText('defillama-near-protocol-tvls') || 'No selected dated history rows returned.');
 }
 
+function selectedFlightSample() {
+  const history = state.observations ?? [];
+  const latestHeight = state.block?.height ?? history.at(-1)?.height ?? null;
+  let height = state.flightRecorderHeight ?? latestHeight;
+  if (height !== null && height !== latestHeight && !history.some((row) => row.height === height)) height = latestHeight;
+  state.flightRecorderHeight = height;
+  const observation = history.find((row) => row.height === height) ?? null;
+  if (state.block?.height === height) {
+    const activity = state.blockActivity?.blockHeight === height ? state.blockActivity : null;
+    return { block: state.block, activity, observation, execution: summarizeShardExecution(state.block, activity), observedAt: observation?.observedAt ?? state.block.fetchedAt ?? null };
+  }
+  const block = observation ? summarizeBlock(observation.rawBlock, Date.parse(observation.observedAt)) : null;
+  const activity = block ? summarizeBlockTransactions(block, observation.rawChunks) : null;
+  return { block, activity, observation, execution: summarizeShardExecution(block, activity), observedAt: observation?.observedAt ?? block?.fetchedAt ?? null };
+}
+
+function flightRecorderModel() {
+  const tvlRows = fullDayUsdRows(state.tvlHistory?.rows, 'tvl', 'date', 's').map((row) => ({ ...row, tvlUsd: row.valueUsd }));
+  const dexRows = fullDayUsdRows(state.dexVolumeHistory?.rows);
+  const feeRows = fullDayUsdRows(state.feeHistory?.rows);
+  return {
+    selected: selectedFlightSample(), tvlRows, dexRows, feeRows,
+    latestDex: dexRows.at(-1) ?? null, latestFee: feeRows.at(-1) ?? null, latestTvl: tvlRows.at(-1) ?? null,
+    dex7d: completeWindowSumChange(dexRows, 'valueUsd', 7),
+    fees7d: completeWindowSumChange(feeRows, 'valueUsd', 7),
+    tvl7d: windowChange(tvlRows, 'tvlUsd', 7), tvl30d: windowChange(tvlRows, 'tvlUsd', 30),
+    turnover: summarizeWeeklyTurnoverIntensity(tvlRows, dexRows, 7),
+    protocolConcentration: summarizeIndexedProtocolConcentration(state.nearProtocolTvls?.indexProtocols ?? []),
+    stablecoins: summarizeStablecoinExposure(state.nearStablecoins?.assets ?? []),
+  };
+}
+
+function renderFlightRecorder() {
+  const model = flightRecorderModel(), history = (state.observations ?? []).slice().sort((a, b) => b.height - a.height);
+  const currentHeight = state.block?.height ?? history[0]?.height ?? null;
+  const options = new Map();
+  if (state.block) options.set(state.block.height, { height: state.block.height, timestamp: state.block.timestamp, tx: state.blockActivity?.blockHeight === state.block.height ? state.blockActivity.transactionCount : null });
+  for (const row of history) if (!options.has(row.height)) options.set(row.height, { height: row.height, timestamp: row.blockTime, tx: row.transactionCount });
+  $('#flightSampleSelect').innerHTML = [...options.values()].map((row) => `<option value="${row.height}">Block ${compact(row.height, 0)} · ${row.tx === null || row.tx === undefined ? 'transaction sample unavailable' : `${compact(row.tx, 0)} verified transactions`} · ${escapeHtml(row.timestamp ?? 'time unavailable')}</option>`).join('') || '<option value="">No recorded finalized block</option>';
+  if (currentHeight !== null && [...options.keys()].includes(model.selected?.block?.height)) $('#flightSampleSelect').value = String(model.selected.block.height);
+  const sample = model.selected.execution, sampleSourceFailure = sourceFailureText('near-rpc-finalized');
+  $('#flightRecorderStatus').textContent = sample ? model.selected.block?.finality === 'final' ? 'Finalized RPC sample' : 'Replayed finalized sample' : unavailableOrWaiting('near-rpc-finalized', 'Waiting for a verified block');
+  $('#flightRecorderStatus').className = `status-pill ${sample ? 'good' : 'warn'}`;
+  $('#flightBlockHeight').textContent = sample ? compact(sample.blockHeight, 0) : unavailableOrWaiting('near-rpc-finalized', 'Waiting for block');
+  $('#flightSampleMeta').textContent = sample ? `Block ${compact(sample.blockHeight, 0)} · ${utcDateTime(sample.blockTimestamp)} · ${model.selected.observedAt ? `recorded ${ago(model.selected.observedAt)}` : 'observation time unavailable'}${sampleSourceFailure ? ` · latest RPC warning: ${sampleSourceFailure}` : ''}` : sampleSourceFailure || 'Waiting for a finalized block and shard data.';
+  $('#flightShardStatus').textContent = sample?.transactionSampleVerified ? 'All shard chunks verified' : sample ? 'Gas only · transactions withheld' : 'Waiting for exact block';
+  $('#flightShardStatus').className = `status-pill ${sample?.transactionSampleVerified ? 'good' : 'warn'}`;
+  $('#flightSampleTx').textContent = sample?.transactionSampleVerified ? compact(sample.totalTransactions, 0) : unavailableOrWaiting('fastnear-neardata-block-transactions', 'Awaiting exact-height chunk match');
+  $('#flightSampleTxFoot').textContent = sample?.transactionSampleVerified ? `${sample.includedTransactionChunks} newly included chunks · ${sample.reusedShardCount} earlier-height references counted as zero · ${utcDateTime(model.selected.activity?.fetchedAt ?? model.selected.observation?.transactionFetchedAt)}` : sourceFailureText('fastnear-neardata-block-transactions') || 'No complete matching transaction arrays retained for this block; no count inferred.';
+  $('#flightShardLoad').textContent = sample ? `${sample.usedShards} / ${sample.shardCount}` : unavailableOrWaiting('near-rpc-finalized', 'Waiting for block');
+  $('#flightShardLoadFoot').textContent = sample ? 'Shards with non-zero reported block gas / all shard rows' : sampleSourceFailure || 'Waiting for finalized block shard data.';
+  $('#flightGasTgas').textContent = sample ? `${sample.totalGasTgas.toFixed(2)} Tgas` : unavailableOrWaiting('near-rpc-finalized', 'Waiting for block');
+  $('#flightGasFoot').textContent = sample ? `Reported block gas across ${sample.shardCount} shard rows · not an application throughput measure` : sampleSourceFailure || 'Waiting for finalized block gas.';
+
+  const shardRows = sample?.shards ?? [];
+  $('#flightShardChart').innerHTML = shardRows.length ? shardRows.map((row) => {
+    const gasShare = row.gasSharePct === null ? null : Math.max(0, Math.min(100, row.gasSharePct));
+    const txShare = row.transactionSharePct === null ? null : Math.max(0, Math.min(100, row.transactionSharePct));
+    const bar = (label, value, className) => `<div class="shard-bar-row"><span class="shard-bar-label">${label}</span><div class="shard-bar-track" aria-hidden="true"><span class="${className}" style="width:${value === null ? 0 : value.toFixed(2)}%"></span></div><span class="shard-bar-value">${value === null ? 'Unavailable' : `${value.toFixed(1)}%`}</span></div>`;
+    return `<div class="shard-fingerprint-row"><div class="shard-fingerprint-head"><strong>Shard ${row.shardId}</strong><span>${row.gasTgas.toFixed(3)} Tgas · ${row.transactionCount === null ? 'tx unavailable' : `${compact(row.transactionCount, 0)} tx`}</span></div>${bar('Gas', gasShare, 'gas-share')}${bar('Tx', txShare, 'transaction-share')}</div>`;
+  }).join('') : '<div class="chart-empty">No shard gas rows are available for this selection.</div>';
+  $('#flightShardChart').setAttribute('aria-label', sample ? `Selected block ${sample.blockHeight} per-shard gas and transaction-share comparison` : 'No finalized block shard composition available');
+  renderSimpleTable('#flightShardTable', 'Per-shard composition in the selected finalized block', ['Shard', 'Gas · Tgas', 'Gas-limit utilization', 'Gas share', 'Verified tx count', 'Tx share', 'Tx share − gas share'], shardRows.map((row) => [row.shardId, row.gasTgas.toFixed(3), Number.isFinite(row.gasUtilizationPct) ? `${row.gasUtilizationPct.toFixed(1)}%` : 'Unavailable', row.gasSharePct === null ? 'Unavailable' : `${row.gasSharePct.toFixed(1)}%`, row.transactionCount === null ? 'Unavailable' : compact(row.transactionCount, 0), row.transactionSharePct === null ? 'Unavailable' : `${row.transactionSharePct.toFixed(1)}%`, row.transactionMinusGasSharePp === null ? 'Unavailable' : `${row.transactionMinusGasSharePp > 0 ? '+' : ''}${row.transactionMinusGasSharePp.toFixed(1)} pp`]), sample ? 'No shard gas rows were returned.' : 'Waiting for selected finalized block data.');
+  $('#flightShardScope').textContent = sample?.transactionSampleVerified ? `Transaction and gas shares are within block ${compact(sample.blockHeight, 0)} only. A positive gap means the shard’s share of this one transaction sample exceeds its share of reported block gas; it says nothing about unique users, retention or sustained load.` : 'Per-shard gas is available from the finalized-block RPC. Transaction counts and share differences remain unavailable until every shard chunk is verified against the exact block hash and inclusion height.';
+
+  $('#flightDex7d').textContent = model.dex7d ? shortUsd(model.dex7d.current.sum) : unavailableOrWaiting('defillama-near-dex-volume', 'Waiting for 7 consecutive full days');
+  $('#flightDexChange').textContent = model.dex7d ? formatSignedPercent(model.dex7d.changePct) : unavailableOrWaiting('defillama-near-dex-volume', 'Waiting for 14 consecutive full days');
+  $('#flightDexFoot').textContent = model.dex7d ? `${model.dex7d.current.startDate}–${model.dex7d.current.endDate} vs ${model.dex7d.previous.startDate}–${model.dex7d.previous.endDate} · provider-indexed turnover` : 'Seven-day sums compared only when 14 consecutive dates are present.';
+  $('#flightFees7d').textContent = model.fees7d ? shortUsd(model.fees7d.current.sum) : unavailableOrWaiting('defillama-near-fees', 'Waiting for 7 consecutive full days');
+  $('#flightFeesChange').textContent = model.fees7d ? formatSignedPercent(model.fees7d.changePct) : unavailableOrWaiting('defillama-near-fees', 'Waiting for 14 consecutive full days');
+  $('#flightFeesFoot').textContent = model.fees7d ? `${model.fees7d.current.startDate}–${model.fees7d.current.endDate} vs ${model.fees7d.previous.startDate}–${model.fees7d.previous.endDate} · indexed fee observations` : 'Provider-indexed fees, not a reconciled receipt-level ledger.';
+  $('#flightTurnover').textContent = model.turnover ? `${model.turnover.turnoverPct.toFixed(2)}%` : unavailableOrWaiting(['defillama-tvl', 'defillama-near-dex-volume'], 'Waiting for 7 exact matched dates');
+  $('#flightTurnoverFoot').textContent = model.turnover ? `7-day DEX notional ÷ mean daily TVL · ${model.turnover.startDate}–${model.turnover.endDate}. Descriptive intensity, not net flow.` : 'Requires seven consecutive UTC dates with both TVL and DEX observations; no date is filled.';
+
+  $('#flightTvl7d').textContent = model.tvl7d ? formatSignedPercent(model.tvl7d.changePct) : unavailableOrWaiting('defillama-tvl', 'Waiting for 8 consecutive daily stocks');
+  $('#flightTvl30d').textContent = model.tvl30d ? formatSignedPercent(model.tvl30d.changePct) : unavailableOrWaiting('defillama-tvl', 'Waiting for 31 consecutive daily stocks');
+  $('#flightTvlFoot').textContent = model.tvlRows.length ? `${model.latestTvl?.date ?? 'Latest date unavailable'} UTC · reported USD stock; price and coverage effects remain` : sourceFailureText('defillama-tvl') || 'No valid dated TVL row.';
+  const concentration = model.protocolConcentration;
+  $('#flightIndexTop3').textContent = concentration ? `${concentration.topThreeSharePct.toFixed(1)}%` : unavailableOrWaiting('defillama-near-protocol-tvls', 'Waiting for eligible index rows');
+  $('#flightIndexFoot').textContent = concentration ? `Top three of ${concentration.protocolCount} valid positive rows · HHI ${concentration.hhi.toFixed(0)} · ${shortUsd(concentration.totalIndexedTvlUsd)} indexed TVL · filtered provider universe, not full ecosystem.` : sourceFailureText('defillama-near-protocol-tvls') || 'No valid provider index values.';
+  const stablecoins = model.stablecoins, peg = stablecoins?.largestQuoteDeviation;
+  $('#flightStablecoinTotal').textContent = stablecoins ? shortUsd(stablecoins.totalCirculationUsd) : unavailableOrWaiting('defillama-near-stablecoins', 'Waiting for valid USD-pegged supply rows');
+  $('#flightStablecoinFoot').textContent = peg ? `${stablecoins.assetCount} quoted assets · largest deviation: ${peg.symbol || peg.name} ${peg.deviationPct.toFixed(2)}% from $1 (reported ${shortUsd(peg.circulationUsd)} NEAR circulation); quote is not redemption or reserve proof.` : sourceFailureText('defillama-near-stablecoins') || 'No valid timestamped quote/circulation pair; provider does not expose a quote time.';
+  $('#flightMarket').textContent = state.market ? `${usd(state.market.priceUsd, state.market.priceUsd < 1 ? 4 : 2)} · ${formatSignedPercent(state.market.priceChange24hPct, 2)}` : unavailableOrWaiting('coingecko-market', 'Waiting for timestamped market snapshot');
+  $('#flightMarketFoot').textContent = state.market?.timestamp ? `CoinGecko provider time ${utcDateTime(state.market.timestamp)} · external market context, not on-chain flow.` : sourceFailureText('coingecko-market') || 'No timestamped market observation.';
+
+  const validators = state.validators;
+  $('#flightValidatorSet').textContent = validators ? `${compact(validators.validatorCount, 0)} current` : unavailableOrWaiting('near-rpc-validators', 'Waiting for validator snapshot');
+  $('#flightValidatorFoot').textContent = validators ? `Top-10 active-set share ${Number.isFinite(validators.top10SharePct) ? `${validators.top10SharePct.toFixed(1)}%` : 'unavailable'} · HHI ${Number.isFinite(validators.hhi) ? validators.hhi.toFixed(0) : 'unavailable'} · ${validators.nextSetAddedCount ?? '—'} added / ${validators.nextSetRemovedCount ?? '—'} removed for next set.` : sourceFailureText('near-rpc-validators') || 'No current validator set.';
+  $('#flightValidatorProduction').textContent = validators?.blockProductionPct === null || !validators ? unavailableOrWaiting('near-rpc-validators', 'Unavailable') : `${validators.blockProductionPct.toFixed(1)}% blocks`;
+  $('#flightValidatorProductionFoot').textContent = validators ? `Current-epoch RPC counters · ${validators.prevEpochKickouts?.length ?? 0} previous-epoch kickouts · ${validators.slashedValidatorCount ?? 0} current slashing flags.` : sourceFailureText('near-rpc-validators') || 'No current epoch counters.';
+
+  const historyRows = history.slice(0, 12).map((row) => [compact(row.height, 0), row.blockTime ? utcDateTime(row.blockTime) : 'Unavailable', Number.isFinite(row.gasTgas) ? `${row.gasTgas.toFixed(2)} Tgas` : 'Unavailable', row.transactionCount === null || row.transactionCount === undefined ? 'Unavailable' : compact(row.transactionCount, 0), row.transactionSampleVerified ? 'Exact-height matched' : 'Gas only / incomplete']);
+  renderSimpleTable('#flightHistoryTable', 'Recent browser-local finalized block observations', ['Block', 'Finalized block time', 'Gas', 'Verified tx count', 'Evidence state'], historyRows, 'No locally recorded finalized-block observations yet. History starts only while this browser is open.');
+  $('#flightHistorySpan').textContent = history.length ? `${history.length} browser-local raw-backed samples · most recent first · capped at ${MAX_LOCAL_OBSERVATIONS}; not an archive` : 'No locally recorded block samples.';
+
+  const sourceIds = ['near-rpc-finalized', 'fastnear-neardata-block-transactions', 'near-rpc-validators', 'defillama-near-dex-volume', 'defillama-near-fees', 'defillama-tvl', 'defillama-near-protocol-tvls', 'defillama-near-stablecoins', 'coingecko-market'];
+  const sourceRows = sourceIds.map((id) => {
+    const source = DATA_SOURCES.find((item) => item.id === id), status = state.sourceStatuses.get(id);
+    const available = ({ 'near-rpc-finalized': Boolean(state.block), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-validators': Boolean(state.validators), 'defillama-near-dex-volume': Boolean(state.dexVolumeHistory?.rows?.length), 'defillama-near-fees': Boolean(state.feeHistory?.rows?.length), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length), 'defillama-near-protocol-tvls': Boolean(state.nearProtocolTvls?.indexProtocols?.length), 'defillama-near-stablecoins': Boolean(state.nearStablecoins?.assets?.length), 'coingecko-market': Boolean(state.market) })[id];
+    return [`<a href="${escapeHtml(source?.docUrl || source?.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(source?.name || id)}</a>`, feedStateLabel(id, available), status?.providerAt ? utcDateTime(status.providerAt) : status?.checkedAt ? `Checked ${utcDateTime(status.checkedAt)}` : 'Not checked'];
+  });
+  const sourceTable = $('#flightSourceTable');
+  if (sourceTable) sourceTable.innerHTML = sourceRows.length ? `<table class="data-table"><caption class="sr-only">Flight Recorder source freshness</caption><thead><tr><th scope="col">Feed</th><th scope="col">State</th><th scope="col">Provider / check time</th></tr></thead><tbody>${sourceRows.map((row) => `<tr>${row.map((value) => `<td>${value}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<div class="chart-empty">No source records.</div>';
+  $('#flightRecipeSummary').textContent = CHART_QUERY_RECIPES.flightRecorder.plainLanguage;
+  $('#flightRecipeText').textContent = CHART_QUERY_RECIPES.flightRecorder.query;
+  $('#flightLimitations').innerHTML = CHART_QUERY_RECIPES.flightRecorder.limitations.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+
+  const statements = [];
+  statements.push(sample?.transactionSampleVerified ? `Block ${compact(sample.blockHeight, 0)} contains ${compact(sample.totalTransactions, 0)} verified transactions over ${sample.shardCount} shard rows in this exact sample.` : sample ? `Block ${compact(sample.blockHeight, 0)} has ${sample.shardCount} reported shard-gas rows, but its transaction payload is not fully verified.` : 'Waiting for a finalized execution sample.');
+  statements.push(model.dex7d ? `The latest complete DEX window totals ${shortUsd(model.dex7d.current.sum)} (${formatSignedPercent(model.dex7d.changePct)} vs the prior seven days).` : 'DEX seven-day comparison is withheld until 14 consecutive full daily points are available.');
+  statements.push(model.tvl7d ? `Reported NEAR DeFi TVL changed ${formatSignedPercent(model.tvl7d.changePct)} over ${model.tvl7d.days} days.` : 'TVL endpoint change is withheld until a complete consecutive daily window is available.');
+  statements.push('Block samples, rolling provider series, market quotes and validator snapshots are distinct scopes/times; they are not collapsed into a health score or treated as causal evidence.');
+  $('#flightRecorderReadout').innerHTML = statements.map((line) => `<p>${escapeHtml(line)}</p>`).join('');
+}
+
+function exportFlightRecorder() {
+  const model = flightRecorderModel(), selected = model.selected;
+  if (!selected.execution) { announce('No finalized block sample is available to export yet.'); return; }
+  const sourceIds = ['near-rpc-finalized', 'fastnear-neardata-block-transactions', 'near-rpc-validators', 'defillama-near-dex-volume', 'defillama-near-fees', 'defillama-tvl', 'defillama-near-protocol-tvls', 'defillama-near-stablecoins', 'coingecko-market'];
+  const bundle = {
+    product: 'NEAR SIGNAL', feature: 'NEAR Ecosystem Flight Recorder', version: 1, exportedAt: new Date().toISOString(),
+    selectedBlock: { execution: selected.execution, observedAt: selected.observedAt, rawBlock: selected.block?.raw ?? selected.observation?.rawBlock ?? null, rawMatchedTransactionChunks: selected.observation?.rawChunks ?? selected.activity?.rawChunks ?? null, transactionFetchedAt: selected.activity?.fetchedAt ?? selected.observation?.transactionFetchedAt ?? null },
+    currentContext: {
+      dailyTvlRows: model.tvlRows, dailyDexRows: model.dexRows, dailyIndexedFeeRows: model.feeRows,
+      nearProtocolIndex: state.nearProtocolTvls?.indexProtocols ?? null, nearStablecoins: state.nearStablecoins ?? null,
+      currentValidatorSet: state.validators ?? null, currentMarket: state.market ?? null,
+      derived: { dex7d: model.dex7d, fees7d: model.fees7d, tvl7d: model.tvl7d, tvl30d: model.tvl30d, weeklyTurnoverIntensity: model.turnover, indexedProtocolConcentration: model.protocolConcentration, stablecoinExposure: model.stablecoins },
+      timeAlignment: 'Current context snapshots/rolling provider windows are exported separately from the selected block sample; they are not asserted to be synchronized to that block time.',
+    },
+    sourceStatuses: sourceIds.map((sourceId) => state.sourceStatuses.get(sourceId) ?? { sourceId, ok: null, checkedAt: null, providerAt: null, detail: 'No completed source check is available.' }),
+    recipe: CHART_QUERY_RECIPES.flightRecorder,
+    localRpcObservationHistory: state.observations,
+    rawInputs: { rawTvlRows: state.tvlHistory?.rows ?? null, rawNearDexVolumeRows: state.dexVolumeHistory?.rows ?? null, rawNearFeeRows: state.feeHistory?.rows ?? null },
+    limitations: CHART_QUERY_RECIPES.flightRecorder.limitations,
+  };
+  bundle.replayed = replayChartInputs({ exportedAt: bundle.exportedAt, rawTvlRows: bundle.rawInputs.rawTvlRows ?? [], rawNearDexVolumeRows: bundle.rawInputs.rawNearDexVolumeRows ?? [], rawNearFeeRows: bundle.rawInputs.rawNearFeeRows ?? [], localRpcObservationHistory: bundle.localRpcObservationHistory });
+  downloadFile('near-signal-flight-recorder.json', JSON.stringify(bundle, null, 2), 'application/json');
+  announce('Flight Recorder state, raw inputs, source status and offline replay outputs exported.');
+}
+
 function renderHypothesis() {
   renderThesisProvenance();
   const daily = hypothesisRows(), metricA = $('#metricA')?.value || 'priceUsd', metricB = $('#metricB')?.value || 'tvlUsd';
@@ -560,6 +701,7 @@ function renderAll() {
     adoption: renderParticipation,
     'risk-radar': renderRisks,
     'capital-flows': renderCapital,
+    'flight-recorder': renderFlightRecorder,
     'thesis-challenge': renderHypothesis,
   };
   (renderers[resolveWorkspace(location.hash)] || renderOverview)();
@@ -694,16 +836,18 @@ async function refreshEverything() {
   } finally { state.isRefreshing = false; button.disabled = false; button.innerHTML = '↻ <span>Refresh</span>'; renderAll(); announce('Available signals refreshed. Transaction samples respect a five-minute cadence, GeckoTerminal a five-minute cadence, and CoinGecko a one-minute cooldown. See source status for failed reads.'); }
 }
 function exportEvidence() {
+  const flight = flightRecorderModel();
   const bundle = {
     project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), status: 'public read-only Vercel dashboard; hackathon submission not made',
     live: { market: state.market, independentSpotPrice: state.llamaPrice, finalizedBlock: state.block, blockMatchedProtocolConfig: state.protocolConfig, sampledFinalizedBlockTransactions: state.blockActivity,
       rpcStatus: state.rpcStatus ? { chainId: state.rpcStatus.chain_id, syncing: state.rpcStatus.syncing, latestBlockHeight: state.rpcStatus.sync_info?.latest_block_height, latestBlockTime: state.rpcStatus.sync_info?.latest_block_time } : null,
       currentValidatorSet: state.validators, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins,
       nearDexVolumeHistory: state.dexVolumeHistory, nearFeeHistory: state.feeHistory, nearPoolSnapshot: state.nearPoolSnapshot },
+    flightRecorder: { selectedBlock: flight.selected.execution, selectedBlockObservedAt: flight.selected.observedAt, currentContext: { dex7d: flight.dex7d, fees7d: flight.fees7d, tvl7d: flight.tvl7d, tvl30d: flight.tvl30d, weeklyTurnoverIntensity: flight.turnover, indexedProtocolConcentration: flight.protocolConcentration, stablecoinExposure: flight.stablecoins }, recipe: CHART_QUERY_RECIPES.flightRecorder, note: 'The selected block sample is separate from current rolling economic and market observations; no synchronization or composite score is inferred.' },
     dailyAlignedMarketAndTvl: allDailyRows(), dailyHypothesisSeries: hypothesisRows(), rawTvlRows: state.tvlHistory?.rows ?? null, rawCoinGeckoMarketChart: state.marketChart,
     rawNearDexVolumeRows: state.dexVolumeHistory?.rows ?? null, rawNearFeeRows: state.feeHistory?.rows ?? null, rawNearPoolSnapshot: state.nearPoolSnapshot ?? null,
     localRpcObservationHistory: state.observations, localStablecoinPriceObservations: state.stablecoinObservations,
-    chartSelections: { days: state.days, metric: state.chartMetric, capitalDays: Number($('#capitalWindowSelect').value) },
+    chartSelections: { days: state.days, metric: state.chartMetric, capitalDays: Number($('#capitalWindowSelect').value), flightRecorderHeight: flight.selected.block?.height ?? null },
     onDemandAccountInspection: accountInspection,
     executionCostScenario: { gasTgas: Number($('#feeGasInput').value), gasPriceNearPerTgas: state.block?.gasPriceNearPerTgas ?? null, priceUsd: state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null, estimate: estimateExecutionCost($('#feeGasInput').value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd) },
     chartQueryRecipes: CHART_QUERY_RECIPES,
@@ -805,6 +949,8 @@ function setupWorkspaceControls() {
   $('#feeGasInput').addEventListener('input', renderFeeEstimate);
   $('#accountInspectorForm').addEventListener('submit', inspectAccount);
   $('#capitalWindowSelect').addEventListener('change', renderCapital);
+  $('#flightSampleSelect').addEventListener('change', (event) => { state.flightRecorderHeight = event.target.value ? Number(event.target.value) : null; renderFlightRecorder(); });
+  $('#flightExportButton').addEventListener('click', exportFlightRecorder);
   $('#riskFilter').addEventListener('change', renderRisks);
   $('#exportHypothesisButton').addEventListener('click', exportHypothesis);
   document.addEventListener('click', async (event) => {

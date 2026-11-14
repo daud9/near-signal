@@ -463,3 +463,40 @@ code { color: #236b5c; font-size: .92em; }
 .data-table td:nth-child(2) { text-align: left; }
 .table-heading { margin: 17px 0 7px; color: var(--text); font-size: 12px; font-weight: 700; }
 @media (max-width: 700px) { .table-scroll { max-height: 360px; } .data-table { font-size: 10px; } .data-table th, .data-table td { padding: 7px; } }
+
+
+/* NEAR Ecosystem Flight Recorder: distinctive, responsive cross-layer evidence view. */
+.flight-controls { align-items: end; flex-wrap: wrap; }
+.flight-controls .field-group { min-width: min(300px, 100%); }
+.flight-readout { border-left: 4px solid var(--mint-strong); background: linear-gradient(100deg, rgba(58, 169, 140, .08), transparent 65%), var(--surface-2); }
+#flightRecorderReadout { display: grid; gap: 4px; margin: 10px 0 8px; }
+#flightRecorderReadout p { margin: 0; color: var(--text); font-size: 13px; line-height: 1.55; }
+.flight-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.flight-layer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.flight-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 13px; }
+.flight-local-note { margin-bottom: 12px; }
+.flight-method { margin: 18px 0 32px; }
+#flightSourceTable .data-table { min-width: 640px; }
+#flightSourceTable .data-table td:first-child { text-align: left; white-space: normal; min-width: 240px; }
+#flightSourceTable a { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 1180px) { .flight-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) {
+  .flight-controls { width: 100%; align-items: stretch; }
+  .flight-controls .field-group { min-width: 100%; }
+  .flight-controls .button { width: 100%; }
+  .flight-layer-grid, .flight-metrics { grid-template-columns: minmax(0, 1fr); }
+  #flightRecorderReadout p { font-size: 13px; }
+}
+
+.shard-fingerprint { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 13px 0; }
+.shard-fingerprint-row { min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); }
+.shard-fingerprint-head { display: flex; justify-content: space-between; gap: 9px; margin-bottom: 7px; color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }
+.shard-fingerprint-head span { color: var(--muted); text-align: right; }
+.shard-bar-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 54px; align-items: center; gap: 7px; margin-top: 5px; }
+.shard-bar-label, .shard-bar-value { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.shard-bar-value { text-align: right; }
+.shard-bar-track { height: 7px; overflow: hidden; border-radius: 999px; background: var(--surface-3); }
+.shard-bar-track span { display: block; height: 100%; min-width: 0; border-radius: inherit; transition: width .2s ease; }
+.shard-bar-track .gas-share { background: var(--blue); }
+.shard-bar-track .transaction-share { background: var(--mint-strong); }
+@media (max-width: 700px) { .shard-fingerprint { grid-template-columns: minmax(0, 1fr); } .shard-fingerprint-head { align-items: flex-start; } }

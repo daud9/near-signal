@@ -1,4 +1,4 @@
-import { alignMarketAndTvl, summarizeBlock, summarizeBlockTransactions, toUtcDate } from './analytics.js';
+import { alignMarketAndTvl, summarizeBlock, summarizeBlockTransactions, summarizeShardExecution, toUtcDate } from './analytics.js';
 
 function finiteValue(value) {
   if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
@@ -36,6 +36,7 @@ export function replayRpcObservations(observations = []) {
     if (!block) continue;
     const rawChunks = compactChunkEvidence(observation.rawChunks);
     const activity = summarizeBlockTransactions(block, rawChunks);
+    const shardExecution = summarizeShardExecution(block, activity);
     byHeight.set(block.height, {
       ...observation, rawChunks, height: block.height, blockTime: block.timestamp,
       gasUsed: block.gasUsed, gasTgas: block.gasUsed / 1e12,
@@ -44,6 +45,8 @@ export function replayRpcObservations(observations = []) {
       transactionChunkCount: activity?.chunkCount ?? null,
       transactionShardCount: activity?.shardCount ?? null,
       transactionReusedShardCount: activity?.reusedShardCount ?? null,
+      transactionSampleVerified: shardExecution?.transactionSampleVerified ?? false,
+      shardExecution: shardExecution ?? null,
     });
   }
   return [...byHeight.values()].sort((a, b) => a.height - b.height);
@@ -79,6 +82,7 @@ export function replayChartInputs(bundle) {
     feeHistoryChart: feeRows.slice(-365),
     gasChart: observations.map(({ observedAt, height, gasTgas }) => ({ observedAt, height, gasTgas })),
     blockTxChart: observations.filter((row) => Number.isSafeInteger(row.transactionCount)).map(({ observedAt, height, transactionCount }) => ({ observedAt, height, transactionCount })),
+    flightRecorderSamples: observations.map(({ observedAt, height, blockTime, transactionCount, transactionSampleVerified, shardExecution }) => ({ observedAt, height, blockTime, transactionCount, transactionSampleVerified, shardExecution })),
     note: 'No network requests. Values are recomputed from raw inputs using the original UTC cutoff. TVL is replayed as its own long daily history; DEX and fee rows remain provider-indexed and gaps are not filled. Empty arrays remain empty; summary-only legacy points are excluded. RPC observations are samples, not a historical chain archive.',
   };
 }

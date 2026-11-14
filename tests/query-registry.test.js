@@ -5,6 +5,7 @@ import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from '../src/query-registry.j
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+const replay = readFileSync(new URL('../src/replay.js', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../src/workspace.js', import.meta.url), 'utf8');
 
 test('each dashboard chart exposes its query, rebuild rule and plain-language meaning', () => {
@@ -36,4 +37,19 @@ test('Thesis Challenge source recipe is visible in the feature and included in i
   assert.ok(html.includes('id="thesisSourceQuery"'));
   assert.ok(html.includes('id="thesisSourceStatus"'));
   assert.ok(app.includes('createThesisTestEvidence'));
+});
+
+test('Flight Recorder has a separate source recipe, bounded interpretations and offline shard replay', () => {
+  const recipe = CHART_QUERY_RECIPES.flightRecorder;
+  assert.ok(recipe?.query.includes('free.rpc.fastnear.com'));
+  assert.ok(recipe?.query.includes('api.llama.fi/overview/dexs/Near'));
+  assert.ok(recipe?.query.includes('exact UTC dates'));
+  assert.ok(recipe.limitations.length >= 5);
+  assert.ok(html.includes('id="flight-recorder"'));
+  assert.ok(html.includes('id="flightShardTable"'));
+  assert.ok(html.includes('id="flightExportButton"'));
+  assert.ok(app.includes('flightRecorder: { selectedBlock: flight.selected.execution'));
+  assert.ok(replay.includes('flightRecorderSamples'));
+  assert.ok(recipe.plainLanguage.includes('No combined health score'));
+  assert.ok(html.includes('href="#flight-recorder">Open Flight Recorder</a>'));
 });

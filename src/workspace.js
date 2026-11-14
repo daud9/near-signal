@@ -5,6 +5,7 @@ export const WORKSPACES = {
   'value-capture': { title: 'Value Capture Lab', description: 'Compare indexed fee history, block-level gas estimates and the version-matched protocol fee rule.' },
   adoption: { title: 'Network Activity & Validators', description: 'Inspect account state, validator-set composition, epoch counters and exact-height activity by shard.' },
   'capital-flows': { title: 'Liquidity & TVL Context', description: 'Explore long-run TVL, DEX turnover, top-pool snapshots and selected protocol-chain balances.' },
+  'flight-recorder': { title: 'NEAR Ecosystem Flight Recorder', description: 'Replay finalized shard execution beside live ecosystem activity, capital, and validator context.' },
 };
 
 export function resolveWorkspace(hash) {

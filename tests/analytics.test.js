@@ -12,7 +12,11 @@ import {
   summarizeBlock,
   summarizeBlockTransactions,
   summarizeNeardataBlockTransactions,
+  summarizeIndexedProtocolConcentration,
+  summarizeShardExecution,
+  summarizeStablecoinExposure,
   summarizeValidators,
+  summarizeWeeklyTurnoverIntensity,
   testHypothesis,
   toUtcDate,
   windowChange,
@@ -140,6 +144,66 @@ test('Neardata sample validates the exact block and counts prior-height referenc
   assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: payload.shards.slice(1) }), null);
   assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: [{ ...payload.shards[0], chunk: { ...payload.shards[0].chunk, header: { chunk_hash: 'wrong', height_included: 12 } } }, payload.shards[1]] }), null);
   assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: [{ ...payload.shards[0], chunk: { ...payload.shards[0].chunk, transactions: [{ transaction: {} }] } }, payload.shards[1]] }), null);
+});
+
+test('Flight Recorder reports per-shard composition only for a complete matching transaction sample', () => {
+  const block = {
+    height: 42, hash: 'block-42', timestamp: '2026-11-14T00:00:00.000Z',
+    chunkGas: [
+      { shardId: 0, gasUsedTgas: 2, gasUtilizationPct: 20, gasFeeNear: 0.1 },
+      { shardId: 1, gasUsedTgas: 6, gasUtilizationPct: 60, gasFeeNear: 0.3 },
+      { shardId: 2, gasUsedTgas: 0, gasUtilizationPct: 0, gasFeeNear: 0 },
+    ],
+  };
+  const activity = { blockHeight: 42, blockHash: 'block-42', chunkCount: 2, reusedShardCount: 1, chunks: [
+    { shardId: 0, transactionCount: 2 }, { shardId: 1, transactionCount: 4 }, { shardId: 2, transactionCount: 2 },
+  ] };
+  const result = summarizeShardExecution(block, activity);
+  assert.equal(result.transactionSampleVerified, true);
+  assert.equal(result.totalTransactions, 8);
+  assert.equal(result.usedShards, 2);
+  assert.equal(result.shards[0].transactionSharePct, 25);
+  assert.equal(result.shards[0].gasSharePct, 25);
+  assert.equal(result.shards[1].transactionMinusGasSharePp, -25);
+  assert.equal(result.shards[2].transactionSharePct, 25);
+  assert.equal(summarizeShardExecution(block, { ...activity, blockHash: 'different-block' }).transactionSampleVerified, false);
+  assert.equal(summarizeShardExecution(block, { ...activity, chunks: activity.chunks.slice(1) }).totalTransactions, null);
+});
+
+test('weekly turnover intensity requires seven exact, consecutive dates shared by TVL and DEX volume', () => {
+  const start = Date.parse('2026-11-01T00:00:00Z');
+  const tvlRows = Array.from({ length: 8 }, (_, index) => ({ date: new Date(start + index * 86_400_000).toISOString().slice(0, 10), tvlUsd: 100 }));
+  const dexRows = tvlRows.map((row) => ({ date: row.date, valueUsd: 10 }));
+  const result = summarizeWeeklyTurnoverIntensity(tvlRows, dexRows, 7, '2026-11-09');
+  assert.equal(result.startDate, '2026-11-02');
+  assert.equal(result.endDate, '2026-11-08');
+  assert.equal(result.totalDexVolumeUsd, 70);
+  assert.equal(result.averageTvlUsd, 100);
+  assert.equal(result.turnoverPct, 70);
+  assert.equal(summarizeWeeklyTurnoverIntensity(tvlRows, dexRows.filter((row) => row.date !== '2026-11-05'), 7, '2026-11-09'), null);
+  assert.equal(summarizeWeeklyTurnoverIntensity(tvlRows, dexRows.map((row, index) => index === 4 ? { ...row, date: '2026-11-06' } : row), 7, '2026-11-09'), null);
+  assert.equal(summarizeWeeklyTurnoverIntensity(tvlRows, [...dexRows, { ...dexRows[4], valueUsd: 999 }], 7, '2026-11-09'), null);
+});
+
+test('indexed TVL concentration and stablecoin exposure remain bounded to valid provider rows', () => {
+  const concentration = summarizeIndexedProtocolConcentration([
+    { slug: 'a', name: 'A', nearTvlUsd: 60 }, { slug: 'b', name: 'B', nearTvlUsd: 30 },
+    { slug: 'c', name: 'C', nearTvlUsd: 10 }, { slug: 'bad', name: 'Bad', nearTvlUsd: -1 },
+    { slug: 'a', name: 'Duplicate A', nearTvlUsd: 999 },
+  ]);
+  assert.equal(concentration.protocolCount, 3);
+  assert.equal(concentration.totalIndexedTvlUsd, 100);
+  assert.ok(Math.abs(concentration.topThreeSharePct - 100) < 1e-10);
+  assert.equal(concentration.hhi, 4600);
+  const stablecoins = summarizeStablecoinExposure([
+    { id: 'usd', name: 'USD', symbol: 'USD', pegType: 'peggedUSD', priceUsd: 0.99, currentNearCirculationUsd: 90 },
+    { id: 'near', name: 'NEAR', pegType: 'peggedEUR', priceUsd: 0.5, currentNearCirculationUsd: 999 },
+    { id: 'missing', pegType: 'peggedUSD', priceUsd: null, currentNearCirculationUsd: 100 },
+  ]);
+  assert.equal(stablecoins.assetCount, 1);
+  assert.equal(stablecoins.totalCirculationUsd, 90);
+  assert.ok(Math.abs(stablecoins.largestQuoteDeviation.deviationPct - 1) < 1e-10);
+  assert.equal(summarizeStablecoinExposure([]), null);
 });
 
 test('missing block gas fields are unavailable rather than silently treated as zero', () => {

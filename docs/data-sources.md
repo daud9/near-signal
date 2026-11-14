@@ -36,6 +36,18 @@ The Network Activity & Validators workspace offers a user-initiated, read-only `
 - Pool-page aggregates describe only rows actually returned on page 1, and report how many rows contributed values. They are not presented as chain-wide totals.
 - Browser block history accrues only while the page is open; it is not a chain archive. Evidence exports include transformed source rows and the chart requests needed for offline replay.
 
+## NEAR Ecosystem Flight Recorder
+
+The Flight Recorder reuses the connected feeds above; it adds no provider, key, backend, paid service or BigQuery dependency. It combines one replayable finalized-block sample with separate ecosystem context and explicitly does not align asynchronous observations into one synthetic state.
+
+- Per-shard gas and gas-limit utilization come from the selected finalized RPC block. Transaction counts are shown only when the Neardata block hash and every shard reference match; reused prior-height chunks count as zero. Transaction-share minus gas-share is a within-one-block composition difference, not unique users, throughput or sustained load.
+- Seven-day DEX and indexed-fee sums compare adjacent windows only when 14 consecutive complete daily values exist. TVL endpoint changes need 8 or 31 consecutive daily stocks for 7- or 30-day comparisons.
+- “DEX notional ÷ mean TVL” is computed only from seven exact consecutive UTC dates that appear in both the DefiLlama DEX and historical-TVL series. It is a descriptive activity-to-stock ratio, not net flow, profitability, or capital velocity in an economic sense.
+- Top-three protocol share and HHI are scoped to the valid positive rows of the filtered DefiLlama NEAR protocol index, not total ecosystem TVL. Stablecoin totals include only USD-pegged rows with a valid positive quote and reported positive NEAR-chain circulation; quotes have no provider timestamp and are not proof of redemption or reserves.
+- The local block log is raw-response-backed, capped in browser storage, and only grows while the app is open. The recorder export includes its selected sample, calculations, source statuses, raw inputs, recipe and replay outputs. `npm run replay -- path/to/evidence.json` reconstructs per-shard records without network access.
+
+The official Investment Thesis and its existing falsifiable-test recipe are unchanged; the Flight Recorder is a separate descriptive feature.
+
 ## Unavailable data
 
 Daily signer/account cohorts, historical transaction and contract-usage trends, returning-user retention, receipt-level fee/reward accounting, authenticated Intents records, reconciled bridge/Intents net flow, multi-epoch validator history, multi-provider uptime, and a universal keyless NEAR APR/APY catalog are not connected. DefiLlama's public yield routes stopped working on 13 November 2026; no replacement paid source or API key is used. Per-protocol APY alerts require verified contract methods and fee/reward accounting, so unsupported rates are not inferred from TVL, DEX volume or token price. No inactive provider candidates or fabricated measures appear as live feeds in the dashboard.

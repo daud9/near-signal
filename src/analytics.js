@@ -225,6 +225,129 @@ export function summarizeNeardataBlockTransactions(requestedBlock, payload) {
   };
 }
 
+export function summarizeShardExecution(block, transactionSample = null) {
+  if (!Number.isSafeInteger(block?.height) || typeof block?.hash !== 'string' || !block.hash || !Array.isArray(block?.chunkGas) || block.chunkGas.length === 0) return null;
+  const gasByShard = new Map();
+  for (const row of block.chunkGas) {
+    const shardId = numeric(row?.shardId), gasTgas = numeric(row?.gasUsedTgas), gasUtilizationPct = numeric(row?.gasUtilizationPct), gasFeeNear = numeric(row?.gasFeeNear);
+    if (!Number.isSafeInteger(shardId) || shardId < 0 || gasByShard.has(shardId) || gasTgas === null || gasTgas < 0) return null;
+    gasByShard.set(shardId, { shardId, gasTgas, gasUtilizationPct, gasFeeNear });
+  }
+  const activityByShard = new Map();
+  let transactionSampleVerified = transactionSample?.blockHeight === block.height && transactionSample?.blockHash === block.hash
+    && Array.isArray(transactionSample?.chunks) && transactionSample.chunks.length === gasByShard.size;
+  if (transactionSampleVerified) {
+    for (const row of transactionSample.chunks) {
+      const shardId = numeric(row?.shardId), transactionCount = numeric(row?.transactionCount);
+      if (!Number.isSafeInteger(shardId) || !gasByShard.has(shardId) || activityByShard.has(shardId)
+          || !Number.isSafeInteger(transactionCount) || transactionCount < 0) {
+        transactionSampleVerified = false;
+        break;
+      }
+      activityByShard.set(shardId, transactionCount);
+    }
+    if (activityByShard.size !== gasByShard.size) transactionSampleVerified = false;
+  }
+  if (!transactionSampleVerified) activityByShard.clear();
+
+  const totalGasTgas = [...gasByShard.values()].reduce((sum, row) => sum + row.gasTgas, 0);
+  const totalTransactions = transactionSampleVerified
+    ? [...activityByShard.values()].reduce((sum, value) => sum + value, 0)
+    : null;
+  const shards = [...gasByShard.values()].sort((a, b) => a.shardId - b.shardId).map((row) => {
+    const transactionCount = transactionSampleVerified ? activityByShard.get(row.shardId) : null;
+    const gasSharePct = totalGasTgas > 0 ? row.gasTgas / totalGasTgas * 100 : null;
+    const transactionSharePct = transactionSampleVerified && totalTransactions > 0 ? transactionCount / totalTransactions * 100 : null;
+    return {
+      ...row,
+      transactionCount,
+      gasSharePct,
+      transactionSharePct,
+      transactionMinusGasSharePp: transactionSharePct === null || gasSharePct === null ? null : transactionSharePct - gasSharePct,
+    };
+  });
+  const usedShards = shards.filter((row) => row.gasTgas > 0).length;
+  return {
+    blockHeight: block.height, blockHash: block.hash, blockTimestamp: block.timestamp ?? null,
+    shardCount: shards.length, usedShards, totalGasTgas, totalTransactions,
+    includedTransactionChunks: transactionSampleVerified ? transactionSample.chunkCount : null,
+    reusedShardCount: transactionSampleVerified ? transactionSample.reusedShardCount : null,
+    transactionSampleVerified, shards,
+  };
+}
+
+export function summarizeWeeklyTurnoverIntensity(tvlRows = [], dexRows = [], days = 7, todayUtc = new Date().toISOString().slice(0, 10)) {
+  if (!Number.isSafeInteger(days) || days <= 0) return null;
+  const indexRows = (rows, key) => {
+    const values = new Map(), duplicates = new Set();
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const date = String(row?.date ?? '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (values.has(date)) duplicates.add(date);
+      values.set(date, numeric(row?.[key]));
+    }
+    return { values, duplicates };
+  };
+  const tvlIndex = indexRows(tvlRows, 'tvlUsd'), dexIndex = indexRows(dexRows, 'valueUsd');
+  const tvl = tvlIndex.values, dex = dexIndex.values;
+  const matched = [...dex.keys()].filter((date) => date < todayUtc && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      && tvl.has(date) && dex.get(date) !== null && dex.get(date) >= 0 && tvl.get(date) !== null && tvl.get(date) >= 0)
+    .sort().slice(-days).map((date) => ({ date, tvlUsd: tvl.get(date), dexVolumeUsd: dex.get(date) }));
+  if (matched.length !== days || !consecutiveDates(matched) || matched.some((row) => row.tvlUsd <= 0 || tvlIndex.duplicates.has(row.date) || dexIndex.duplicates.has(row.date))) return null;
+  const averageTvlUsd = matched.reduce((sum, row) => sum + row.tvlUsd, 0) / days;
+  const totalDexVolumeUsd = matched.reduce((sum, row) => sum + row.dexVolumeUsd, 0);
+  return {
+    days, startDate: matched[0].date, endDate: matched.at(-1).date,
+    totalDexVolumeUsd, averageTvlUsd, turnoverPct: totalDexVolumeUsd / averageTvlUsd * 100,
+    matchedDates: matched.length,
+  };
+}
+
+export function summarizeIndexedProtocolConcentration(protocols = []) {
+  if (!Array.isArray(protocols)) return null;
+  const seen = new Set();
+  const rows = protocols.filter((item) => {
+    const id = typeof item?.slug === 'string' ? item.slug : typeof item?.name === 'string' ? item.name : '';
+    const value = numeric(item?.nearTvlUsd);
+    if (!id || seen.has(id) || value === null || value <= 0) return false;
+    seen.add(id);
+    return true;
+  }).map((item) => ({ slug: item.slug ?? null, name: String(item.name ?? item.slug ?? 'Unknown'), category: item.category ?? null, nearTvlUsd: numeric(item.nearTvlUsd) }))
+    .sort((a, b) => b.nearTvlUsd - a.nearTvlUsd || a.name.localeCompare(b.name));
+  const totalIndexedTvlUsd = rows.reduce((sum, row) => sum + row.nearTvlUsd, 0);
+  if (!rows.length || totalIndexedTvlUsd <= 0) return null;
+  const shares = rows.map((row) => row.nearTvlUsd / totalIndexedTvlUsd);
+  return {
+    protocolCount: rows.length, totalIndexedTvlUsd,
+    topThreeSharePct: shares.slice(0, 3).reduce((sum, value) => sum + value, 0) * 100,
+    hhi: shares.reduce((sum, value) => sum + value ** 2 * 10_000, 0),
+    largest: rows.slice(0, 5),
+  };
+}
+
+export function summarizeStablecoinExposure(assets = []) {
+  if (!Array.isArray(assets)) return null;
+  const usdPegged = assets.filter((asset) => asset?.pegType === 'peggedUSD');
+  const idCounts = new Map();
+  for (const asset of usdPegged) {
+    const id = String(asset?.id ?? '');
+    if (id) idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
+  }
+  const rows = usdPegged
+    .map((asset) => ({
+      id: String(asset.id ?? ''), name: String(asset.name ?? asset.symbol ?? 'Unknown'), symbol: String(asset.symbol ?? ''),
+      priceUsd: numeric(asset.priceUsd), circulationUsd: numeric(asset.currentNearCirculationUsd),
+    })).filter((asset) => asset.id && idCounts.get(asset.id) === 1 && asset.priceUsd !== null && asset.priceUsd > 0 && asset.circulationUsd !== null && asset.circulationUsd > 0);
+  if (!rows.length) return null;
+  rows.sort((a, b) => Math.abs(b.priceUsd - 1) - Math.abs(a.priceUsd - 1) || b.circulationUsd - a.circulationUsd);
+  return {
+    assetCount: rows.length,
+    totalCirculationUsd: rows.reduce((sum, row) => sum + row.circulationUsd, 0),
+    largestCirculation: [...rows].sort((a, b) => b.circulationUsd - a.circulationUsd)[0],
+    largestQuoteDeviation: { ...rows[0], deviationPct: Math.abs(rows[0].priceUsd - 1) * 100 },
+  };
+}
+
 export function summarizeValidators(validatorResult) {
   const validators = validatorResult?.current_validators;
   if (!Array.isArray(validators) || validators.length === 0) return null;
