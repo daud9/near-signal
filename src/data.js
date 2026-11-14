@@ -5,6 +5,9 @@ const NEARDATA_BASE_URL = 'https://mainnet.neardata.xyz';
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 const LLAMA_PRICE_URL = 'https://coins.llama.fi/prices/current/coingecko:near';
 const LLAMA_TVL_URL = 'https://api.llama.fi/v2/historicalChainTvl/near';
+const LLAMA_PROTOCOLS_URL = 'https://api.llama.fi/protocols';
+const LLAMA_PROTOCOL_BASE = 'https://api.llama.fi/protocol';
+const LLAMA_STABLECOINS_URL = 'https://stablecoins.llama.fi/stablecoins?includePrices=true';
 function finiteNumber(value) {
   if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
   const parsed = Number(value);
@@ -88,6 +91,20 @@ export const DATA_SOURCES = [
     kind: 'Indexed daily USD snapshots', fields: 'date and NEAR DeFi total value locked (TVL)',
     cadence: 'Fetched on load and then every 30 minutes; latest point is retained with its own UTC date.',
     caveat: 'TVL is an asset stock, affected by market prices and provider coverage. It is not bridge volume, net inflow or capital retention.', connected: true, staleAfterSeconds: 172800,
+  },
+  {
+    id: 'defillama-near-protocol-tvls', name: 'DefiLlama — selected NEAR protocol TVL histories',
+    url: LLAMA_PROTOCOLS_URL, docUrl: 'https://api-docs.defillama.com/',
+    kind: 'Public protocol index plus dated chain-specific TVL histories', fields: 'Top eight non-CEX protocols with a reported NEAR chain balance; dated `chainTvls.Near.tvl` USD observations',
+    cadence: 'Fetched on load and then every 30 minutes; each risk uses dated observations, not global protocol-wide percentage fields.',
+    caveat: 'DefiLlama coverage and USD balances can change with token prices; this is not a withdrawal ledger, solvency test or complete list of NEAR apps.', connected: true, staleAfterSeconds: 172800,
+  },
+  {
+    id: 'defillama-near-stablecoins', name: 'DefiLlama — stablecoin prices and NEAR circulation',
+    url: LLAMA_STABLECOINS_URL, docUrl: 'https://api-docs.defillama.com/',
+    kind: 'Public aggregate stablecoin snapshot', fields: 'USD peg classification, current USD price and reported NEAR-chain circulating value',
+    cadence: 'Fetched on load and then every 30 minutes; browser check time is shown because the response does not expose a price timestamp.',
+    caveat: 'A market quote does not prove redemption or reserves. Chain circulation is aggregator coverage and not a protocol-liability measure.', connected: true, staleAfterSeconds: 7200,
   },
 ];
 
@@ -245,6 +262,73 @@ export async function fetchTvlHistory() {
   const timestamps = result.value?.rows?.map((row) => Number(row?.date)).filter(Number.isFinite) ?? [];
   if (timestamps.length) result.status.providerAt = new Date(Math.max(...timestamps) * 1000).toISOString();
   return result;
+}
+
+export async function fetchNearProtocolTvls() {
+  const sourceId = 'defillama-near-protocol-tvls';
+  const checkedAt = new Date().toISOString();
+  const started = performance.now();
+  try {
+    const index = await getJson(LLAMA_PROTOCOLS_URL);
+    if (!Array.isArray(index.data)) throw new Error('DefiLlama protocol index was not an array');
+    const candidates = index.data
+      .filter((item) => typeof item?.slug === 'string' && item.slug && item.category !== 'CEX'
+        && Array.isArray(item.chains) && item.chains.some((chain) => String(chain).toLowerCase() === 'near')
+        && finiteNumber(item.chainTvls?.Near) >= 100_000)
+      .sort((a, b) => finiteNumber(b.chainTvls?.Near) - finiteNumber(a.chainTvls?.Near))
+      .slice(0, 8);
+    if (!candidates.length) throw new Error('No material non-CEX NEAR protocol rows were returned');
+
+    const settled = await Promise.allSettled(candidates.map(async (item) => {
+      const response = await getJson(`${LLAMA_PROTOCOL_BASE}/${encodeURIComponent(item.slug)}`);
+      const raw = response.data?.chainTvls?.Near?.tvl;
+      if (!Array.isArray(raw)) throw new Error(`${item.slug} has no dated NEAR TVL history`);
+      const points = raw.map((point) => ({
+        date: finiteNumber(point?.date),
+        totalLiquidityUsd: finiteNumber(point?.totalLiquidityUSD),
+      })).filter((point) => point.date !== null && point.date > 0 && point.totalLiquidityUsd !== null && point.totalLiquidityUsd >= 0)
+        .sort((a, b) => a.date - b.date);
+      if (points.length < 2) throw new Error(`${item.slug} returned fewer than two valid dated NEAR TVL points`);
+      return {
+        slug: item.slug,
+        name: typeof response.data.name === 'string' ? response.data.name : String(item.name || item.slug),
+        category: String(item.category || 'Unclassified'),
+        nearTvlUsd: points.at(-1).totalLiquidityUsd,
+        points: points.slice(-40),
+      };
+    }));
+    const protocols = settled.filter((item) => item.status === 'fulfilled').map((item) => item.value);
+    const failedCount = settled.length - protocols.length;
+    if (!protocols.length) throw new Error('No selected protocol returned valid dated NEAR TVL history');
+    const latest = Math.max(...protocols.flatMap((item) => item.points.map((point) => point.date)));
+    const latencyMs = Math.round(performance.now() - started);
+    return {
+      value: { protocols, fetchedAt: checkedAt, requestedCount: candidates.length, returnedCount: protocols.length },
+      status: {
+        sourceId, ok: true, partial: failedCount > 0, checkedAt, providerAt: new Date(latest * 1000).toISOString(), latencyMs,
+        detail: failedCount ? `${protocols.length}/${candidates.length} selected histories returned; ${failedCount} history request(s) failed.` : '',
+      },
+    };
+  } catch (error) {
+    const message = error?.name === 'AbortError' ? 'Request timed out' : error?.message || 'Request failed';
+    return { status: { sourceId, ok: false, checkedAt: new Date().toISOString(), providerAt: null, latencyMs: null, detail: message } };
+  }
+}
+
+export async function fetchNearStablecoins() {
+  return sourceCall('defillama-near-stablecoins', () => getJson(LLAMA_STABLECOINS_URL), (data, fetchedAt) => {
+    if (!Array.isArray(data?.peggedAssets)) throw new Error('DefiLlama stablecoin response has no peggedAssets array');
+    const assets = data.peggedAssets.filter((asset) => asset?.chainCirculating?.Near)
+      .map((asset) => ({
+        id: String(asset.id ?? ''), name: String(asset.name ?? asset.symbol ?? 'Unknown asset'),
+        symbol: String(asset.symbol ?? ''), geckoId: typeof asset.gecko_id === 'string' ? asset.gecko_id : null,
+        pegType: String(asset.pegType ?? ''), pegMechanism: String(asset.pegMechanism ?? ''),
+        priceSource: String(asset.priceSource ?? ''), priceUsd: finiteNumber(asset.price),
+        currentNearCirculationUsd: finiteNumber(asset.chainCirculating.Near.current?.peggedUSD),
+        priorDayNearCirculationUsd: finiteNumber(asset.chainCirculating.Near.circulatingPrevDay?.peggedUSD),
+      })).filter((asset) => asset.id && asset.currentNearCirculationUsd !== null && asset.currentNearCirculationUsd >= 0);
+    return { assets, fetchedAt };
+  });
 }
 
 // On-demand public account state only. No wallet, signing, account history or JWT.

@@ -17,6 +17,8 @@ import {
   fetchRpcStatus,
   fetchTvlHistory,
   fetchValidatorSet,
+  fetchNearProtocolTvls,
+  fetchNearStablecoins,
 } from '../src/data.js';
 import { replayChartInputs, replayRpcObservations } from '../src/replay.js';
 import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from '../src/query-registry.js';
@@ -28,12 +30,14 @@ function failedResult(sourceId, detail) {
 }
 
 export async function rebuildSnapshot() {
-  const [block, market, marketChart, llamaPrice, tvl] = await Promise.all([
+  const [block, market, marketChart, llamaPrice, tvl, nearProtocolTvls, nearStablecoins] = await Promise.all([
     fetchFinalizedBlock(),
     fetchCoinGeckoMarket(),
     fetchCoinGeckoHistory(),
     fetchDefiLlamaPrice(),
     fetchTvlHistory(),
+    fetchNearProtocolTvls(),
+    fetchNearStablecoins(),
   ]);
   const blockTransactions = block.value
     ? await fetchNeardataBlockTransactionCount(block.value)
@@ -42,7 +46,7 @@ export async function rebuildSnapshot() {
   // Keep these shared public RPC reads sequential and conservative.
   const rpcStatus = await fetchRpcStatus();
   const validators = await fetchValidatorSet();
-  const results = { block, blockTransactions, market, marketChart, llamaPrice, tvl, rpcStatus, validators };
+  const results = { block, blockTransactions, market, marketChart, llamaPrice, tvl, nearProtocolTvls, nearStablecoins, rpcStatus, validators };
   const resultBySource = {
     'near-rpc-finalized': block,
     'fastnear-neardata-block-transactions': blockTransactions,
@@ -52,6 +56,8 @@ export async function rebuildSnapshot() {
     'coingecko-history': marketChart,
     'defillama-price': llamaPrice,
     'defillama-tvl': tvl,
+    'defillama-near-protocol-tvls': nearProtocolTvls,
+    'defillama-near-stablecoins': nearStablecoins,
   };
   const sourceStatuses = DATA_SOURCES.map((source) => resultBySource[source.id]?.status ?? failedResult(source.id, 'No source result was recorded.'));
   const generatedAt = new Date().toISOString();
@@ -76,6 +82,8 @@ export async function rebuildSnapshot() {
     block: block.value ? { ...block.value, ageSeconds: Math.max(0, (Date.now() - block.value.timestampMs) / 1000) } : null,
     rpcStatus: rpcStatus.value ?? null,
     blockActivity: blockTransactions.value ?? null,
+    nearProtocolTvls: nearProtocolTvls.value ?? null,
+    nearStablecoins: nearStablecoins.value ?? null,
   });
   const snapshot = {
     product: 'NEAR SIGNAL',
@@ -96,6 +104,8 @@ export async function rebuildSnapshot() {
       currentValidatorSet: validators.value ?? null,
       coinGeckoMarket: market.value ?? null,
       independentDefiLlamaSpot: llamaPrice.value ?? null,
+      selectedNearProtocolTvls: nearProtocolTvls.value ?? null,
+      nearStablecoins: nearStablecoins.value ?? null,
       latestCompleteMatchedUtcDate: daily.at(-1)?.date ?? null,
     },
     dailyAlignedMarketAndTvl: daily,
@@ -125,12 +135,15 @@ export async function rebuildSnapshot() {
       finalizedBlock: block.value?.raw ?? null,
       defillamaTvlRows: tvl.value?.rows ?? null,
       coinGeckoMarketChart: marketChart.value ?? null,
+      nearProtocolTvls: nearProtocolTvls.value ?? null,
+      nearStablecoins: nearStablecoins.value ?? null,
     },
     limitations: [
       'The transaction count covers one finalized block sample. It is not a daily series, unique-user count, retention measure or adoption trend.',
       'Daily account cohorts, historical transaction/contract trends, verified people and returning-user retention are unavailable; no such metrics are inferred from a block sample.',
       'No canonical, deduplicated bridge or NEAR Intents net-flow history is connected.',
       'The validator summary covers the RPC-reported current active set, not all stakers or historical validator performance.',
+      'Protocol risk covers only the up to eight largest non-CEX DefiLlama rows with a reported NEAR-chain TVL of at least $100,000; stablecoin prices lack provider timestamps and are a market quote, not proof of redemption or reserves.',
       'One public RPC node status and browser-local observations do not establish network-wide uptime or security.',
       'Market capitalization and volume are aggregated exchange-market measures. TVL is a daily USD asset stock. Neither is net investment or protocol revenue.',
       'The selected correlation is descriptive only. It does not establish causation, statistical significance, independence or a forecast.',
@@ -152,7 +165,7 @@ if (isDirectRun) {
   rebuildSnapshot().then(({ snapshot, output, successful, unavailable, results }) => {
     console.log(`Wrote ${output}`);
     console.log(`Observed ${successful}/${snapshot.sourceStatuses.length} connected feeds successfully; ${unavailable} failed.`);
-    console.log(`Finalized block: ${results.block.value?.height ?? 'unavailable'}; complete block transaction count: ${results.blockTransactions.value?.transactionCount ?? 'unavailable'}; current validators: ${results.validators.value?.validatorCount ?? 'unavailable'}; matched market/TVL dates: ${snapshot.dailyAlignedMarketAndTvl.length}; full 30-day TVL window: ${snapshot.matchedWindows[30].tvlUsd ? 'available' : 'unavailable'}.`);
+    console.log(`Finalized block: ${results.block.value?.height ?? 'unavailable'}; complete block transaction count: ${results.blockTransactions.value?.transactionCount ?? 'unavailable'}; current validators: ${results.validators.value?.validatorCount ?? 'unavailable'}; selected NEAR protocols: ${results.nearProtocolTvls.value?.protocols?.length ?? 'unavailable'}; NEAR stablecoins: ${results.nearStablecoins.value?.assets?.length ?? 'unavailable'}; active risk findings: ${snapshot.riskStates.filter((risk) => risk.active).length}; matched market/TVL dates: ${snapshot.dailyAlignedMarketAndTvl.length}; full 30-day TVL window: ${snapshot.matchedWindows[30].tvlUsd ? 'available' : 'unavailable'}.`);
   }).catch((error) => {
     console.error(`Snapshot rebuild failed: ${error?.message || 'unexpected error'}`);
     process.exitCode = 1;

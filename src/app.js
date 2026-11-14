@@ -1,5 +1,5 @@
 import { alignMarketAndTvl, assessLiveRisks, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
-import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchAccountSnapshot } from './data.js';
+import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchNearProtocolTvls, fetchNearStablecoins, fetchAccountSnapshot } from './data.js';
 import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from './query-registry.js';
 
 import { replayChartInputs, replayRpcObservations } from './replay.js';
@@ -10,11 +10,13 @@ let accountInspection = null;
 let lastAccountRequestAt = 0;
 
 const LOCAL_HISTORY_KEY = 'near-signal.rpc-observations.v2';
+const STABLECOIN_HISTORY_KEY = 'near-signal.stablecoin-observations.v1';
 const MAX_LOCAL_OBSERVATIONS = 60;
 const $ = (selector) => document.querySelector(selector);
 const state = {
-  market: null, marketChart: null, llamaPrice: null, tvlHistory: null, blockActivity: null,
+  market: null, marketChart: null, llamaPrice: null, tvlHistory: null, nearProtocolTvls: null, nearStablecoins: null, blockActivity: null,
   block: null, rpcStatus: null, validators: null, sourceStatuses: new Map(), observations: readObservations(),
+  stablecoinObservations: readStablecoinObservations(),
   chartMetric: 'priceUsd', days: 14, declineThreshold: 20, isRefreshing: false, rpcBusy: false, lastMarketRefresh: 0, lastChunkRequestAt: 0,
   inFlight: new Set(), failureCounts: new Map(), retryAt: new Map(),
 };
@@ -28,12 +30,14 @@ const BLOCK_TRANSACTION_INTERVAL_MS = 300_000;
 const DEFI_PRICE_INTERVAL_MS = 120_000;
 const SLOW_RPC_INTERVAL_MS = 300_000;
 const TVL_INTERVAL_MS = 1_800_000;
+const RISK_FEED_INTERVAL_MS = 1_800_000;
 const MARKET_MANUAL_COOLDOWN_MS = 60_000;
-const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl' };
+const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl', nearProtocolTvls: 'defillama-near-protocol-tvls', nearStablecoins: 'defillama-near-stablecoins' };
 const RISK_SOURCE_IDS = {
   concentration: ['near-rpc-validators'], activity: ['fastnear-neardata-block-transactions'],
   capital: ['defillama-tvl', 'coingecko-history'], infrastructure: ['near-rpc-finalized', 'near-rpc-status'],
   economics: ['coingecko-market', 'near-rpc-finalized'],
+  'validator-performance': ['near-rpc-validators'],
 };
 
 function readObservations() {
@@ -42,9 +46,37 @@ function readObservations() {
     return Array.isArray(rows) ? replayRpcObservations(rows).slice(-MAX_LOCAL_OBSERVATIONS) : [];
   } catch { return []; }
 }
+function readStablecoinObservations() {
+  try {
+    const value = JSON.parse(localStorage.getItem(STABLECOIN_HISTORY_KEY) || '{}');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).map(([id, rows]) => [id,
+      Array.isArray(rows) ? rows.filter((row) => Number.isFinite(Date.parse(row?.checkedAt)) && Number.isFinite(Number(row?.priceUsd))).slice(-120) : [],
+    ]));
+  } catch { return {}; }
+}
 function persistObservations() { try { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(state.observations.slice(-MAX_LOCAL_OBSERVATIONS))); } catch { /* Browser storage may be disabled. */ } }
+function persistStablecoinObservations() { try { localStorage.setItem(STABLECOIN_HISTORY_KEY, JSON.stringify(state.stablecoinObservations)); } catch { /* Browser storage may be disabled. */ } }
+function recordStablecoinObservations(data) {
+  const checkedAt = data?.fetchedAt;
+  if (!Number.isFinite(Date.parse(checkedAt)) || !Array.isArray(data?.assets)) return;
+  const cutoff = Date.now() - 72 * 3600_000;
+  for (const asset of data.assets) {
+    if (!asset?.id || !Number.isFinite(Number(asset.priceUsd)) || Number(asset.priceUsd) <= 0) continue;
+    const rows = state.stablecoinObservations[asset.id] || [];
+    if (rows.at(-1)?.checkedAt === checkedAt) continue;
+    state.stablecoinObservations[asset.id] = [...rows.filter((row) => Date.parse(row.checkedAt) >= cutoff), { checkedAt, priceUsd: Number(asset.priceUsd) }].slice(-120);
+  }
+  persistStablecoinObservations();
+}
 function mergeSourceStatus(status) { if (status?.sourceId) state.sourceStatuses.set(status.sourceId, status); }
-function applyResult(field, result) { if (Object.hasOwn(result ?? {}, 'value')) state[field] = result.value; mergeSourceStatus(result?.status); }
+function applyResult(field, result) {
+  if (Object.hasOwn(result ?? {}, 'value')) {
+    state[field] = result.value;
+    if (field === 'nearStablecoins' && result?.status?.ok) recordStablecoinObservations(result.value);
+  }
+  mergeSourceStatus(result?.status);
+}
 function appendBlockObservation(block) {
   if (!block || !Number.isFinite(block.height)) return;
   const existing = state.observations.find((row) => row.height === block.height);
@@ -105,7 +137,7 @@ function ago(iso) {
 }
 function sourceIsStale(status) {
   const source = DATA_SOURCES.find((item) => item.id === status?.sourceId);
-  const observedAt = Date.parse(status?.providerAt ?? status?.lastProviderAt);
+  const observedAt = Date.parse(status?.providerAt ?? status?.lastProviderAt ?? status?.lastDataAt ?? status?.checkedAt);
   return Boolean(source?.staleAfterSeconds && Number.isFinite(observedAt) && Date.now() - observedAt > source.staleAfterSeconds * 1000);
 }
 function failedSources(sourceIds) {
@@ -303,20 +335,22 @@ function renderParticipation() {
   $('#blockTxHistoryStatus').textContent = `${samples.length} complete local samples`;
   $('#blockTxHistorySpan').textContent = samples.length > 1 ? `${utcDateTime(samples[0].transactionFetchedAt)} to ${utcDateTime(samples.at(-1).transactionFetchedAt)}` : 'A local sample history appears after more five-minute polls.';
 }
-function riskPillClass(tone) { return tone === 'high' ? 'bad' : tone === 'positive' ? 'good' : tone === 'caution' ? 'warn' : ''; }
+function riskPillClass(tone) { return tone === 'high' || tone === 'critical' ? 'bad' : tone === 'positive' ? 'good' : tone === 'caution' ? 'warn' : ''; }
 function renderRiskSources(risk) {
-  return (RISK_SOURCE_IDS[risk.id] || []).map((sourceId) => {
+  return (risk.sourceIds || RISK_SOURCE_IDS[risk.id] || []).map((sourceId) => {
     const source = DATA_SOURCES.find((item) => item.id === sourceId);
     if (!source) return '';
     const status = state.sourceStatuses.get(sourceId);
     let label = 'Checking first live read';
-    if (status && sourceIsStale(status)) label = status.ok === false ? 'Latest read failed; retained observation is stale' : 'Observation is stale';
+    if (status?.partial) label = `${status.detail || 'Partial source response'}${sourceIsStale(status) ? '; available observations are stale' : ''}`;
+    else if (status && sourceIsStale(status)) label = status.ok === false ? 'Latest read failed; retained observation is stale' : 'Observation is stale';
     else if (status?.ok) label = 'Responding';
     else if (status?.ok === false && dataAvailableFor(sourceId)) label = 'Latest read failed; prior observation retained';
     else if (status?.ok === false) label = 'Not responding';
     const providerAt = status?.providerAt ?? status?.lastProviderAt;
-    const freshnessTime = providerAt ?? status?.checkedAt;
-    const freshness = freshnessTime ? ` · ${providerAt ? 'provider ' : 'checked '}${utcDateTime(freshnessTime)}` : '';
+    const freshnessTime = providerAt ?? status?.lastDataAt ?? status?.checkedAt;
+    const freshnessLabel = providerAt ? 'provider ' : status?.lastDataAt ? 'last successful check ' : 'checked ';
+    const freshness = freshnessTime ? ` · ${freshnessLabel}${utcDateTime(freshnessTime)}` : '';
     return `<span class="risk-source-item"><a href="${escapeHtml(source.docUrl || source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.name)}</a> <small>${escapeHtml(label + freshness)}</small></span>`;
   }).filter(Boolean).join(' · ');
 }
@@ -325,14 +359,15 @@ function renderRisks() {
   const market = state.market ? { priceChange24h: state.market.priceChange24hPct, priceUsd: state.market.priceUsd, timestamp: state.market.timestamp } : null;
   const rpcStatus = state.rpcStatus?.chain_id === 'mainnet' ? state.rpcStatus : null;
   const block = state.block ? { ...state.block, ageSeconds: (Date.now() - state.block.timestampMs) / 1000 } : null;
-  const risks = assessLiveRisks({ market, tvl7d, tvl30d, validators: state.validators, block, rpcStatus, blockActivity: state.blockActivity, declineThreshold: state.declineThreshold });
+  const risks = assessLiveRisks({ market, tvl7d, tvl30d, validators: state.validators, block, rpcStatus, blockActivity: state.blockActivity, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins, stablecoinHistory: state.stablecoinObservations, declineThreshold: state.declineThreshold });
   const filter = $('#riskFilter')?.value || 'all';
-  const visibleRisks = risks.filter((risk) => filter === 'all' || risk.tone === 'high' || (risk.id === 'infrastructure' && risk.tone === 'caution'));
-  const alerts = risks.filter((risk) => risk.tone === 'high' || (risk.id === 'infrastructure' && risk.tone === 'caution')).length;
-  $('#riskFilterStatus').textContent = `${visibleRisks.length} live signals · ${alerts} active watch${alerts === 1 ? '' : 'es'} · decline threshold ${state.declineThreshold}%`;
+  const activeRisk = (risk) => risk.active === true || ['high', 'critical'].includes(risk.tone) || (risk.id === 'infrastructure' && risk.tone === 'caution');
+  const visibleRisks = risks.filter((risk) => filter === 'all' || activeRisk(risk));
+  const alerts = risks.filter(activeRisk).length;
+  $('#riskFilterStatus').textContent = `${visibleRisks.length} live signals · ${alerts} active finding${alerts === 1 ? '' : 's'} · decline threshold ${state.declineThreshold}%`;
   $('#riskGrid').innerHTML = visibleRisks.map((risk) => {
     const sourceLinks = renderRiskSources(risk);
-    return `<article class="card risk-card"><div class="risk-top"><h3>${escapeHtml(risk.title)}</h3><span class="status-pill ${riskPillClass(risk.tone)}">${escapeHtml(risk.state)}</span></div><p><strong>Severity:</strong> ${escapeHtml(risk.severity)}</p><p><strong>Trend:</strong> ${escapeHtml(risk.trend)}</p><p><strong>Evidence:</strong> ${escapeHtml(risk.evidence)}</p><p class="risk-source"><strong>Sources:</strong> ${sourceLinks || 'No source attribution available'}</p><p><strong>Confidence:</strong> ${escapeHtml(risk.confidence)}</p><p class="risk-impact"><strong>Potential impact:</strong> ${escapeHtml(risk.impact)}</p><p class="risk-next"><strong>Next check:</strong> ${escapeHtml(risk.next)}</p></article>`;
+    return `<article class="card risk-card"><div class="risk-top"><h3>${escapeHtml(risk.title)}</h3><span class="status-pill ${riskPillClass(risk.tone)}">${escapeHtml(risk.state)}</span></div><p><strong>Severity:</strong> ${escapeHtml(risk.severity)}</p><p><strong>Trend:</strong> ${escapeHtml(risk.trend)}</p><p><strong>Evidence:</strong> ${escapeHtml(risk.evidence)}</p>${risk.query ? `<p><strong>Reproduction:</strong> <code>${escapeHtml(risk.query)}</code></p>` : ''}<p class="risk-source"><strong>Sources:</strong> ${sourceLinks || 'No source attribution available'}</p><p><strong>Confidence:</strong> ${escapeHtml(risk.confidence)}</p><p class="risk-impact"><strong>Potential impact:</strong> ${escapeHtml(risk.impact)}</p><p class="risk-next"><strong>Next check:</strong> ${escapeHtml(risk.next)}</p></article>`;
   }).join('');
   if (!visibleRisks.length) $('#riskGrid').innerHTML = risks.length ? '<div class="empty-state">No monitored signal crosses this threshold. A no-alert result is not proof that no risk exists.</div>' : '<div class="empty-state">Live risk cards appear when their source observations are loaded. No risk is inferred from missing data.</div>';
   $('#riskThresholdOutput').value = `${state.declineThreshold}%`;
@@ -396,7 +431,7 @@ function renderThesisProvenance() {
   $('#thesisLimitations').innerHTML = THESIS_TEST_RECIPE.limitations.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
 }
 function dataAvailableFor(sourceId) {
-  return ({ 'near-rpc-finalized': Boolean(state.block), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length) })[sourceId] ?? false;
+  return ({ 'near-rpc-finalized': Boolean(state.block), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length), 'defillama-near-protocol-tvls': Boolean(state.nearProtocolTvls?.protocols?.length), 'defillama-near-stablecoins': Boolean(state.nearStablecoins?.assets?.length) })[sourceId] ?? false;
 }
 function renderAll() {
   const renderers = {
@@ -427,6 +462,7 @@ async function fetchAndApply(field, fetcher) {
     if (status?.ok === false) {
       const previous = state.sourceStatuses.get(status.sourceId);
       status.lastProviderAt ??= previous?.providerAt ?? previous?.lastProviderAt ?? null;
+      status.lastDataAt ??= previous?.lastDataAt ?? previous?.providerAt ?? previous?.lastProviderAt ?? previous?.checkedAt ?? null;
       const failures = (state.failureCounts.get(field) || 0) + 1;
       state.failureCounts.set(field, failures);
       const baseDelay = field === 'block' ? 30_000 : 60_000;
@@ -435,6 +471,7 @@ async function fetchAndApply(field, fetcher) {
       state.retryAt.set(field, retryAt);
       status.retryAt = new Date(retryAt).toISOString();
     } else if (status?.ok) {
+      status.lastDataAt = status.providerAt ?? status.checkedAt ?? new Date().toISOString();
       state.failureCounts.delete(field);
       state.retryAt.delete(field);
     }
@@ -470,6 +507,14 @@ async function refreshSlowRpc() {
 }
 async function refreshDefiPrice() { const result = await fetchAndApply('llamaPrice', fetchDefiLlamaPrice); renderAll(); return result; }
 async function refreshTvl() { const result = await fetchAndApply('tvlHistory', fetchTvlHistory); renderAll(); return result; }
+async function refreshRiskFeeds() {
+  const [protocolResult, stablecoinResult] = await Promise.all([
+    fetchAndApply('nearProtocolTvls', fetchNearProtocolTvls),
+    fetchAndApply('nearStablecoins', fetchNearStablecoins),
+  ]);
+  renderAll();
+  return Boolean(protocolResult?.status?.ok && stablecoinResult?.status?.ok);
+}
 async function refreshCoinGecko() {
   if (Date.now() - state.lastMarketRefresh < MARKET_MANUAL_COOLDOWN_MS) {
     $('#marketPriceFoot').textContent = `Market snapshot refresh is limited to once per minute; last snapshot ${state.market?.timestamp ? utcDateTime(state.market.timestamp) : 'not available'}.`;
@@ -495,6 +540,7 @@ async function initialLoad() {
       refreshBlock(), fetchThenRender('llamaPrice', fetchDefiLlamaPrice),
       fetchThenRender('tvlHistory', fetchTvlHistory), fetchThenRender('market', fetchCoinGeckoMarket),
       fetchThenRender('marketChart', fetchCoinGeckoHistory),
+      fetchThenRender('nearProtocolTvls', fetchNearProtocolTvls), fetchThenRender('nearStablecoins', fetchNearStablecoins),
     ]);
     renderAll();
     await refreshSlowRpc();
@@ -506,7 +552,7 @@ async function refreshEverything() {
   const button = $('#refreshButton'); button.disabled = true; button.innerHTML = '↻ <span>Refreshing…</span>';
   try {
     await refreshBlock();
-    await Promise.all([refreshDefiPrice(), refreshTvl()]);
+    await Promise.all([refreshDefiPrice(), refreshTvl(), refreshRiskFeeds()]);
     await refreshSlowRpc();
     if (Date.now() - state.lastMarketRefresh >= MARKET_MANUAL_COOLDOWN_MS) await refreshCoinGecko();
     else $('#marketPriceFoot').textContent = `CoinGecko manual refresh cooldown; current snapshot from ${state.market?.timestamp ? utcDateTime(state.market.timestamp) : 'unavailable'}.`;
@@ -517,9 +563,9 @@ function exportEvidence() {
     project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), status: 'public read-only Vercel dashboard; hackathon submission not made',
     live: { market: state.market, independentSpotPrice: state.llamaPrice, finalizedBlock: state.block, sampledFinalizedBlockTransactions: state.blockActivity,
       rpcStatus: state.rpcStatus ? { chainId: state.rpcStatus.chain_id, syncing: state.rpcStatus.syncing, latestBlockHeight: state.rpcStatus.sync_info?.latest_block_height, latestBlockTime: state.rpcStatus.sync_info?.latest_block_time } : null,
-      currentValidatorSet: state.validators },
+      currentValidatorSet: state.validators, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins },
     dailyAlignedMarketAndTvl: allDailyRows(), dailyHypothesisSeries: hypothesisRows(), rawTvlRows: state.tvlHistory?.rows ?? null, rawCoinGeckoMarketChart: state.marketChart,
-    localRpcObservationHistory: state.observations,
+    localRpcObservationHistory: state.observations, localStablecoinPriceObservations: state.stablecoinObservations,
     chartSelections: { days: state.days, metric: state.chartMetric, capitalDays: Number($('#capitalWindowSelect').value) },
     onDemandAccountInspection: accountInspection,
     executionCostScenario: { gasTgas: Number($('#feeGasInput').value), gasPriceNearPerTgas: state.block?.gasPriceNearPerTgas ?? null, priceUsd: state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null, estimate: estimateExecutionCost($('#feeGasInput').value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd) },
@@ -656,5 +702,6 @@ setInterval(() => { void refreshBlock(); }, FAST_INTERVAL_MS);
 setInterval(() => { void refreshDefiPrice(); }, DEFI_PRICE_INTERVAL_MS);
 setInterval(() => { void refreshSlowRpc(); }, SLOW_RPC_INTERVAL_MS);
 setInterval(() => { void refreshTvl(); }, TVL_INTERVAL_MS);
+setInterval(() => { void refreshRiskFeeds(); }, RISK_FEED_INTERVAL_MS);
 setInterval(() => { if (document.body.dataset.route === 'overview') renderBlockAge(); }, 1000);
 setInterval(() => { if (document.body.dataset.route === 'risk-radar') renderRisks(); }, 10_000);

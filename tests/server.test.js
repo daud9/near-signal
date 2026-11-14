@@ -49,6 +49,7 @@ test('local server serves the dashboard with restrictive headers and no API prox
   assert.equal(page.status, 200);
   assert.match(page.headers.get('content-type') || '', /text\/html/);
   assert.match(page.headers.get('content-security-policy') || '', /connect-src.*free\.rpc\.fastnear\.com/);
+  assert.match(page.headers.get('content-security-policy') || '', /connect-src.*stablecoins\.llama\.fi/);
   assert.equal(page.headers.get('x-frame-options'), 'DENY');
   const html = await page.text();
   assert.match(html, /Transactions in latest complete sample/);

@@ -84,6 +84,39 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   expect(forbiddenRequests).toEqual([]); expect(errors).toEqual([]);
 });
 
+test('Risk Radar renders observed stablecoin and NEAR protocol TVL findings from live-schema responses', async ({ page }) => {
+  const now = Math.floor(Date.now() / 1000);
+  const dailyTvl = Array.from({ length: 8 }, (_, index) => ({ date: now - (7 - index) * 86_400, totalLiquidityUSD: 10_000_000 - index * 500_000 }));
+  await page.route('https://stablecoins.llama.fi/stablecoins?includePrices=true', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ peggedAssets: [{
+      id: 'test-usn', name: 'Test USD NEAR', symbol: 'TUSD', pegType: 'peggedUSD', pegMechanism: 'algorithmic', priceSource: 'test-market', price: 0.8,
+      chainCirculating: { Near: { current: { peggedUSD: 100_000 } } },
+    }] }),
+  }));
+  await page.route('https://api.llama.fi/protocols', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify([
+      { slug: 'test-near-app', name: 'Test NEAR App', category: 'Lending', chains: ['Near'], chainTvls: { Near: 6_500_000 } },
+      { slug: 'failed-near-app', name: 'Failed NEAR App', category: 'Dexes', chains: ['Near'], chainTvls: { Near: 5_000_000 } },
+    ]),
+  }));
+  await page.route('https://api.llama.fi/protocol/failed-near-app', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await page.route('https://api.llama.fi/protocol/test-near-app', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ name: 'Test NEAR App', chainTvls: { Near: { tvl: dailyTvl } } }),
+  }));
+  await page.goto('/#risk-radar');
+  const stablecoin = page.locator('#riskGrid .risk-card').filter({ hasText: 'Test USD NEAR' });
+  await expect(stablecoin).toContainText('Critical peg deviation');
+  await expect(stablecoin).toContainText('$0.8000');
+  await expect(stablecoin).toContainText('DefiLlama — stablecoin');
+  await expect(stablecoin).toContainText('stablecoins.llama.fi/stablecoins?includePrices=true');
+  const protocol = page.locator('#riskGrid .risk-card').filter({ hasText: 'Test NEAR App' });
+  await expect(protocol).toContainText('TVL drawdown threshold crossed');
+  await expect(protocol).toContainText('35.0%');
+  await expect(protocol).toContainText('api.llama.fi/protocol/test-near-app');
+  await expect(protocol).toContainText('1/2 selected histories returned');
+  await expect(page.locator('#riskRules')).toContainText('APY coverage');
+});
+
 test('historical TVL beyond its freshness threshold is visibly marked stale', async ({ page }) => {
   const midnightUtc = new Date();
   midnightUtc.setUTCHours(0, 0, 0, 0);

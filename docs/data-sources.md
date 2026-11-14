@@ -1,6 +1,6 @@
 # Data-source inventory
 
-NEAR SIGNAL uses eight read-only public feeds. Failed, malformed, stale or pending data is labeled rather than replaced with a proxy. A successful provider response is not an SLA, permission to exceed terms, or proof of complete historical coverage.
+NEAR SIGNAL uses ten read-only public feeds. Failed, malformed, stale or pending data is labeled rather than replaced with a proxy. A successful provider response is not an SLA, permission to exceed terms, or proof of complete historical coverage.
 
 ## Connected feeds
 
@@ -14,8 +14,10 @@ NEAR SIGNAL uses eight read-only public feeds. Failed, malformed, stale or pendi
 | CoinGecko — daily market history | Daily price, market-cap and gross-volume observations | On load or user refresh | External market context, not network activity. The partial current UTC day is excluded. |
 | DefiLlama — spot price | Independently timestamped NEAR spot check | About every two minutes while the page is open | A cross-check, not an executable quote or on-chain oracle. |
 | DefiLlama — historical NEAR TVL | Dated daily USD total value locked | On load and about every 30 minutes while the page is open | Asset stock, not deposits, net inflow, retention or protocol revenue. |
+| DefiLlama — selected NEAR protocol TVL | Dated `chainTvls.Near.tvl` history for up to eight non-CEX protocols with reported NEAR TVL >= $100,000 | Protocol index plus selected detail reads on load and about every 30 minutes | Chain-specific USD balance; price moves, adapter coverage and cadence can explain changes. Not a withdrawal or solvency ledger. |
+| DefiLlama — stablecoin price/circulation snapshot | USD-peg classification, price and reported NEAR-chain circulating value | On load and about every 30 minutes while the page is open | The response has no provider price timestamp/confidence field. The browser check time is recorded; a quote is not a redemption or reserve proof. |
 
-The header summarizes connected-feed response status. Relevant cards and exports show request/provider times. Historical market and TVL feeds use a 48-hour freshness threshold; shorter-interval feeds have source-specific thresholds. A failed refresh may retain a prior value, which is labeled as retained and, where applicable, stale.
+The header summarizes connected-feed response status. Relevant cards and exports show request/provider times. Historical market and TVL feeds use a 48-hour freshness threshold; stablecoin snapshots use two hours; shorter-interval feeds have source-specific thresholds. A failed refresh may retain a prior value, which is labeled as retained and, where applicable, stale. Stablecoin quote checks are kept in browser-local storage for up to 72 hours to require two consecutive observations for smaller deviations.
 
 ## On-demand account lookup
 
@@ -31,6 +33,6 @@ The Network Activity & Validators workspace offers a user-initiated, read-only `
 
 ## Unavailable data
 
-Daily signer/account cohorts, historical transaction and contract-usage trends, returning-user retention, complete historical fee/reward accounting, authenticated Intents records, reconciled bridge/Intents net flow, multi-epoch validator history and multi-provider uptime are not connected. No inactive provider candidates or fabricated measures appear as live feeds in the dashboard.
+Daily signer/account cohorts, historical transaction and contract-usage trends, returning-user retention, complete historical fee/reward accounting, authenticated Intents records, reconciled bridge/Intents net flow, multi-epoch validator history, multi-provider uptime, and a universal keyless NEAR APR/APY catalog are not connected. DefiLlama's public yield routes stopped working on 2026-11-13; no replacement paid source or API key is used. Per-protocol APY alerts require verified contract methods and fee/reward accounting, so unsupported rates are not inferred from TVL or price. No inactive provider candidates or fabricated measures appear as live feeds in the dashboard.
 
 The separate Python ingestion path can read Neardata locally without persistence. PostgreSQL writes and bounded backfill require an authorized database, explicit configuration and operator action; this optional path does not power the static dashboard. See [alternative ingestion notes](alternative-data-infrastructure.md).

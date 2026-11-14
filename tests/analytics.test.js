@@ -6,6 +6,7 @@ import {
   dailyChangeRows,
   formatSignedPercent,
   pearsonCorrelation,
+  protocolTvlWindowChange,
   summarizeBlock,
   summarizeBlockTransactions,
   summarizeNeardataBlockTransactions,
@@ -156,6 +157,7 @@ test('validator concentration uses the RPC current set stake weights and reports
       { account_id: 'c.near', stake: String(20n * yocto), num_produced_blocks: 25, num_expected_blocks: 25 },
     ],
     next_validators: [{ account_id: 'next.near' }],
+    prev_epoch_kickout: [{ account_id: 'kicked.near', reason: { NotEnoughChunkEndorsements: { expected: 43_198, produced: 0 } } }],
   });
   assert.equal(result.validatorCount, 3);
   assert.equal(result.nextValidatorCount, 1);
@@ -166,6 +168,8 @@ test('validator concentration uses the RPC current set stake weights and reports
   assert.equal(result.producedBlocks, 90);
   assert.equal(result.expectedBlocks, 100);
   assert.equal(result.blockProductionPct, 90);
+  assert.deepEqual(result.prevEpochKickouts, [{ accountId: 'kicked.near', reason: 'NotEnoughChunkEndorsements', expected: 43_198, produced: 0 }]);
+  assert.equal(result.slashedValidatorCount, 0);
   assert.equal(summarizeValidators({ current_validators: [{ account_id: 'bad.near', stake: 'invalid' }] }), null);
   const noCounters = summarizeValidators({ current_validators: [{ account_id: 'a.near', stake: String(yocto) }] });
   assert.equal(noCounters.producedBlocks, null);
@@ -259,6 +263,50 @@ test('risk threshold flags only configured live price/TVL signals and omits unob
   assert.deepEqual(gaps, []);
   const incompleteRpc = assessLiveRisks({ block: { height: 42 }, rpcStatus: { chain_id: 'mainnet' } });
   assert.equal(incompleteRpc.some((item) => item.id === 'infrastructure'), false);
+});
+
+test('stablecoin risk requires an observed USD peg and current NEAR circulation, with token exposure disclosed', () => {
+  const risks = assessLiveRisks({ nearStablecoins: { assets: [
+    { id: 'usn', name: 'USN', symbol: 'USN', pegType: 'peggedUSD', priceUsd: 0.08625988408, priceSource: 'defillama', currentNearCirculationUsd: 69_854 },
+    { id: 'usdc', name: 'USD Coin', symbol: 'USDC', pegType: 'peggedUSD', priceUsd: 0.9999, priceSource: 'defillama', currentNearCirculationUsd: 91_841_030 },
+  ] } });
+  const risk = risks.find((item) => item.id === 'stablecoin-depeg-usn');
+  assert.equal(risk.tone, 'critical');
+  assert.match(risk.severity, /Critical.*91\.4%/);
+  assert.match(risk.evidence, /\$0\.086260/);
+  assert.match(risk.evidence, /\$69,854/);
+  assert.match(risk.evidence, /of USD-pegged NEAR circulation/);
+  assert.match(risk.confidence, /no provider price timestamp/);
+  assert.deepEqual(risk.sourceIds, ['defillama-near-stablecoins']);
+});
+
+test('moderate stablecoin deviation requires two timestamped checks; a one-sample small move is not alerted', () => {
+  const checkedAt = new Date().toISOString();
+  const asset = { id: 'test-usd', name: 'Test USD', symbol: 'TUSD', pegType: 'peggedUSD', priceUsd: 0.98, priceSource: 'defillama', currentNearCirculationUsd: 10_000 };
+  const oneSample = assessLiveRisks({ nearStablecoins: { assets: [asset] }, stablecoinHistory: { 'test-usd': [{ checkedAt, priceUsd: 0.98 }] } });
+  assert.equal(oneSample.some((item) => item.id === 'stablecoin-depeg-test-usd'), false);
+  const twoSamples = assessLiveRisks({ nearStablecoins: { assets: [asset] }, stablecoinHistory: { 'test-usd': [
+    { checkedAt: new Date(Date.now() - 60 * 60_000).toISOString(), priceUsd: 0.98 }, { checkedAt, priceUsd: 0.98 },
+  ] } });
+  assert.equal(twoSamples.find((item) => item.id === 'stablecoin-depeg-test-usd')?.tone, 'caution');
+});
+
+test('protocol TVL risk uses dated NEAR-chain points and refuses unsupported windows', () => {
+  const latest = Math.floor(Date.now() / 1000);
+  const points = Array.from({ length: 8 }, (_, index) => ({ date: latest - (7 - index) * 86_400, totalLiquidityUsd: 100_000_000 - index * 5_000_000 }));
+  const week = protocolTvlWindowChange(points, 7);
+  assert.ok(Math.abs(week.changePct - (-35)) < 0.01);
+  const risks = assessLiveRisks({ nearProtocolTvls: { protocols: [{ slug: 'near-lend', name: 'NEAR Lend', category: 'Lending', nearTvlUsd: 65_000_000, points }] } });
+  const risk = risks.find((item) => item.id === 'protocol-tvl-near-lend');
+  assert.equal(risk.tone, 'high');
+  assert.match(risk.evidence, /NEAR-chain TVL changed/);
+  assert.match(risk.evidence, /not proven net withdrawals/);
+  assert.match(risk.query, /chainTvls\.Near\.tvl/);
+  const severePoints = points.map((point, index) => ({ ...point, totalLiquidityUsd: index < 6 ? 100_000_000 - index * 8_000_000 : index === 6 ? 50_000_000 : 37_500_000 }));
+  const severe = assessLiveRisks({ nearProtocolTvls: { protocols: [{ slug: 'near-lend', name: 'NEAR Lend', nearTvlUsd: 37_500_000, points: severePoints }] } }).find((item) => item.id === 'protocol-tvl-near-lend');
+  assert.equal(severe.tone, 'critical');
+  assert.match(severe.severity, /-62\.5% over 7\.0 days/);
+  assert.equal(protocolTvlWindowChange([{ date: latest, totalLiquidityUsd: 100 }, { date: latest - 5 * 86_400, totalLiquidityUsd: 50 }], 1), null);
 });
 
 test('activity context reports one verified block sample without claiming user adoption or retention', () => {

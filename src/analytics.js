@@ -223,6 +223,7 @@ export function summarizeValidators(validatorResult) {
   let producedBlocks = 0;
   let expectedBlocks = 0;
   let allProductionCountersValid = true;
+  let slashedValidatorCount = 0;
   for (const validator of validators) {
     if (typeof validator?.account_id !== 'string' || !validator.account_id || validator.stake === null || validator.stake === undefined || validator.stake === '') return null;
     let stake;
@@ -234,6 +235,7 @@ export function summarizeValidators(validatorResult) {
     if (stake < 0n) return null;
     totalStake += stake;
     rows.push({ accountId: validator.account_id, stake });
+    if (validator.is_slashed === true) slashedValidatorCount += 1;
     const produced = numeric(validator.num_produced_blocks), expected = numeric(validator.num_expected_blocks);
     if (produced === null || expected === null || !Number.isSafeInteger(produced) || !Number.isSafeInteger(expected) || produced < 0 || expected < 0) allProductionCountersValid = false;
     else { producedBlocks += produced; expectedBlocks += expected; }
@@ -241,6 +243,19 @@ export function summarizeValidators(validatorResult) {
   if (!rows.length || totalStake === 0n) return null;
   const ratioScale = 1_000_000_000_000n;
   const shares = rows.map((row) => Number(row.stake * ratioScale / totalStake) / Number(ratioScale)).sort((a, b) => b - a);
+  const prevEpochKickouts = Array.isArray(validatorResult.prev_epoch_kickout)
+    ? validatorResult.prev_epoch_kickout.filter((item) => typeof item?.account_id === 'string' && item.account_id).map((item) => {
+      const reasonValue = item.reason;
+      const reasonEntry = reasonValue && typeof reasonValue === 'object' ? Object.entries(reasonValue)[0] : null;
+      const reasonDetail = reasonEntry?.[1] && typeof reasonEntry[1] === 'object' ? reasonEntry[1] : {};
+      return {
+        accountId: item.account_id,
+        reason: reasonEntry?.[0] ?? (typeof reasonValue === 'string' ? reasonValue : 'Unspecified kickout reason'),
+        expected: numeric(reasonDetail.expected),
+        produced: numeric(reasonDetail.produced),
+      };
+    })
+    : [];
   return {
     epochHeight: numeric(validatorResult.epoch_height),
     epochStartHeight: numeric(validatorResult.epoch_start_height),
@@ -253,6 +268,8 @@ export function summarizeValidators(validatorResult) {
     producedBlocks: allProductionCountersValid ? producedBlocks : null,
     expectedBlocks: allProductionCountersValid ? expectedBlocks : null,
     blockProductionPct: allProductionCountersValid && expectedBlocks > 0 ? producedBlocks / expectedBlocks * 100 : null,
+    prevEpochKickouts,
+    slashedValidatorCount,
     asOf: new Date().toISOString(),
   };
 }
@@ -332,7 +349,65 @@ export function testHypothesis(rows, metricA, metricB, expectedDirection = 'posi
   };
 }
 
-export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcStatus, blockActivity, declineThreshold = DEFAULT_ALERT_DECLINE_PCT, staleBlockSeconds = DEFAULT_BLOCK_STALE_SECONDS }) {
+const DAY_SECONDS = 86_400;
+
+export function protocolTvlWindowChange(points, days) {
+  if (!Array.isArray(points) || !Number.isFinite(days) || days <= 0) return null;
+  const valid = points.map((point) => ({
+    date: numeric(point?.date), value: numeric(point?.totalLiquidityUsd),
+  })).filter((point) => point.date !== null && point.date > 0 && point.value !== null && point.value >= 0)
+    .sort((a, b) => a.date - b.date);
+  if (valid.length < 2) return null;
+  const latest = valid.at(-1), windowSeconds = days * DAY_SECONDS;
+  const toleranceSeconds = days === 1 ? 12 * 3600 : 36 * 3600;
+  const candidates = valid.slice(0, -1).map((point) => ({ ...point, elapsedSeconds: latest.date - point.date }))
+    .filter((point) => point.elapsedSeconds > 0 && Math.abs(point.elapsedSeconds - windowSeconds) <= toleranceSeconds)
+    .sort((a, b) => Math.abs(a.elapsedSeconds - windowSeconds) - Math.abs(b.elapsedSeconds - windowSeconds));
+  const prior = candidates[0];
+  if (!prior || prior.value <= 0) return null;
+  return {
+    days, elapsedHours: prior.elapsedSeconds / 3600,
+    startAt: new Date(prior.date * 1000).toISOString(), endAt: new Date(latest.date * 1000).toISOString(),
+    startValueUsd: prior.value, endValueUsd: latest.value,
+    changePct: (latest.value - prior.value) / prior.value * 100,
+  };
+}
+
+function stablecoinDepegFindings(stablecoins = [], stablecoinHistory = {}) {
+  if (!Array.isArray(stablecoins)) return [];
+  const pegged = stablecoins.filter((asset) => asset?.pegType === 'peggedUSD');
+  const totalNearSupply = pegged.reduce((sum, asset) => sum + Math.max(0, numeric(asset.currentNearCirculationUsd) ?? 0), 0);
+  return pegged.flatMap((asset) => {
+    const price = numeric(asset.priceUsd), circulation = numeric(asset.currentNearCirculationUsd);
+    if (price === null || price <= 0 || circulation === null || circulation <= 0) return [];
+    const deviationPct = Math.abs(price - 1) * 100;
+    const samples = (Array.isArray(stablecoinHistory[asset.id]) ? stablecoinHistory[asset.id] : [])
+      .filter((sample) => Number.isFinite(Date.parse(sample?.checkedAt)) && numeric(sample.priceUsd) !== null
+        && Date.now() - Date.parse(sample.checkedAt) <= 72 * 3600_000)
+      .sort((a, b) => Date.parse(a.checkedAt) - Date.parse(b.checkedAt));
+    const lastTwo = samples.slice(-2);
+    const twiceAtLeastThree = lastTwo.length === 2 && lastTwo.every((sample) => Math.abs(numeric(sample.priceUsd) - 1) * 100 >= 3);
+    const twiceAtLeastOne = lastTwo.length === 2 && lastTwo.every((sample) => Math.abs(numeric(sample.priceUsd) - 1) * 100 >= 1);
+    if (!(deviationPct >= 5 || (deviationPct >= 3 && twiceAtLeastThree) || (deviationPct >= 1 && twiceAtLeastOne))) return [];
+    const assetSharePct = totalNearSupply > 0 ? circulation / totalNearSupply * 100 : null;
+    const direction = price < 1 ? 'below' : 'above';
+    const severity = deviationPct >= 5 ? 'Critical' : deviationPct >= 3 ? 'High' : 'Moderate';
+    return [{
+      id: `stablecoin-depeg-${asset.id}`, title: `NEAR stablecoin peg deviation — ${asset.symbol || asset.name}`,
+      observed: true, active: true, tone: severity === 'Critical' ? 'critical' : severity === 'High' ? 'high' : 'caution',
+      state: `${severity} peg deviation`, severity: `${severity} token-level risk — ${deviationPct.toFixed(1)}% ${direction} the $1 reference`,
+      trend: `${asset.name} (${asset.symbol || 'asset'}) is quoted at $${price.toFixed(price < 0.1 ? 4 : 3)}; this is a provider market-price observation, not a redemption test.`,
+      confidence: 'Moderate — DefiLlama price and NEAR-chain circulation snapshot; its stablecoin response has no provider price timestamp or quote-confidence field.',
+      evidence: `Observed price $${price.toFixed(price < 0.1 ? 6 : 4)} (${deviationPct.toFixed(2)}% ${direction} $1); reported NEAR-chain circulation $${circulation.toLocaleString('en-US', { maximumFractionDigits: 0 })}${assetSharePct === null ? '' : `, ${assetSharePct.toFixed(3)}% of USD-pegged NEAR circulation in this feed`}. Peg type=${asset.pegType}; price source=${asset.priceSource || 'not supplied'}.`,
+      impact: `Holders may face severe value loss or impaired exits. This asset's reported NEAR-chain circulation is ${assetSharePct === null ? 'not comparable to a verified total' : `${assetSharePct.toFixed(3)}% of the USD-pegged supply covered by this feed`}; the quote alone does not establish ecosystem-wide solvency or reserves.`,
+      next: 'Cross-check the asset’s actual markets and redemption routes, validate the contract/issuer, and confirm whether the provider price is current before making a custody or solvency claim.',
+      query: 'GET https://stablecoins.llama.fi/stablecoins?includePrices=true; filter peggedAssets by pegType=peggedUSD and chainCirculating.Near.current.peggedUSD; compare price to 1 USD.',
+      sourceIds: ['defillama-near-stablecoins'],
+    }];
+  });
+}
+
+export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcStatus, blockActivity, nearProtocolTvls = [], nearStablecoins = [], stablecoinHistory = {}, declineThreshold = DEFAULT_ALERT_DECLINE_PCT, staleBlockSeconds = DEFAULT_BLOCK_STALE_SECONDS }) {
   const threshold = Math.max(5, Math.min(50, Number(declineThreshold) || DEFAULT_ALERT_DECLINE_PCT));
   const tvlDecline = numeric(tvl30d?.changePct);
   const priceMove = numeric(market?.priceChange24h);
@@ -402,6 +477,50 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
       next: 'Add a permitted historical fee series and protocol-level token-economic context before assessing long-run value capture.',
     },
   ];
+  const kickouts = Array.isArray(validators?.prevEpochKickouts) ? validators.prevEpochKickouts : [];
+  const slashedCount = numeric(validators?.slashedValidatorCount) ?? 0;
+  if (kickouts.length || slashedCount > 0) {
+    const sample = kickouts.slice(0, 5).map((item) => `${item.accountId} (${item.reason}${Number.isFinite(item.produced) && Number.isFinite(item.expected) ? `, ${item.produced}/${item.expected}` : ''})`).join('; ');
+    const headline = slashedCount > 0 ? `${slashedCount} validator(s) marked slashed` : `${kickouts.length} previous-epoch kickout(s)`;
+    risks.push({
+      id: 'validator-performance', title: 'Validator performance / kickout evidence', observed: true, active: true,
+      tone: slashedCount > 0 ? 'critical' : 'high', state: slashedCount > 0 ? 'Protocol-reported slashing' : 'Prior-epoch kickout observed',
+      severity: slashedCount > 0 ? `Critical — RPC reports ${slashedCount} currently slashed validator(s)` : `High for affected operators — ${kickouts.length} validator kickout(s) reported for the previous epoch`,
+      trend: `Live validator RPC response for epoch ${validators?.epochHeight ?? 'unavailable'}; kickouts are completed-epoch results, not a prediction.`,
+      confidence: 'High for the returned protocol fields from this RPC snapshot; one provider does not establish a network-wide failure.',
+      evidence: `${headline}${sample ? `; examples: ${sample}${kickouts.length > 5 ? `; plus ${kickouts.length - 5} more` : ''}` : ''}.`,
+      impact: 'Affected validators may lose eligibility or rewards and shard participation can fall. A validator kickout is not evidence of slashing, malicious behavior, or a chain halt.',
+      next: 'Inspect the reason and expected/produced counters, then compare the next finalized epoch and independent block/finality evidence.',
+      query: 'POST https://free.rpc.fastnear.com with JSON-RPC method="validators", params=[null]; inspect result.prev_epoch_kickout and current_validators[].is_slashed.',
+      sourceIds: ['near-rpc-validators'],
+    });
+  }
+  for (const protocol of Array.isArray(nearProtocolTvls?.protocols) ? nearProtocolTvls.protocols : []) {
+    const current = numeric(protocol.nearTvlUsd);
+    if (current === null || current < 100_000) continue;
+    const day = protocolTvlWindowChange(protocol.points, 1);
+    const week = protocolTvlWindowChange(protocol.points, 7);
+    const breached = (day && day.changePct <= -20) || (week && week.changePct <= -30);
+    if (!breached) continue;
+    const criticalDay = day && day.changePct <= -40;
+    const criticalWeek = week && week.changePct <= -50;
+    const critical = criticalDay || criticalWeek;
+    const window = criticalDay ? day : criticalWeek ? week : day && day.changePct <= -20 ? day : week;
+    const duration = window.elapsedHours >= 48 ? `${(window.elapsedHours / 24).toFixed(1)} days` : `${Math.round(window.elapsedHours)} hours`;
+    risks.push({
+      id: `protocol-tvl-${protocol.slug}`, title: `NEAR protocol liquidity drawdown — ${protocol.name}`,
+      observed: true, active: true, tone: critical ? 'critical' : 'high', state: critical ? 'Critical TVL drawdown' : 'TVL drawdown threshold crossed',
+      severity: `${critical ? 'Critical' : 'High'} reported USD-TVL decline — ${window.changePct.toFixed(1)}% over ${duration}`,
+      trend: `${protocol.category || 'NEAR protocol'}; latest reported NEAR-chain TVL is $${current.toLocaleString('en-US', { maximumFractionDigits: 0 })}.`,
+      confidence: 'Moderate — chain-specific DefiLlama history is timestamped, but USD TVL can fall from token-price moves, adapter coverage or balance changes.',
+      evidence: `${protocol.name} NEAR-chain TVL changed from $${window.startValueUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} to $${window.endValueUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} across ${duration} (${window.startAt} to ${window.endAt}); this is a reported asset-stock decline, not proven net withdrawals.`,
+      impact: 'Lower reported liquidity can constrain exits or indicate repricing. No claim of insolvency, exploit, fraud or cause is made from TVL alone.',
+      next: `Check ${protocol.name}'s token composition, independent market prices and contract-level balances before attributing the move to withdrawals or an incident.`,
+      query: `GET https://api.llama.fi/protocol/${encodeURIComponent(protocol.slug)}; use chainTvls.Near.tvl[].totalLiquidityUSD and compare dated observations (no interpolation).`,
+      sourceIds: ['defillama-near-protocol-tvls'],
+    });
+  }
+  risks.push(...stablecoinDepegFindings(nearStablecoins?.assets, stablecoinHistory));
   return risks.filter((risk) => risk.observed).map(({ observed, ...risk }) => risk);
 }
 

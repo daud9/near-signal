@@ -6,7 +6,7 @@ NEAR SIGNAL follows the evidence-first intent of the [official Investment Thesis
 
 The six routed workspaces are **Overview**, **Thesis Challenge Engine**, **Ecosystem Risk Radar**, **Value Capture Lab**, **Network Activity & Validators**, and **Liquidity & TVL Context**. Thesis and Risk are primary workspaces after Overview. Each rendered chart provides its connected source request or calculation, validation/date-matching rule, and a plain-language explanation. The thesis test export includes its matched inputs, source times, status and limits.
 
-Eight no-key public feeds are currently connected: FastNEAR public mainnet RPC for finalized blocks, status and current validators; FastNEAR Neardata for an exact-height transaction sample; CoinGecko for market snapshots and daily history; and DefiLlama for spot price and daily TVL. `npm run rebuild` fetches those feeds into a dated evidence file and then regenerates chart replay inputs. `npm run replay` rebuilds charts from a saved evidence file offline. Neither command needs a new service or credential.
+Ten no-key public feeds are connected: FastNEAR public mainnet RPC for finalized blocks, status and current validators; FastNEAR Neardata for an exact-height transaction sample; CoinGecko for market snapshots and daily history; and DefiLlama for spot price, daily ecosystem TVL, selected NEAR protocol histories and stablecoin price/circulation snapshots. `npm run rebuild` fetches those feeds into a dated evidence file, evaluates the implemented observed risk rules, and regenerates chart replay inputs. `npm run replay` rebuilds charts from a saved evidence file offline. Neither command needs a new service or credential.
 
 ## What is not claimed
 
