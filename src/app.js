@@ -1,5 +1,5 @@
 import { alignMarketAndTvl, assessLiveRisks, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
-import { DATA_SOURCES, fetchBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchAccountSnapshot } from './data.js';
+import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchAccountSnapshot } from './data.js';
 import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, BIGQUERY_REBUILD_NOTE, CHART_QUERY_RECIPES } from './query-registry.js';
 
 import { replayChartInputs, replayRpcObservations } from './replay.js';
@@ -29,9 +29,9 @@ const DEFI_PRICE_INTERVAL_MS = 120_000;
 const SLOW_RPC_INTERVAL_MS = 300_000;
 const TVL_INTERVAL_MS = 1_800_000;
 const MARKET_MANUAL_COOLDOWN_MS = 60_000;
-const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', blockActivity: 'near-rpc-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl' };
+const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl' };
 const RISK_SOURCE_IDS = {
-  concentration: ['near-rpc-validators'], adoption: ['near-rpc-block-transactions'],
+  concentration: ['near-rpc-validators'], adoption: ['fastnear-neardata-block-transactions'],
   capital: ['defillama-tvl', 'coingecko-history'], infrastructure: ['near-rpc-finalized', 'near-rpc-status'],
   economics: ['coingecko-market', 'near-rpc-finalized'], dependencies: [],
 };
@@ -280,7 +280,7 @@ function renderParticipation() {
   $('#validatorProduction').textContent = validators?.blockProductionPct === null || !validators ? validatorPlaceholder : `${validators.blockProductionPct.toFixed(1)}%`;
   $('#validatorProductionFoot').textContent = validators ? `${compact(validators.producedBlocks, 0)} produced / ${compact(validators.expectedBlocks, 0)} expected blocks in returned epoch counters` : validatorStatus ? 'Current epoch counters unavailable' : 'Checking current epoch counters';
   const activity = state.blockActivity;
-  const sourceStatus = state.sourceStatuses.get('near-rpc-block-transactions');
+  const sourceStatus = state.sourceStatuses.get('fastnear-neardata-block-transactions');
   const activityPlaceholder = sourceStatus ? 'Unavailable' : 'Checking';
   $('#blockTxLatest').textContent = activity ? compact(activity.transactionCount, 0) : activityPlaceholder;
   $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} shard chunks · ${utcDateTime(activity.blockTimestamp)}` : sourceStatus ? 'No complete all-shard count available' : 'Waiting for complete all-shard count';
@@ -351,7 +351,7 @@ function renderHypothesis() {
   $('#hypothesisDetails').innerHTML = details.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
 }
 function dataAvailableFor(sourceId) {
-  return ({ 'near-rpc-finalized': Boolean(state.block), 'near-rpc-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length) })[sourceId] ?? false;
+  return ({ 'near-rpc-finalized': Boolean(state.block), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length) })[sourceId] ?? false;
 }
 function renderSources() {
   $('#sourceList').innerHTML = DATA_SOURCES.map((source) => {
@@ -417,7 +417,7 @@ async function refreshBlock() {
     const sampleIsDue = Date.now() - state.lastChunkRequestAt >= BLOCK_TRANSACTION_INTERVAL_MS;
     if (block && blockIsRecent && sampleIsDue && state.blockActivity?.blockHeight !== block.height) {
       state.lastChunkRequestAt = Date.now();
-      const activityResult = await fetchAndApply('blockActivity', () => fetchBlockTransactionCount(block));
+      const activityResult = await fetchAndApply('blockActivity', () => fetchNeardataBlockTransactionCount(block));
       const activity = activityResult?.value;
       if (activity && activity.blockHeight === block.height) appendBlockObservation({ ...block, transactionCount: activity.transactionCount, transactionChunkCount: activity.chunkCount, transactionFetchedAt: activity.fetchedAt, rawChunks: activity.rawChunks });
     }

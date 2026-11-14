@@ -19,7 +19,7 @@ npm run dev
 
 Then open `http://127.0.0.1:8000`.
 
-- To see live, source-timestamped NEAR RPC and market/TVL observations, open the dashboard and wait for the source indicator.
+- To see live, source-timestamped NEAR RPC, Neardata per-block activity, and market/TVL observations, open the dashboard and wait for the source indicator.
 - To inspect how a chart is made, expand **View source query and interpretation** below it.
 - To inspect the daily account/transaction/contract SQL, open **Organic Adoption Intelligence** and expand its sample query. The live schema has been checked, but no BigQuery result is shown because no query was intentionally run.
 - To inspect Intents requirements, open **Capital Flow Intelligence**. Its Explorer connection remains unavailable until a partner JWT and safe server-side path are configured.
@@ -41,7 +41,7 @@ Every chart has a source recipe, a data table, exact-value CSV download and a co
 
 - **Value Capture Lab:** latest finalized-block gas and gas-price estimate, reported chunk utilization, plus separately labeled external market context. The gas estimate is not a reconciled fee ledger or protocol revenue.
 - **Ecosystem Risk Radar:** source-backed, scoped risk cards. Severity and confidence are shown separately; one RPC view is not network-wide health.
-- **Organic Adoption Intelligence:** one complete all-shard transaction sample and current validator-set snapshot from NEAR RPC. These do not measure daily adoption. BigQuery daily signer, transaction and contract metrics are displayed as unavailable, with the unexecuted SQL visible.
+- **Organic Adoption Intelligence:** one complete all-shard transaction sample from FastNEAR Neardata for the exact latest finalized RPC block, plus the current validator-set snapshot from NEAR RPC. The Neardata read is keyless and limited to one request every five minutes. A single block does not measure daily adoption. BigQuery daily signer, transaction and contract metrics are displayed as unavailable, with the unexecuted SQL visible.
 - **Capital Flow Intelligence:** daily NEAR DeFi TVL stock and source notes. NEAR Intents Explorer is shown as not connected; no net-flow proxy is invented.
 - **Thesis Challenge Engine:** a selectable descriptive price/TVL/market-volume correlation test. Its result is not a test of Intents volume versus daily on-chain usage because those two data series are not connected.
 
@@ -49,7 +49,13 @@ Every chart has a source recipe, a data table, exact-value CSV download and a co
 
 The command first regenerates [`sql/near-signal.sql`](sql/near-signal.sql) from the shared query definition, then fetches the connected public sources and writes [`data/latest-evidence.json`](data/latest-evidence.json). The snapshot records raw returned market/TVL/block inputs, aligned chart series, source times and failures, calculations, query recipes, and disconnected-source states. Browser history retains only the finalized block, chunk-match fields and transaction hashes needed to replay sampled counts; transaction bodies and receipts are discarded.
 
-The command makes **no BigQuery or Intents requests**. It can rebuild the currently connected source data, and `npm run replay` can reconstruct charts from the saved finalized block, minimal matched-chunk evidence and transaction hashes without network access. It cannot produce missing daily account/contract/Intents history or turn browser history into a historical chain archive. The full official “rebuild every chart from raw data” goal remains incomplete until those data-access and integration prerequisites are resolved. Missing values stay unavailable.
+The command makes **no BigQuery or Intents requests**. It can rebuild the currently connected source data, including one exact-height Neardata bundle, and `npm run replay` can reconstruct charts from the saved finalized block, minimal matched-chunk evidence and transaction hashes without network access. It cannot produce missing daily account/contract/Intents history or turn browser history into a historical chain archive. The full official “rebuild every chart from raw data” goal remains incomplete until those data-access and integration prerequisites are resolved. Missing values stay unavailable.
+
+## Alternative backend ingestion
+
+The browser dashboard now also reads and validates an exact-height FastNEAR Neardata block/shard bundle for its one-block transaction sample; this request is keyless and does not claim daily activity or archive completeness. Separately, a Python CLI reads Neardata with a live-tested block-only FastNEAR RPC fallback, normalized PostgreSQL storage, per-run record observations, and reproducible SQL/Python calculations. An operator-triggered sequential height-range backfill is available with a 100-block default cap and five-second pacing; it is not automatic and does not certify gapless history. Metric persistence is separately opt-in and labels actual observed samples rather than full-day totals. Pikespeak, FastNEAR indexed data, Intear Events and NEAR Intents remain gated by missing credentials or network validation; NearBlocks requires written permission before automated use. A [manual-only Neon Free/GitHub Actions workflow](docs/neon-github-actions.md) is prepared with a bounded one-block run and storage stop, but no Neon database or GitHub secret is configured.
+
+No PostgreSQL URL, driver, Google ADC or BigQuery execution project is configured here. The database schema was not applied and no history was persisted externally. BigQuery remains preserved through the existing parameterized SQL and a new dry-run-only client; no dry run or data query was submitted.
 
 ## BigQuery query notes
 
@@ -63,7 +69,7 @@ The official Explorer is read-only and covers historical 1Click Swap records, no
 
 ## Verification
 
-`npm test` runs 34 deterministic checks, including `block_date` filters, chart query disclosures, source handling and calculation tests. `npm run check` validates JavaScript syntax. The live desktop/mobile suite can be run with `npm install`, `npx playwright install chromium` and `npm run test:e2e`. It uses real read-only providers, tests the account lookup, chart/SQL/test/evidence downloads, route visibility and mobile drawer, and asserts that no BigQuery or Intents API request is made. Live providers can fail, impose shared limits or change their terms; current source status and timestamps are shown in the [source inventory](docs/data-sources.md). No synthetic fallback values are used.
+`npm test` runs 35 deterministic checks, including Neardata chunk-validation, `block_date` filters, chart query disclosures, source handling and calculation tests. `npm run check` validates JavaScript syntax. The live desktop/mobile suite can be run with `npm install`, `npx playwright install chromium` and `npm run test:e2e`. It uses real read-only providers, tests the account lookup, chart/SQL/test/evidence downloads, route visibility and mobile drawer, and asserts that no BigQuery or Intents API request is made. Live providers can fail, impose shared limits or change their terms; current source status and timestamps are shown in the [source inventory](docs/data-sources.md). No synthetic fallback values are used.
 
 ## Project notes
 
@@ -71,6 +77,7 @@ The official Explorer is read-only and covers historical 1Click Swap records, no
 - [Track alignment, BigQuery schema notes and API blockers](docs/track-alignment.md)
 - [Methodology](docs/methodology.md)
 - [Data-source inventory](docs/data-sources.md)
+- [Alternative data infrastructure and API verification](docs/alternative-data-infrastructure.md)
 - [Implementation status](docs/implementation-status.md)
 - [Competitor analysis](docs/competitor-analysis.md)
 

@@ -1,6 +1,7 @@
-import { summarizeBlock, summarizeBlockTransactions, summarizeValidators } from './analytics.js';
+import { summarizeBlock, summarizeNeardataBlockTransactions, summarizeValidators } from './analytics.js';
 
 const RPC_URL = 'https://free.rpc.fastnear.com';
+const NEARDATA_BASE_URL = 'https://mainnet.neardata.xyz';
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 const LLAMA_PRICE_URL = 'https://coins.llama.fi/prices/current/coingecko:near';
 const LLAMA_TVL_URL = 'https://api.llama.fi/v2/historicalChainTvl/near';
@@ -37,11 +38,11 @@ export const DATA_SOURCES = [
     caveat: 'One provider view, not a network-wide health guarantee. NEAR lists this public endpoint in FastNear’s free tier but publishes no numeric limit; polling is intentionally conservative.', connected: true, staleAfterSeconds: 120,
   },
   {
-    id: 'near-rpc-block-transactions', name: 'FastNear public mainnet RPC (free tier) — sampled block transactions',
-    url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/block-chunk',
-    kind: 'Read-only JSON-RPC', fields: 'transaction-array lengths for every shard chunk referenced by one finalized block; matched chunk hashes and per-shard counts',
-    cadence: 'Sampled on initial load and no more than once every five minutes; one chunk read per shard in that block.',
-    caveat: 'A count for one finalized block is not a daily series, unique-user count or adoption trend. The finalized block and minimal chunk verification fields plus transaction hashes are retained locally for replay; full transaction bodies and receipt payloads are discarded. FastNear’s free-tier request limit is not published; the app samples conservatively.', connected: true, staleAfterSeconds: 600,
+    id: 'fastnear-neardata-block-transactions', name: 'FastNEAR Neardata — sampled finalized-block transactions',
+    url: `${NEARDATA_BASE_URL}/v0/last_block/final`, docUrl: 'https://docs.fastnear.com/neardata',
+    kind: 'Read-only block/shard bundle; no API key on the tested endpoint', fields: 'transaction-array lengths for each shard at the exact finalized RPC block height; matched block hash, chunk hashes and inclusion heights',
+    cadence: 'One exact-height block request at most every five minutes while the page is open.',
+    caveat: 'A count for one finalized block is not a daily series, unique-user count or adoption trend. All referenced shard chunks must match or the count is withheld. Only minimal chunk fields and transaction hashes are retained locally for replay; full transaction bodies and receipt payloads are discarded. No numeric request quota or gapless archive guarantee is published.', connected: true, staleAfterSeconds: 600,
   },
   {
     id: 'near-rpc-status', name: 'FastNear public mainnet RPC (free tier) — node status',
@@ -178,21 +179,16 @@ export async function fetchFinalizedBlock() {
   return result;
 }
 
-export async function fetchBlockTransactionCount(block) {
-  const result = await sourceCall('near-rpc-block-transactions', async () => {
-    if (!Number.isSafeInteger(block?.height) || !Array.isArray(block?.chunkRefs) || block.chunkRefs.length === 0) throw new Error('No complete finalized-block shard references are available');
-    if (block.chunkRefs.length > 128) throw new Error('RPC returned an unexpected shard count; chunk requests were withheld');
-    const started = performance.now();
-    const responses = await Promise.all(block.chunkRefs.map((ref) => rpcRequest('chunk', { block_id: block.height, shard_id: ref.shardId })));
-    return { data: responses.map((response) => response.data.result), latencyMs: Math.round(performance.now() - started) };
-  }, (chunkResults, checkedAt) => {
-    const value = summarizeBlockTransactions(block, chunkResults);
-    if (!value) throw new Error('A shard chunk was missing, mismatched or malformed; the full-block transaction total is withheld');
-    const rawChunks = chunkResults.map((chunk) => ({
-      header: { shard_id: chunk.header.shard_id, chunk_hash: chunk.header.chunk_hash, height_included: chunk.header.height_included },
-      transactions: chunk.transactions.map((transaction) => ({ hash: transaction.hash })),
-    }));
-    return { ...value, fetchedAt: checkedAt, rawChunks };
+export async function fetchNeardataBlockTransactionCount(block) {
+  const result = await sourceCall('fastnear-neardata-block-transactions', () => {
+    if (!Number.isSafeInteger(block?.height) || block.height < 0 || typeof block?.hash !== 'string' || !Array.isArray(block?.chunkRefs) || block.chunkRefs.length === 0 || block.chunkRefs.length > 128) {
+      throw new Error('No complete finalized-block shard references are available');
+    }
+    return getJson(`${NEARDATA_BASE_URL}/v0/block/${block.height}`);
+  }, (payload, checkedAt) => {
+    const value = summarizeNeardataBlockTransactions(block, payload);
+    if (!value) throw new Error('Neardata returned a missing, mismatched or incomplete shard chunk; the full-block transaction count is withheld');
+    return { ...value, fetchedAt: checkedAt };
   });
   if (result.value) result.status.providerAt = block.timestamp;
   return result;

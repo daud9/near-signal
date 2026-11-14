@@ -9,7 +9,7 @@ import {
 } from '../src/analytics.js';
 import {
   DATA_SOURCES,
-  fetchBlockTransactionCount,
+  fetchNeardataBlockTransactionCount,
   fetchCoinGeckoHistory,
   fetchCoinGeckoMarket,
   fetchDefiLlamaPrice,
@@ -37,8 +37,8 @@ export async function rebuildSnapshot() {
     fetchTvlHistory(),
   ]);
   const blockTransactions = block.value
-    ? await fetchBlockTransactionCount(block.value)
-    : failedResult('near-rpc-block-transactions', 'Finalized block unavailable; no chunk requests were made.');
+    ? await fetchNeardataBlockTransactionCount(block.value)
+    : failedResult('fastnear-neardata-block-transactions', 'Finalized block unavailable; no Neardata request was made.');
 
   // Keep these shared public RPC reads sequential and conservative.
   const rpcStatus = await fetchRpcStatus();
@@ -46,7 +46,7 @@ export async function rebuildSnapshot() {
   const results = { block, blockTransactions, market, marketChart, llamaPrice, tvl, rpcStatus, validators };
   const resultBySource = {
     'near-rpc-finalized': block,
-    'near-rpc-block-transactions': blockTransactions,
+    'fastnear-neardata-block-transactions': blockTransactions,
     'near-rpc-status': rpcStatus,
     'near-rpc-validators': validators,
     'coingecko-market': market,

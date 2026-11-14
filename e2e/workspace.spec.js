@@ -8,6 +8,8 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   page.on('request', (request) => { if (/bigquery\.googleapis|explorer\.near-intents\.org\/api/.test(request.url())) forbiddenRequests.push(request.url()); });
   await page.goto('/');
   await expect(page.locator('#finalizedBlock')).not.toHaveText('—');
+  await expect(page.locator('#sourceList .source-row').filter({ hasText: 'FastNEAR Neardata' }).locator('.status-pill')).toHaveText('Responding');
+  await expect(page.locator('#blockTxAsOf')).toContainText('shard chunks');
   await expect(page.locator('#overviewChart svg')).toBeVisible();
   for (const route of routes) {
     await page.locator(`.nav a[href="#${route}"]`).click();
@@ -45,7 +47,9 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   expect(await readFile(await (await sqlDownload).path(), 'utf8')).toContain('block_date >= start_date AND block_date < end_date');
 
   await page.locator('.nav a[href="#risk-radar"]').click();
-  await page.locator('#riskThreshold').focus(); await page.locator('#riskThreshold').press('End');
+  const riskThreshold = page.locator('#riskThreshold');
+  await riskThreshold.focus();
+  for (let index = 0; index < 6; index += 1) await riskThreshold.press('ArrowRight');
   await expect(page.locator('#riskThresholdOutput')).toHaveText('50%');
   await page.locator('#riskFilter').selectOption('coverage');
   await expect(page.locator('#riskFilterStatus')).toContainText('of 6 indicators');

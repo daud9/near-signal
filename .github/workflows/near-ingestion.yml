@@ -1,0 +1,77 @@
+name: NEAR SIGNAL bounded ingestion
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Fetch the latest finalized block or one explicit height
+        required: true
+        type: choice
+        options:
+          - latest
+          - height
+        default: latest
+      height:
+        description: Required only when mode is height; exactly one block is fetched
+        required: false
+        type: string
+        default: ''
+      initialize_schema:
+        description: Apply the checked-in PostgreSQL schema before ingestion (first setup only)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: near-signal-neon-ingestion
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEAR_SIGNAL_DATABASE_URL: ${{ secrets.NEAR_SIGNAL_DATABASE_URL }}
+      NEAR_SIGNAL_MAX_DATABASE_BYTES: '838860800'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the PostgreSQL driver
+        run: python -m pip install --disable-pip-version-check 'psycopg[binary]>=3.2,<4'
+
+      - name: Fetch and persist one observed block
+        env:
+          INGEST_MODE: ${{ inputs.mode }}
+          INGEST_HEIGHT: ${{ inputs.height }}
+          INITIALIZE_SCHEMA: ${{ inputs.initialize_schema }}
+        run: |
+          set -euo pipefail
+          args=(--persist --no-fallback)
+          case "$INGEST_MODE" in
+            latest)
+              ;;
+            height)
+              if [[ ! "$INGEST_HEIGHT" =~ ^[0-9]{1,18}$ ]]; then
+                echo 'For mode=height, supply a non-negative decimal block height of at most 18 digits.' >&2
+                exit 2
+              fi
+              args+=(--height "$INGEST_HEIGHT")
+              ;;
+            *)
+              echo 'Unsupported ingestion mode.' >&2
+              exit 2
+              ;;
+          esac
+          if [[ "$INITIALIZE_SCHEMA" == 'true' ]]; then
+            args+=(--initialize-schema)
+          fi
+          python -m ingestion.cli "${args[@]}"

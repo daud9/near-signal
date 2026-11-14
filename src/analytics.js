@@ -117,7 +117,8 @@ export function summarizeBlockTransactions(block, chunkResults) {
     if (!match || !Array.isArray(match.transactions) || match.header?.chunk_hash !== ref.chunkHash) return null;
     if (match.transactions.some((transaction) => typeof transaction?.hash !== 'string' || !transaction.hash)) return null;
     const includedHeight = numeric(match.header.height_included);
-    if (includedHeight !== blockHeight) return null;
+    const expectedHeight = numeric(ref.heightIncluded) ?? blockHeight;
+    if (includedHeight !== expectedHeight) return null;
     chunks.push({ shardId, chunkHash: ref.chunkHash, transactionCount: match.transactions.length });
   }
   if (chunks.length !== seenShards.size) return null;
@@ -128,6 +129,58 @@ export function summarizeBlockTransactions(block, chunkResults) {
     transactionCount: chunks.reduce((sum, chunk) => sum + chunk.transactionCount, 0),
     chunkCount: chunks.length,
     chunks,
+  };
+}
+
+export function summarizeNeardataBlockTransactions(requestedBlock, payload) {
+  const header = payload?.block?.header;
+  const refs = payload?.block?.chunks;
+  const expectedRefs = requestedBlock?.chunkRefs;
+  const height = numeric(header?.height);
+  if (!Number.isSafeInteger(height) || height !== requestedBlock?.height || header?.hash !== requestedBlock?.hash ||
+      !Array.isArray(refs) || !Array.isArray(expectedRefs) || refs.length === 0 || refs.length !== expectedRefs.length ||
+      !Array.isArray(payload?.shards) || payload.shards.length !== refs.length) return null;
+
+  const refByShard = new Map();
+  for (const ref of refs) {
+    const shardId = numeric(ref?.shard_id);
+    if (!Number.isSafeInteger(shardId) || shardId < 0 || typeof ref?.chunk_hash !== 'string' || !ref.chunk_hash || refByShard.has(shardId)) return null;
+    refByShard.set(shardId, ref);
+  }
+  const shardById = new Map();
+  for (const shard of payload.shards) {
+    const shardId = numeric(shard?.shard_id);
+    if (!Number.isSafeInteger(shardId) || shardId < 0 || shardById.has(shardId)) return null;
+    shardById.set(shardId, shard);
+  }
+
+  const chunks = [];
+  const rawChunks = [];
+  for (const expected of expectedRefs) {
+    const shardId = numeric(expected?.shardId);
+    const ref = refByShard.get(shardId);
+    const expectedHeight = numeric(expected?.heightIncluded);
+    if (!Number.isSafeInteger(shardId) || !ref || ref.chunk_hash !== expected.chunkHash ||
+        (expectedHeight !== null && numeric(ref.height_included) !== expectedHeight)) return null;
+    const chunk = shardById.get(shardId)?.chunk;
+    const chunkHeader = chunk?.header;
+    const transactions = chunk?.transactions;
+    if (chunkHeader?.chunk_hash !== ref.chunk_hash || numeric(chunkHeader.height_included) !== numeric(ref.height_included) ||
+        !Array.isArray(transactions) || transactions.some((item) => typeof item?.transaction?.hash !== 'string' || !item.transaction.hash)) return null;
+    chunks.push({ shardId, chunkHash: ref.chunk_hash, transactionCount: transactions.length });
+    rawChunks.push({
+      header: { shard_id: shardId, chunk_hash: ref.chunk_hash, height_included: numeric(ref.height_included) },
+      transactions: transactions.map((item) => ({ hash: item.transaction.hash })),
+    });
+  }
+  return {
+    blockHeight: height,
+    blockHash: header.hash,
+    blockTimestamp: requestedBlock.timestamp,
+    transactionCount: chunks.reduce((sum, chunk) => sum + chunk.transactionCount, 0),
+    chunkCount: chunks.length,
+    chunks,
+    rawChunks,
   };
 }
 

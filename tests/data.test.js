@@ -20,8 +20,12 @@ test('invalid provider timestamps remain unavailable', () => {
 });
 
 test('all live NEAR RPC sources use the documented FastNear free mainnet endpoint', () => {
-  const ids = new Set(['near-rpc-finalized', 'near-rpc-block-transactions', 'near-rpc-status', 'near-rpc-validators']);
+  const ids = new Set(['near-rpc-finalized', 'near-rpc-status', 'near-rpc-validators']);
   const sources = DATA_SOURCES.filter((source) => ids.has(source.id));
   assert.equal(sources.length, ids.size);
   for (const source of sources) assert.equal(source.url, 'https://free.rpc.fastnear.com');
+  const neardata = DATA_SOURCES.find((source) => source.id === 'fastnear-neardata-block-transactions');
+  assert.equal(neardata.connected, true);
+  assert.match(neardata.url, /mainnet\.neardata\.xyz\/v0\/last_block\/final/);
+  assert.match(neardata.caveat, /not a daily series/);
 });

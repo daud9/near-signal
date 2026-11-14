@@ -6,7 +6,8 @@ NEAR SIGNAL currently uses eight read-only feeds and lists five disconnected can
 
 | Source | Data used | Cadence | Important limit |
 |---|---|---|---|
-| FastNear public NEAR mainnet RPC | Finalized block/chunk gas, all-shard transaction sample, node status, current validator set | Block about once a minute; all-shard sample on load and at least five minutes apart; status/validators every five minutes | Public-provider view only. NEAR lists the free-tier request limit as unpublished and archival access as paid. One block is not daily activity. |
+| FastNEAR public NEAR mainnet RPC | Finalized block/chunk gas, node status and current validator set | Block about once a minute; status/validators every five minutes | Public-provider point-in-time view only. NEAR lists the free-tier request limit as unpublished. One block is not a network-wide health guarantee. |
+| FastNEAR Neardata | Exact-height finalized block's all-shard transaction sample, read at the RPC block height | One bundle request at most every five minutes while the page is open | The tested no-key endpoint returns block and shard data; every referenced chunk must match before a count is shown. No numeric request quota or gapless archive guarantee is published. One block is not daily activity, unique users or an adoption trend. |
 | CoinGecko market snapshot | Timestamped NEAR spot price, market cap, gross 24-hour exchange volume and change | On page load or user refresh | Keyless access is intended for testing/open-source/education and is dynamically rate-limited. Gross volume is not on-chain flow. |
 | CoinGecko daily market history | Daily price, market-cap and gross-volume observations | On load or user refresh | External market context, not network activity. The partial current UTC date is excluded. |
 | DefiLlama spot price | Independently timestamped price check | About every two minutes while the page is open | Cross-check only; not an executable quote or on-chain oracle. |
@@ -50,3 +51,10 @@ No JWT is configured and the app makes no Explorer request. A static browser bun
 ## On-demand account lookup
 
 The Organic Adoption workspace also offers a user-initiated, read-only `view_account` query at `https://free.rpc.fastnear.com`. It returns the selected account’s current finalized balance, locked amount, storage usage, code hash and block identity. The inspector shows the raw request/response and fetch timestamp and includes them in a user-requested evidence export. It is not a scheduled feed or a historical adoption source, so it is separate from the eight automatically checked feeds.
+
+
+## Separate alternative-ingestion track
+
+The browser app now reads an exact-height Neardata shard bundle directly for its sampled per-block transaction count; the new Python ingestion/storage track remains separate and optional. Actual reachability, authentication, documented limits, historical coverage, and terms for NearBlocks, Pikespeak, FastNEAR indexed data, Neardata, Intear Events, NEAR Intents and BigQuery are documented in [`alternative-data-infrastructure.md`](alternative-data-infrastructure.md). In brief: Neardata's latest/first block cursors and sample shard data were reachable; NearBlocks remains blocked pending written permission; credential-gated providers remain disabled; Intear Events DNS failed before handshake; and BigQuery requires an authenticated execution project.
+
+The PostgreSQL adapter and schema are local/testable only. No database URL or ADC/project is configured, no external database was created, and the schema was not applied. The browser's Neardata request uses no API key or JWT; it is independent of the optional persistent ingestion path.

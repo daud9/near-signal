@@ -1,0 +1,3 @@
+# Optional server-side ingestion dependencies; no provider keys or DB URLs in this file.
+psycopg[binary]>=3.2,<4
+google-auth>=2.30,<3

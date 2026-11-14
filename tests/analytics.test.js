@@ -8,6 +8,7 @@ import {
   pearsonCorrelation,
   summarizeBlock,
   summarizeBlockTransactions,
+  summarizeNeardataBlockTransactions,
   summarizeValidators,
   testHypothesis,
   toUtcDate,
@@ -85,6 +86,36 @@ test('per-block transaction count requires every shard chunk to match the finali
   assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], header: { ...chunks[0].header, height_included: 1 } }, chunks[1]]), null);
   assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], transactions: null }, chunks[1]]), null);
   assert.equal(summarizeBlockTransactions(block, [{ ...chunks[0], transactions: [{ signer_id: 'missing-hash' }] }, chunks[1]]), null);
+});
+
+test('Neardata sample requires the exact block and every referenced shard chunk to match', () => {
+  const block = {
+    height: 12, hash: 'block-12', timestamp: '2026-11-14T06:11:00.000Z',
+    chunkRefs: [
+      { shardId: 0, chunkHash: 'chunk-0', heightIncluded: 12 },
+      { shardId: 1, chunkHash: 'chunk-1', heightIncluded: 11 },
+    ],
+  };
+  const payload = {
+    block: { header: { height: 12, hash: 'block-12' }, chunks: [
+      { shard_id: 0, chunk_hash: 'chunk-0', height_included: 12 },
+      { shard_id: 1, chunk_hash: 'chunk-1', height_included: 11 },
+    ] },
+    shards: [
+      { shard_id: 0, chunk: { header: { chunk_hash: 'chunk-0', height_included: 12 }, transactions: [{ transaction: { hash: 'tx-0' } }] } },
+      { shard_id: 1, chunk: { header: { chunk_hash: 'chunk-1', height_included: 11 }, transactions: [{ transaction: { hash: 'tx-1' } }, { transaction: { hash: 'tx-2' } }] } },
+    ],
+  };
+  const result = summarizeNeardataBlockTransactions(block, payload);
+  assert.equal(result.transactionCount, 3);
+  assert.equal(result.chunkCount, 2);
+  assert.deepEqual(result.chunks.map((row) => row.transactionCount), [1, 2]);
+  assert.deepEqual(result.rawChunks[1].transactions, [{ hash: 'tx-1' }, { hash: 'tx-2' }]);
+  assert.equal(summarizeBlockTransactions(block, result.rawChunks).transactionCount, 3);
+  assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, block: { ...payload.block, header: { height: 13, hash: 'block-13' } } }), null);
+  assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: payload.shards.slice(1) }), null);
+  assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: [{ ...payload.shards[0], chunk: { ...payload.shards[0].chunk, header: { chunk_hash: 'wrong', height_included: 12 } } }, payload.shards[1]] }), null);
+  assert.equal(summarizeNeardataBlockTransactions(block, { ...payload, shards: [{ ...payload.shards[0], chunk: { ...payload.shards[0].chunk, transactions: [{ transaction: {} }] } }, payload.shards[1]] }), null);
 });
 
 test('missing block gas fields are unavailable rather than silently treated as zero', () => {
