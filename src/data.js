@@ -279,3 +279,17 @@ export async function fetchTvlHistory() {
 export function statusFromMissingSource(source) {
   return { sourceId: source.id, ok: null, checkedAt: null, providerAt: null, latencyMs: null, detail: source.caveat, disconnected: true };
 }
+
+// On-demand public account state only. No wallet, signing, account history or JWT.
+export async function fetchAccountSnapshot(accountId) {
+  if (typeof accountId !== 'string' || accountId.length < 2 || accountId.length > 64 || !/^[a-z0-9]+(?:[-_.][a-z0-9]+)*$/.test(accountId)) {
+    return { status: { ok: false, detail: 'Enter a valid lowercase NEAR account ID.' } };
+  }
+  return sourceCall('near-rpc-account-inspector', () => rpcRequest('query', { request_type: 'view_account', finality: 'final', account_id: accountId }), (data, checkedAt) => {
+    const raw = data?.result;
+    if (!raw || !/^\d+$/.test(raw.amount) || !/^\d+$/.test(raw.locked) || !Number.isSafeInteger(raw.storage_usage) || !Number.isSafeInteger(raw.block_height) || typeof raw.code_hash !== 'string') throw new Error('RPC did not return a complete account snapshot. Verify that the account exists.');
+    const balanceNear = Number(BigInt(raw.amount)) / 1e24, lockedNear = Number(BigInt(raw.locked)) / 1e24;
+    if (!Number.isFinite(balanceNear) || !Number.isFinite(lockedNear)) throw new Error('RPC account balance is outside the supported numeric range.');
+    return { endpoint: RPC_URL, accountId, balanceNear, lockedNear, storageBytes: raw.storage_usage, hasContract: raw.code_hash !== '11111111111111111111111111111111', codeHash: raw.code_hash, blockHeight: raw.block_height, blockHash: raw.block_hash, fetchedAt: checkedAt, raw, request: { jsonrpc: '2.0', id: 'near-signal-query', method: 'query', params: { request_type: 'view_account', finality: 'final', account_id: accountId } } };
+  });
+}

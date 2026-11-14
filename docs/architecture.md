@@ -31,3 +31,9 @@ The static app only calls its configured public feeds. The loopback server sets 
 ## Not implemented
 
 There is no daily account/transaction-history feed, account cohort/retention calculation, historical contract series, reconciled NEAR Intents/bridge flow, long-run fee/reward accounting, multi-epoch validator history, multi-provider uptime monitor, full app/dependency risk inventory or overall NEAR Ecosystem Health Score. No unavailable metric is filled with a proxy or a mock value.
+
+## Routed workspace
+
+`src/workspace.css` defines the sidebar shell and responsive mobile drawer. `src/workspace.js` owns route metadata, validated local SQL generation, execution-cost arithmetic and CSV serialization. The application controller shows one existing module at a time from a hash route, preserving direct links and browser history. No client-side route starts a warehouse job or sends a JWT.
+
+The on-demand account inspector shares the public RPC adapter but is not a scheduled feed. It records its request, returned account state and fetch time separately from the eight automatic feeds. User exports include its last successful snapshot, calculator inputs and selected chart windows. The Playwright suite in `e2e/` uses real read-only endpoints rather than mock UI data.

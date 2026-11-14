@@ -52,13 +52,13 @@ export function replayChartInputs(bundle) {
   const days = [7, 14, 30].includes(Number(selections.days)) ? Number(selections.days) : 14;
   const metric = ['priceUsd', 'tvlUsd', 'grossVolumeUsd'].includes(selections.metric) ? selections.metric : 'priceUsd';
   const selectedRows = daily.slice(-(days + 1));
+  const capitalDays = [7, 14, 30].includes(Number(selections.capitalDays)) ? Number(selections.capitalDays) : 30;
   return {
     asOf, cutoffUtc,
-    selections: { days, metric },
+    selections: { days, metric, capitalDays },
     overviewChart: daily,
     overviewPlot: selectedRows.map((row) => ({ date: row.date, value: row[metric] })),
-    overviewPlot: selectedRows.map((row) => ({ date: row.date, value: row[metric] })),
-    capitalChart: daily.map(({ date, tvlUsd }) => ({ date, tvlUsd })),
+    capitalChart: daily.slice(-(capitalDays + 1)).map(({ date, tvlUsd }) => ({ date, tvlUsd })),
     gasChart: observations.map(({ observedAt, height, gasTgas }) => ({ observedAt, height, gasTgas })),
     blockTxChart: observations.filter((row) => Number.isSafeInteger(row.transactionCount)).map(({ observedAt, height, transactionCount }) => ({ observedAt, height, transactionCount })),
     note: 'No network requests. Values are recomputed from raw inputs using the original UTC cutoff. Empty arrays remain empty; summary-only legacy points are excluded. RPC observations are samples, not a historical chain archive.',

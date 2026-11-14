@@ -1,8 +1,13 @@
 import { alignMarketAndTvl, assessLiveRisks, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
-import { DATA_SOURCES, fetchBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet } from './data.js';
+import { DATA_SOURCES, fetchBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchAccountSnapshot } from './data.js';
 import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, BIGQUERY_REBUILD_NOTE, CHART_QUERY_RECIPES } from './query-registry.js';
 
 import { replayChartInputs, replayRpcObservations } from './replay.js';
+import { WORKSPACES, resolveWorkspace, isNearAccountId, buildActivitySql, estimateExecutionCost, toCsv } from './workspace.js';
+const chartExportData = new Map();
+let generatedSql = '';
+let accountInspection = null;
+let lastAccountRequestAt = 0;
 
 const LOCAL_HISTORY_KEY = 'near-signal.rpc-observations.v2';
 const MAX_LOCAL_OBSERVATIONS = 60;
@@ -14,9 +19,9 @@ const state = {
   inFlight: new Set(), failureCounts: new Map(), retryAt: new Map(),
 };
 const METRICS = {
-  priceUsd: { label: 'Daily NEAR price change', color: '#c8f27c', format: 'usd' },
-  tvlUsd: { label: 'Daily NEAR DeFi TVL change', color: '#8bd3be', format: 'usd' },
-  grossVolumeUsd: { label: 'Daily gross market-volume change', color: '#8ab9db', format: 'usd' },
+  priceUsd: { label: 'Daily NEAR price', color: '#167965', format: 'usd' },
+  tvlUsd: { label: 'Daily NEAR DeFi TVL', color: '#197e78', format: 'usd' },
+  grossVolumeUsd: { label: 'Daily gross market volume', color: '#426da9', format: 'usd' },
 };
 const FAST_INTERVAL_MS = 60_000;
 const BLOCK_TRANSACTION_INTERVAL_MS = 300_000;
@@ -114,13 +119,14 @@ function chartLabel(value, format) {
 function chartQueryDisclosure(chartId) {
   const recipe = CHART_QUERY_RECIPES[chartId];
   if (!recipe) return '';
-  return `<details class="chart-query"><summary>View source query and interpretation</summary><div class="query-content"><p><strong>What it shows:</strong> ${escapeHtml(recipe.plainLanguage)}</p><p><strong>Source:</strong> ${escapeHtml(recipe.source)}</p><pre><code>${escapeHtml(recipe.query)}</code></pre><p class="timestamp">Rebuild rule: repeat the source request above and apply the stated date matching or validation steps. No missing value is filled. Export evidence, then run <code>npm run replay -- path/to/evidence.json</code> to reconstruct plotted inputs offline from the saved raw responses.</p></div></details>`;
+  return `<div class="source-toolbar"><button class="button" type="button" data-download-chart="${escapeHtml(chartId)}">Download chart CSV</button></div><details class="chart-query"><summary>View source query and interpretation</summary><div class="query-content"><p><strong>What it shows:</strong> ${escapeHtml(recipe.plainLanguage)}</p><p><strong>Source:</strong> ${escapeHtml(recipe.source)}</p><pre><code>${escapeHtml(recipe.query)}</code></pre><button class="button" type="button" data-copy-query="${escapeHtml(chartId)}">Copy source query</button><p class="timestamp">Rebuild rule: repeat the source request above and apply the stated date matching or validation steps. No missing value is filled. Export evidence, then run <code>npm run replay -- path/to/evidence.json</code> to reconstruct plotted inputs offline from the saved raw responses.</p></div></details>`;
 }
 function renderLineChart(container, rows, metric, { label, color = '#c8f27c', format = 'usd', dateKey = 'date', emptyText = 'Waiting for observations', yLabel = null } = {}) {
   if (!container) return;
   const queryWasOpen = container.querySelector('.chart-query')?.open ?? false;
   const points = (rows ?? []).map((row) => ({ row, value: valueForChart(metric, row), date: row?.[dateKey] })).filter((point) => point.value !== null && point.date);
-  if (points.length < 2) { container.innerHTML = `<div class="chart-empty">${escapeHtml(emptyText)}</div>${chartQueryDisclosure(container.id)}`; const disclosure = container.querySelector('.chart-query'); if (disclosure) disclosure.open = queryWasOpen; return; }
+  chartExportData.set(container.id, { metric, label, points: points.map(({ date, value }) => ({ date, value })) });
+  if (points.length < 1) { container.innerHTML = `<div class="chart-empty">${escapeHtml(emptyText)}</div>${chartQueryDisclosure(container.id)}`; const disclosure = container.querySelector('.chart-query'); if (disclosure) disclosure.open = queryWasOpen; return; }
   const width = 720, height = 220, margin = { top: 12, right: 18, bottom: 34, left: 64 };
   const plotWidth = width - margin.left - margin.right, plotHeight = height - margin.top - margin.bottom;
   let minValue = Math.min(...points.map((point) => point.value)), maxValue = Math.max(...points.map((point) => point.value));
@@ -129,14 +135,14 @@ function renderLineChart(container, rows, metric, { label, color = '#c8f27c', fo
   const utcTimes = dateKey === 'date' ? points.map((point) => Date.parse(`${String(point.date).slice(0, 10)}T00:00:00Z`)) : [];
   const firstMs = utcTimes[0], spanMs = utcTimes.at(-1) - firstMs;
   const useUtcSpacing = utcTimes.length === points.length && utcTimes.every(Number.isFinite) && spanMs > 0;
-  const x = (index) => useUtcSpacing ? margin.left + (utcTimes[index] - firstMs) / spanMs * plotWidth : margin.left + index / (points.length - 1) * plotWidth;
+  const x = (index) => useUtcSpacing ? margin.left + (utcTimes[index] - firstMs) / spanMs * plotWidth : margin.left + (points.length === 1 ? 0.5 : index / (points.length - 1)) * plotWidth;
   const y = (value) => margin.top + (maxValue - value) / (maxValue - minValue) * plotHeight;
   const gapBefore = (index) => useUtcSpacing && index > 0 && (utcTimes[index] - utcTimes[index - 1]) !== 86_400_000;
   const hasGap = points.some((_, index) => gapBefore(index));
   const path = points.map((point, index) => `${index && !gapBefore(index) ? 'L' : 'M'}${x(index).toFixed(1)},${y(point.value).toFixed(1)}`).join(' ');
   const grid = [0, 1, 2, 3].map((index) => {
     const yy = margin.top + index / 3 * plotHeight, value = maxValue - index / 3 * (maxValue - minValue);
-    return `<line x1="${margin.left}" y1="${yy.toFixed(1)}" x2="${width - margin.right}" y2="${yy.toFixed(1)}" stroke="#2b3730" stroke-width="1"/><text x="${margin.left - 8}" y="${(yy + 3).toFixed(1)}" fill="#86948a" text-anchor="end" font-size="9">${escapeHtml(chartLabel(value, format))}</text>`;
+    return `<line x1="${margin.left}" y1="${yy.toFixed(1)}" x2="${width - margin.right}" y2="${yy.toFixed(1)}" stroke="#dce6e2" stroke-width="1"/><text x="${margin.left - 8}" y="${(yy + 3).toFixed(1)}" fill="#667a73" text-anchor="end" font-size="9">${escapeHtml(chartLabel(value, format))}</text>`;
   }).join('');
   const firstDate = String(points[0].date).slice(0, 10), lastDate = String(points.at(-1).date).slice(0, 10);
   const area = hasGap ? '' : `${path} L${x(points.length - 1).toFixed(1)},${(height - margin.bottom).toFixed(1)} L${x(0).toFixed(1)},${(height - margin.bottom).toFixed(1)} Z`;
@@ -146,7 +152,7 @@ function renderLineChart(container, rows, metric, { label, color = '#c8f27c', fo
     return `<tr><td><time datetime="${escapeHtml(exactDate)}">${escapeHtml(utcDateTime(exactDate))}</time></td><td>${escapeHtml(chartLabel(point.value, format))}</td></tr>`;
   }).join('');
   const table = `<details class="chart-data"><summary>View data table (${points.length} observations)</summary><div class="chart-table-wrap"><table><caption class="sr-only">${escapeHtml(label || 'Chart')} plotted observations</caption><thead><tr><th scope="col">Observed at (UTC)</th><th scope="col">${escapeHtml(label || 'Value')}</th></tr></thead><tbody>${tableRows}</tbody></table></div></details>`;
-  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label || 'Dated line chart')}"><title>${escapeHtml(label || 'Dated line chart')}</title><desc>${points.length} sourced observations from ${escapeHtml(firstDate)} to ${escapeHtml(lastDate)}; missing daily dates are visibly broken and no values are filled.</desc>${grid}${area ? `<path d="${area}" fill="${color}" opacity=".06"/>` : ''}<path d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>${circles}<text x="${margin.left}" y="${height - 8}" fill="#86948a" font-size="9">${escapeHtml(firstDate)}</text><text x="${width - margin.right}" y="${height - 8}" fill="#86948a" text-anchor="end" font-size="9">${escapeHtml(lastDate)}</text><text x="${width - margin.right}" y="${margin.top + 10}" fill="#acb8ad" text-anchor="end" font-size="9">${escapeHtml(yLabel || label || '')}</text></svg>${table}`;
+  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label || 'Dated line chart')}"><title>${escapeHtml(label || 'Dated line chart')}</title><desc>${points.length} sourced observations from ${escapeHtml(firstDate)} to ${escapeHtml(lastDate)}; missing daily dates are visibly broken and no values are filled.</desc>${grid}${area ? `<path d="${area}" fill="${color}" opacity=".06"/>` : ''}<path d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>${circles}<text x="${margin.left}" y="${height - 8}" fill="#667a73" font-size="9">${escapeHtml(firstDate)}</text><text x="${width - margin.right}" y="${height - 8}" fill="#667a73" text-anchor="end" font-size="9">${escapeHtml(lastDate)}</text><text x="${width - margin.right}" y="${margin.top + 10}" fill="#49625a" text-anchor="end" font-size="9">${escapeHtml(yLabel || label || '')}</text></svg>${table}`;
   container.insertAdjacentHTML('beforeend', chartQueryDisclosure(container.id));
   const disclosure = container.querySelector('.chart-query');
   if (disclosure) disclosure.open = queryWasOpen;
@@ -158,6 +164,8 @@ function updateHeader() {
   const successes = statuses.filter((status) => status.ok).length, failures = statuses.filter((status) => status.ok === false).length;
   const stale = statuses.filter((status) => status.ok && sourceIsStale(status)).length;
   const pending = connected.length - statuses.length;
+  $('#scoreState').textContent = pending ? `${successes}/${connected.length} responding · checking` : `${successes}/${connected.length} sources responding`;
+  $('#scoreState').style.color = failures ? 'var(--amber)' : 'var(--mint-strong)';
   const dot = $('#feedDot');
   if (pending > 0) {
     const parts = [];
@@ -245,9 +253,10 @@ function renderValueCapture() {
   $('#marketCapTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'No timestamped observation';
   $('#grossVolumeTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'No timestamped observation';
   $('#spotDifferenceFoot').textContent = timestampsValid ? timestampGapMs <= 300_000 ? `CoinGecko ${utcDateTime(state.market.timestamp)} · DefiLlama ${utcDateTime(state.llamaPrice.timestamp)}` : `Not compared: provider timestamps differ by ${(timestampGapMs / 60_000).toFixed(1)} minutes` : 'Both timestamped spot feeds are required';
+  renderFeeEstimate();
   const observations = state.observations.map((row) => ({ ...row, gasTgas: Number(row.gasUsed) / 1e12 }));
-  renderLineChart($('#gasChart'), observations, 'gasTgas', { label: 'Gas used per sampled finalized block', color: '#8bd3be', format: 'tgas', dateKey: 'observedAt', emptyText: 'Collecting real finalized-block observations. No historical values are fabricated.' });
-  $('#blockHistoryStatus').textContent = observations.length > 1 ? `${observations.length} local block observations` : 'Collecting observations';
+  renderLineChart($('#gasChart'), observations, 'gasTgas', { label: 'Gas used per sampled finalized block', color: '#197e78', format: 'tgas', dateKey: 'observedAt', emptyText: 'Collecting real finalized-block observations. No historical values are fabricated.' });
+  $('#blockHistoryStatus').textContent = observations.length ? `${observations.length} live block sample${observations.length === 1 ? '' : 's'}` : 'Collecting observations';
   $('#blockHistorySpan').textContent = observations.length > 1 ? `${utcDateTime(observations[0].observedAt)} to ${utcDateTime(observations.at(-1).observedAt)}` : 'A local time series appears after multiple polls.';
 }
 function renderBigQueryEvidence() {
@@ -280,7 +289,7 @@ function renderParticipation() {
   $('#activityStatus').textContent = activity ? (sourceStatus?.ok === false ? 'Last sample retained · latest read failed' : 'Live block count observed') : (sourceStatus?.ok === false ? 'Complete chunk sample unavailable' : 'Sampling finalized chunks');
   $('#activityStatus').className = `status-pill ${activity && sourceStatus?.ok !== false ? 'good' : 'warn'}`;
   const observations = state.observations;
-  renderLineChart($('#blockTxChart'), observations, 'transactionCount', { label: 'Transactions per sampled finalized block', color: '#ddb3ef', format: 'count', dateKey: 'observedAt', emptyText: 'Waiting for at least two complete live samples. No historical transaction values are fabricated.' });
+  renderLineChart($('#blockTxChart'), observations, 'transactionCount', { label: 'Transactions per sampled finalized block', color: '#7f61a6', format: 'count', dateKey: 'observedAt', emptyText: 'Waiting for at least two complete live samples. No historical transaction values are fabricated.' });
   const samples = observations.filter((row) => Number.isSafeInteger(row.transactionCount));
   $('#blockTxHistoryStatus').textContent = `${samples.length} complete local samples`;
   $('#blockTxHistorySpan').textContent = samples.length > 1 ? `${utcDateTime(samples[0].transactionFetchedAt)} to ${utcDateTime(samples.at(-1).transactionFetchedAt)}` : 'A local sample history appears after more five-minute polls.';
@@ -293,11 +302,15 @@ function renderRisks() {
   const rpcStatus = state.rpcStatus?.chain_id === 'mainnet' ? state.rpcStatus : null;
   const block = state.block ? { ...state.block, ageSeconds: (Date.now() - state.block.timestampMs) / 1000 } : null;
   const risks = assessLiveRisks({ market, tvl7d, tvl30d, validators: state.validators, block, rpcStatus, blockActivity: state.blockActivity, declineThreshold: state.declineThreshold });
-  $('#riskGrid').innerHTML = risks.map((risk) => {
+  const filter = $('#riskFilter')?.value || 'all';
+  const visibleRisks = risks.filter((risk) => filter === 'all' || (filter === 'alerts' ? risk.tone === 'high' || (risk.id === 'infrastructure' && risk.tone === 'caution') : ['adoption', 'dependencies'].includes(risk.id) || /unavailable|not measured|not assessed/i.test(risk.state)));
+  $('#riskFilterStatus').textContent = `${visibleRisks.length} of ${risks.length} indicators · threshold ${state.declineThreshold}%`;
+  $('#riskGrid').innerHTML = visibleRisks.map((risk) => {
     const sources = (RISK_SOURCE_IDS[risk.id] || []).map((sourceId) => DATA_SOURCES.find((source) => source.id === sourceId)).filter(Boolean);
     const sourceLinks = sources.length ? sources.map((source) => `<a href="${escapeHtml(source.docUrl || source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.name)}</a>`).join(' · ') : 'No connected source';
     return `<article class="card risk-card"><div class="risk-top"><h3>${escapeHtml(risk.title)}</h3><span class="status-pill ${riskPillClass(risk.tone)}">${escapeHtml(risk.state)}</span></div><p><strong>Severity:</strong> ${escapeHtml(risk.severity)}</p><p><strong>Trend:</strong> ${escapeHtml(risk.trend)}</p><p><strong>Evidence:</strong> ${escapeHtml(risk.evidence)}</p><p class="risk-source"><strong>Sources:</strong> ${sourceLinks}</p><p><strong>Confidence:</strong> ${escapeHtml(risk.confidence)}</p><p class="risk-impact"><strong>Potential impact:</strong> ${escapeHtml(risk.impact)}</p><p class="risk-next"><strong>Next check:</strong> ${escapeHtml(risk.next)}</p></article>`;
   }).join('');
+  if (!visibleRisks.length) $('#riskGrid').innerHTML = '<div class="empty-state">No watched signal currently crosses the selected threshold. This does not establish absence of ecosystem risk.</div>';
   $('#riskThresholdOutput').value = `${state.declineThreshold}%`;
   $('#riskThresholdOutput').textContent = `${state.declineThreshold}%`;
 }
@@ -310,8 +323,9 @@ function renderCapital() {
   $('#tvlSpan7d').textContent = change7 ? `${change7.startDate} to ${change7.endDate} · USD TVL stock` : 'Needs at least 8 matched daily dates';
   $('#tvlChange30d').textContent = change30 ? formatSignedPercent(change30.changePct) : 'Unavailable';
   $('#tvlSpan30d').textContent = change30 ? `${change30.startDate} to ${change30.endDate} · USD TVL stock` : 'Needs at least 31 matched daily dates';
-  renderLineChart($('#capitalChart'), daily, 'tvlUsd', { label: 'NEAR DeFi total value locked, daily USD snapshot', color: '#8bd3be', format: 'usd', emptyText: 'Waiting for aligned daily NEAR DeFi TVL and market dates.' });
-  $('#tvlDateSpan').textContent = daily.length ? `${daily.length} complete matched dates · ${daily[0].date} to ${daily.at(-1).date}` : 'No aligned daily series';
+  const chartDays = Number($('#capitalWindowSelect')?.value || 30), capitalRows = daily.slice(-(chartDays + 1));
+  renderLineChart($('#capitalChart'), capitalRows, 'tvlUsd', { label: 'NEAR DeFi total value locked, daily USD snapshot', color: '#197e78', format: 'usd', emptyText: 'Waiting for aligned daily NEAR DeFi TVL and market dates.' });
+  $('#tvlDateSpan').textContent = capitalRows.length ? `${capitalRows.length} complete matched dates · ${capitalRows[0].date} to ${capitalRows.at(-1).date}` : 'No aligned daily series';
   $('#capitalFreshness').textContent = state.tvlHistory?.fetchedAt ? `Fetched ${ago(state.tvlHistory.fetchedAt)}` : 'Source not yet fetched';
   $('#capitalStatus').textContent = latest ? 'TVL stock only · no net flows' : 'TVL unavailable';
   $('#capitalStatus').className = `status-pill ${latest ? 'warn' : 'bad'}`;
@@ -320,12 +334,13 @@ function renderCapital() {
 function renderHypothesis() {
   const daily = hypothesisRows(), metricA = $('#metricA')?.value || 'priceUsd', metricB = $('#metricB')?.value || 'tvlUsd';
   const direction = $('#hypothesisDirection')?.value || 'positive', days = Number($('#hypothesisDays')?.value || 14);
+  if (metricA === metricB) { $('#hypothesisVerdict').textContent = 'Choose distinct series'; $('#hypothesisSummary').textContent = 'Comparing a series with itself always gives a trivial relationship. Select two different sourced series.'; $('#hypothesisDetails').innerHTML = '<li>No test result has been inferred.</li>'; return; }
   const result = testHypothesis(daily, metricA, metricB, direction, days), title = $('#hypothesisLabel')?.value?.trim() || 'Untitled hypothesis';
   const verdict = $('#hypothesisVerdict');
   verdict.textContent = result.verdict;
   verdict.className = `result-verdict ${result.verdict === 'Not supported' ? 'negative' : ['Partially supported', 'Insufficient evidence'].includes(result.verdict) ? 'partial' : ''}`;
   const rText = result.r === null ? 'Correlation unavailable' : `Pearson r = ${result.r.toFixed(2)}`;
-  $('#hypothesisSummary').textContent = `${title}. The selected test asks whether ${METRICS[metricA]?.label.toLowerCase()} and ${METRICS[metricB]?.label.toLowerCase()} show ${titleCaseDirection(direction)} across ${days} matched daily changes. ${rText}.`;
+  $('#hypothesisSummary').textContent = `${title}. The selected test asks whether daily changes in ${METRICS[metricA]?.label.toLowerCase()} and ${METRICS[metricB]?.label.toLowerCase()} show ${titleCaseDirection(direction)} across ${days} matched daily changes. ${rText}.`;
   const details = [`${result.n} matched daily changes${result.startDate && result.endDate ? ` · ${result.startDate} to ${result.endDate}` : ''}.`];
   if (result.r === null && result.n < days) details.push(`Correlation withheld: the selected test requires exactly ${days} consecutive matched daily changes; ${result.n} were available.`);
   else if (result.r === null) details.push('Correlation is undefined because at least one selected series has no variation in the complete window.');
@@ -453,7 +468,7 @@ async function refreshEverything() {
     await refreshSlowRpc();
     if (Date.now() - state.lastMarketRefresh >= MARKET_MANUAL_COOLDOWN_MS) await refreshCoinGecko();
     else $('#marketPriceFoot').textContent = `CoinGecko manual refresh cooldown; current snapshot from ${state.market?.timestamp ? utcDateTime(state.market.timestamp) : 'unavailable'}.`;
-  } finally { state.isRefreshing = false; button.disabled = false; button.innerHTML = '↻ <span>Refresh</span>'; renderAll(); }
+  } finally { state.isRefreshing = false; button.disabled = false; button.innerHTML = '↻ <span>Refresh</span>'; renderAll(); announce('Available signals refreshed. Transaction samples respect a five-minute cadence and CoinGecko a one-minute cooldown. See source status for failed reads.'); }
 }
 function exportEvidence() {
   const bundle = {
@@ -463,7 +478,9 @@ function exportEvidence() {
       currentValidatorSet: state.validators },
     dailyAlignedMarketAndTvl: allDailyRows(), dailyHypothesisSeries: hypothesisRows(), rawTvlRows: state.tvlHistory?.rows ?? null, rawCoinGeckoMarketChart: state.marketChart,
     localRpcObservationHistory: state.observations,
-    chartSelections: { days: state.days, metric: state.chartMetric },
+    chartSelections: { days: state.days, metric: state.chartMetric, capitalDays: Number($('#capitalWindowSelect').value) },
+    onDemandAccountInspection: accountInspection,
+    executionCostScenario: { gasTgas: Number($('#feeGasInput').value), gasPriceNearPerTgas: state.block?.gasPriceNearPerTgas ?? null, priceUsd: state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null, estimate: estimateExecutionCost($('#feeGasInput').value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd) },
     chartQueryRecipes: CHART_QUERY_RECIPES,
     unexecutedBigQuery: { dataset: BIGQUERY_DATASET, inspectedTables: BIGQUERY_INSPECTED_TABLES, inspectedQueryFields: BIGQUERY_INSPECTED_FIELDS, sql: BIGQUERY_ACTIVITY_QUERY, status: 'Not connected; no query was submitted.' },
     sourceRegistry: DATA_SOURCES.map((source) => ({ ...source, status: state.sourceStatuses.get(source.id) ?? null })),
@@ -473,6 +490,99 @@ function exportEvidence() {
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
   anchor.href = url; anchor.download = `near-signal-evidence-${new Date().toISOString().slice(0, 10)}.json`; anchor.click(); URL.revokeObjectURL(url);
 }
+
+function announce(message) { $('#workspaceNotice').textContent = message; }
+function downloadFile(filename, content, type = 'text/plain') {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename;
+  document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function setMenuOpen(open) {
+  document.body.classList.toggle('menu-open', open);
+  $('#menuToggle').setAttribute('aria-expanded', String(open));
+  $('#menuToggle').setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+  $('#sidebarBackdrop').hidden = !open;
+  const mobile = window.matchMedia('(max-width: 899px)').matches;
+  $('#sidebar').inert = mobile && !open;
+  $('.workspace').inert = mobile && open;
+}
+function navigateWorkspace(focus = false) {
+  const route = resolveWorkspace(location.hash), meta = WORKSPACES[route];
+  document.querySelectorAll('main > section.block[id]').forEach((section) => { section.hidden = section.id !== route; });
+  document.querySelectorAll('.nav a').forEach((link) => {
+    const active = link.hash === `#${route}`; link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  });
+  $('#workspaceTitle').textContent = meta.title; $('#workspaceSubtitle').textContent = meta.description;
+  document.title = `${meta.title} | NEAR SIGNAL`;
+  document.body.dataset.route = route; setMenuOpen(false);
+  if (focus) { const section = document.getElementById(route); section.setAttribute('tabindex', '-1'); section.focus({ preventScroll: true }); window.scrollTo(0, 0); }
+}
+function renderFeeEstimate() {
+  const result = estimateExecutionCost($('#feeGasInput')?.value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd);
+  $('#feeEstimateNear').textContent = result ? `${result.near.toFixed(6)} Ⓝ` : 'Unavailable';
+  $('#feeEstimateUsd').textContent = result?.usd !== null && result?.usd !== undefined ? usd(result.usd, 6) : 'Unavailable';
+  $('#feeEstimateSource').textContent = state.block ? `Block ${state.block.height} · ${utcDateTime(state.block.timestamp)} · ${state.block.gasPriceNearPerTgas.toFixed(6)} Ⓝ/Tgas` : 'Waiting for live gas price';
+  $('#feeCalculatorStatus').textContent = result ? 'Live gas price' : state.block ? 'Check gas budget' : 'Needs live gas price';
+  $('#feeCalculatorFeedback').textContent = result ? `${result.gasTgas} Tgas × latest block gas price. USD equivalent uses a separately timestamped market price; storage and other charges are excluded.` : 'Enter a budget above 0 and no greater than 300 Tgas. A live gas price is required.';
+}
+function generateSql() {
+  try {
+    generatedSql = buildActivitySql({ startDate: $('#sqlStartDate').value, endDate: $('#sqlEndDate').value, contractId: $('#sqlContractId').value.trim() });
+    $('#generatedSqlCode').textContent = generatedSql;
+    $('#sqlBuilderFeedback').textContent = 'SQL generated locally. Every scanned table is block_date-filtered. Nothing has been executed; review estimated bytes and obtain approval before running.';
+    return true;
+  } catch (error) { generatedSql = ''; $('#generatedSqlCode').textContent = ''; $('#sqlBuilderFeedback').textContent = error.message; return false; }
+}
+async function inspectAccount(event) {
+  event.preventDefault();
+  const accountId = $('#accountIdInput').value.trim();
+  if (!isNearAccountId(accountId)) { $('#accountInspectorResult').textContent = 'Enter a valid lowercase NEAR account ID (2–64 characters).'; return; }
+  if (Date.now() - lastAccountRequestAt < 5000) { $('#accountInspectorStatus').textContent = 'Wait 5 seconds between reads'; return; }
+  lastAccountRequestAt = Date.now();
+  const button = $('#inspectAccountButton'); button.disabled = true; $('#accountInspectorStatus').textContent = 'Reading mainnet';
+  try {
+    const response = await fetchAccountSnapshot(accountId);
+    if (!response.value) { accountInspection = null; $('#accountInspectorStatus').textContent = 'Unavailable'; $('#accountInspectorResult').textContent = `${response.status?.detail || 'Account lookup failed.'} No account value is inferred.`; return; }
+    accountInspection = response.value; const account = accountInspection;
+    $('#accountInspectorStatus').textContent = 'Finalized account state';
+    $('#accountInspectorResult').innerHTML = `<div style="width:100%"><div class="metric-row"><div class="metric-mini"><span>Account balance · NEAR</span><b>${escapeHtml(compact(account.balanceNear, 4))}</b><small>Includes storage backing; not a spendable-balance quote</small></div><div class="metric-mini"><span>Locked stake · NEAR</span><b>${escapeHtml(compact(account.lockedNear, 4))}</b><small>Account locked amount from RPC</small></div><div class="metric-mini"><span>Deployed contract</span><b>${account.hasContract ? 'Yes' : 'No code'}</b><small>${escapeHtml(compact(account.storageBytes, 0))} bytes storage used</small></div></div><p class="timestamp">${escapeHtml(account.accountId)} · finalized block ${account.blockHeight} · fetched ${escapeHtml(utcDateTime(account.fetchedAt))}</p><details class="chart-query"><summary>View account source request and raw response</summary><div class="query-content"><pre><code>${escapeHtml(JSON.stringify({ endpoint: 'https://free.rpc.fastnear.com', request: account.request, response: account.raw }, null, 2))}</code></pre></div></details></div>`;
+  } finally { button.disabled = false; }
+}
+function exportHypothesis() {
+  const metricA = $('#metricA').value, metricB = $('#metricB').value;
+  if (metricA === metricB) { announce('Choose distinct series before exporting a test.'); return; }
+  const result = testHypothesis(hypothesisRows(), metricA, metricB, $('#hypothesisDirection').value, Number($('#hypothesisDays').value));
+  const bundle = { project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), hypothesis: $('#hypothesisLabel').value, metricA, metricB, direction: $('#hypothesisDirection').value, days: Number($('#hypothesisDays').value), result, dailyInputs: hypothesisRows(), rawCoinGeckoMarketChart: state.marketChart, rawTvlRows: state.tvlHistory?.rows ?? null, caveat: 'Descriptive correlation only. No causation, significance or forecast is established.' };
+  downloadFile('near-signal-thesis-test.json', JSON.stringify(bundle, null, 2), 'application/json'); announce('Test result and sourced inputs exported.');
+}
+function setupWorkspaceControls() {
+  $('#menuToggle').textContent = '';
+  $('#menuToggle').addEventListener('click', () => { const open = !document.body.classList.contains('menu-open'); setMenuOpen(open); if (open) $('.nav a').focus(); });
+  $('#sidebarBackdrop').addEventListener('click', () => { setMenuOpen(false); $('#menuToggle').focus(); });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && document.body.classList.contains('menu-open')) { setMenuOpen(false); $('#menuToggle').focus(); } });
+  window.addEventListener('resize', () => setMenuOpen(document.body.classList.contains('menu-open')));
+  window.addEventListener('hashchange', () => navigateWorkspace(true));
+  $('.nav').addEventListener('click', (event) => { if (event.target.closest('a')) setMenuOpen(false); });
+  $('#feeCalculatorForm').addEventListener('submit', (event) => { event.preventDefault(); renderFeeEstimate(); });
+  $('#feeGasInput').addEventListener('input', renderFeeEstimate);
+  $('#accountInspectorForm').addEventListener('submit', inspectAccount);
+  $('#sqlBuilderForm').addEventListener('submit', (event) => { event.preventDefault(); generateSql(); });
+  $('#downloadSqlButton').addEventListener('click', () => { if (generateSql()) { downloadFile('near-signal-activity.sql', generatedSql, 'application/sql'); announce('SQL downloaded. No BigQuery job has been submitted.'); } });
+  const end = new Date(); end.setUTCDate(end.getUTCDate() - 1); const start = new Date(end); start.setUTCDate(start.getUTCDate() - 6);
+  $('#sqlEndDate').value = end.toISOString().slice(0, 10); $('#sqlStartDate').value = start.toISOString().slice(0, 10); generateSql();
+  $('#capitalWindowSelect').addEventListener('change', renderCapital);
+  $('#riskFilter').addEventListener('change', renderRisks);
+  $('#exportHypothesisButton').addEventListener('click', exportHypothesis);
+  document.addEventListener('click', async (event) => {
+    const queryButton = event.target.closest('[data-copy-query]');
+    if (queryButton) { const text = CHART_QUERY_RECIPES[queryButton.dataset.copyQuery]?.query; if (!text) return; try { await navigator.clipboard.writeText(text); announce('Source query copied.'); } catch { downloadFile('near-signal-source-query.txt', text); announce('Clipboard unavailable; source query downloaded instead.'); } }
+    const chartButton = event.target.closest('[data-download-chart]');
+    if (chartButton) { const data = chartExportData.get(chartButton.dataset.downloadChart); if (!data?.points.length) { announce('No sourced chart observations are available to export.'); return; } downloadFile(`near-signal-${chartButton.dataset.downloadChart}.csv`, toCsv(data.points, data.label || data.metric), 'text/csv'); announce(`${data.points.length} plotted observations exported to CSV.`); }
+  });
+  navigateWorkspace();
+}
+
 function setupInteractions() {
   $('#windowSelect').addEventListener('change', (event) => { state.days = Number(event.target.value) || 14; renderAll(); });
   $('#riskThreshold').addEventListener('input', (event) => { state.declineThreshold = Number(event.target.value) || 20; $('#riskThresholdOutput').value = `${state.declineThreshold}%`; $('#riskThresholdOutput').textContent = `${state.declineThreshold}%`; $('#riskThresholdStatus').textContent = `Risk states recalculated with a ${state.declineThreshold} percent decline threshold.`; renderRisks(); });
@@ -487,9 +597,7 @@ function setupInteractions() {
   $('#refreshButton').addEventListener('click', refreshEverything);
   $('#exportButton').addEventListener('click', exportEvidence);
   $('#exportMethodButton').addEventListener('click', exportEvidence);
-  const links = [...document.querySelectorAll('.nav a')];
-  const observer = new IntersectionObserver((entries) => { for (const entry of entries) if (entry.isIntersecting) links.forEach((link) => link.classList.toggle('active', link.hash === `#${entry.target.id}`)); }, { rootMargin: '-24% 0px -66% 0px' });
-  document.querySelectorAll('main section[id]').forEach((section) => observer.observe(section));
+  setupWorkspaceControls();
 }
 
 setupInteractions();

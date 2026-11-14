@@ -46,3 +46,7 @@ No JWT is configured and the app makes no Explorer request. A static browser bun
 - A 7-, 14- or 30-day endpoint change requires 8, 15 or 31 consecutive daily observations.
 - Source failures, stale observations and missing data stay visible. Last-good values retain their last successful timestamp.
 - The browser export retains a finalized block and only the chunk fields and transaction hashes needed to replay sampled counts. Full transaction bodies and receipt payloads are discarded. The rebuild bundle preserves connected-source provenance and raw chart inputs.
+
+## On-demand account lookup
+
+The Organic Adoption workspace also offers a user-initiated, read-only `view_account` query at `https://free.rpc.fastnear.com`. It returns the selected account’s current finalized balance, locked amount, storage usage, code hash and block identity. The inspector shows the raw request/response and fetch timestamp and includes them in a user-requested evidence export. It is not a scheduled feed or a historical adoption source, so it is separate from the eight automatically checked feeds.

@@ -39,3 +39,11 @@ Every currently displayed chart includes a disclosure with its source request or
 ## Overall NEAR Ecosystem Health Score
 
 The overall score is withheld. Daily retention, complete capital flows, historical fees, application/dependency concentration and multi-provider infrastructure history are not measured well enough for a defensible composite. No unavailable dimension is assigned a placeholder value.
+
+## Workspace tools
+
+The account inspector requests `query` with `request_type: view_account`, `finality: final` and a validated NEAR account ID from the same public mainnet RPC. It shows returned balance (not a spendable quote), locked amount, storage, code-hash presence and finalized block height. Raw request/response and fetch time are exportable. It does not infer account history, people or organic adoption. Reads are user-initiated and at least five seconds apart.
+
+The execution calculator multiplies a user-entered hypothetical Tgas budget by the latest observed block gas price. USD conversion uses the available timestamped market price. Missing live inputs stay unavailable; storage and other charges are excluded. It is not a transaction quote or revenue forecast.
+
+The local SQL builder validates the account and an inclusive 1–31-day date range, then declares an exclusive next-day end bound for the shared partition-filtered query. Generating or downloading it sends no warehouse request. Chart CSVs contain exact plotted values, and evidence replay preserves the selected chart windows.

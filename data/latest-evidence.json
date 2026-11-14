@@ -14127,7 +14127,8 @@
     "cutoffUtc": "2026-11-14",
     "selections": {
       "days": 14,
-      "metric": "priceUsd"
+      "metric": "priceUsd",
+      "capitalDays": 30
     },
     "overviewChart": [
       {

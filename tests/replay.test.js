@@ -45,3 +45,12 @@ test('browser export shape replays and missing series remain empty', () => {
   assert.deepEqual(replayChartInputs(bundle).overviewChart, []);
   assert.throws(() => replayChartInputs({}), /dated evidence/);
 });
+
+test('replay preserves selected overview and capital chart windows', () => {
+  const rows = Array.from({ length: 10 }, (_, i) => ({ ms: Date.parse('2026-11-01T00:00:00Z') + i * 86_400_000, value: 100 + i }));
+  const result = replayChartInputs({ generatedAt: '2026-11-12T00:00:00Z', chartSelections: { days: 7, metric: 'priceUsd', capitalDays: 7 }, rawTvlRows: rows.map(({ ms, value }) => ({ date: ms / 1000, tvl: value })), rawCoinGeckoMarketChart: { prices: rows.map(({ ms, value }) => [ms, value]), market_caps: rows.map(({ ms, value }) => [ms, value]), total_volumes: rows.map(({ ms, value }) => [ms, value]) } });
+  assert.equal(result.overviewPlot.length, 8);
+  assert.equal(result.capitalChart.length, 8);
+  assert.equal(result.capitalChart[0].date, '2026-11-03');
+  assert.equal(result.selections.capitalDays, 7);
+});

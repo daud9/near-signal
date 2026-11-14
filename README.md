@@ -25,6 +25,18 @@ Then open `http://127.0.0.1:8000`.
 - To inspect Intents requirements, open **Capital Flow Intelligence**. Its Explorer connection remains unavailable until a partner JWT and safe server-side path are configured.
 - To reproduce the written thesis and data caveats, read [`THESIS.md`](THESIS.md) and [track alignment](docs/track-alignment.md).
 
+## Sidebar workspace tools
+
+The desktop sidebar and mobile menu open one module at a time, with direct hash links and browser-back support. Available tools work against live source responses:
+
+- **Value Capture Lab:** execution-budget calculator using the latest finalized gas price; USD equivalent uses a separately sourced market price. Input Tgas is a hypothetical budget, not observed usage.
+- **Organic Adoption Intelligence:** on-demand mainnet account/contract inspection, with raw request/response and fetch time; local date/contract SQL builder and download. SQL generation never runs a BigQuery job.
+- **Risk Radar:** live decline threshold and filters for triggered watches or missing evidence.
+- **Capital Flow Intelligence:** selectable 7/14/30-day TVL chart windows. The data remains liquidity stock, not net flow.
+- **Thesis Challenge Engine:** selectable sourced series, self-correlation guard and test-result export with raw inputs.
+
+Every chart has a source recipe, a data table, exact-value CSV download and a copy-query action. Evidence exports preserve selected chart windows, account inspection and calculator inputs. One valid live sample is shown as one point; no prior history or trend is fabricated.
+
 ## What is connected
 
 - **Value Capture Lab:** latest finalized-block gas and gas-price estimate, reported chunk utilization, plus separately labeled external market context. The gas estimate is not a reconciled fee ledger or protocol revenue.
@@ -51,7 +63,7 @@ The official Explorer is read-only and covers historical 1Click Swap records, no
 
 ## Verification
 
-`npm test` runs 28 deterministic checks, including `block_date` filters, chart query disclosures, source handling and calculation tests. `npm run check` validates JavaScript syntax. Live providers can fail, impose shared limits or change their terms; current source status and timestamps are shown in the [source inventory](docs/data-sources.md). No synthetic fallback values are used.
+`npm test` runs 34 deterministic checks, including `block_date` filters, chart query disclosures, source handling and calculation tests. `npm run check` validates JavaScript syntax. The live desktop/mobile suite can be run with `npm install`, `npx playwright install chromium` and `npm run test:e2e`. It uses real read-only providers, tests the account lookup, chart/SQL/test/evidence downloads, route visibility and mobile drawer, and asserts that no BigQuery or Intents API request is made. Live providers can fail, impose shared limits or change their terms; current source status and timestamps are shown in the [source inventory](docs/data-sources.md). No synthetic fallback values are used.
 
 ## Project notes
 
@@ -61,6 +73,5 @@ The official Explorer is read-only and covers historical 1Click Swap records, no
 - [Data-source inventory](docs/data-sources.md)
 - [Implementation status](docs/implementation-status.md)
 - [Competitor analysis](docs/competitor-analysis.md)
-- Existing local screenshots and silent walkthrough: [`screenshots/`](screenshots/)
 
 The app is a research tool. It is not an investment recommendation, and the user has not submitted the project to a hackathon or posted it publicly.

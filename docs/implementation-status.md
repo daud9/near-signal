@@ -12,12 +12,15 @@ Updated **14 November 2026** during the NEAR AI Investment Thesis track alignmen
 - `npm run rebuild` regenerates SQL from the shared query registry and writes a dated evidence snapshot including raw connected-source inputs, aligned chart inputs, chart query recipes and disconnected-source status.
 - `THESIS.md` now contains the working hypothesis, timestamped evidence for/against it, what would change the view, and the data and access limitations.
 
+- Desktop sidebar and mobile drawer route to focused module workspaces, preserving deep links and browser history.
+- Working tools include a live read-only account/contract inspector, execution-budget calculator, local date/contract SQL builder, chart-window selection, risk filters, chart CSV/copy-query controls, and sourced thesis-result export. All require actual inputs; unsourced analytical metrics remain unavailable.
+
 ## Verification performed
 
 - `npm run check` passed JavaScript syntax validation.
-- `npm test` passed **24** deterministic tests, including `block_date` filter checks, query disclosure requirements, calculations and local-server security.
+- `npm test` passed **34** deterministic tests, including `block_date` filter checks, query disclosure requirements, calculations and local-server security.
 - The SQL artifact was generated from the same query definition used by the dashboard. No BigQuery query was run, and no NEAR Intents request was made.
-- Final local/production browser checks and Vercel deployment confirmation are still pending for this change set.
+- The previous track-aligned commit was verified byte-for-byte at the existing production URL. The sidebar follow-up passed live desktop/mobile browser tests: all seven routes, account inspection, fee calculation, risk filters, chart/SQL/test/evidence downloads and selected-window replay. No BigQuery or Intents API request occurred.
 
 ## Unavailable and intentionally not claimed
 
