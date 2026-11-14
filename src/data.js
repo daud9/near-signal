@@ -1,125 +1,277 @@
-import { normalizeDailyRows } from './analytics.js';
+import { summarizeBlock, summarizeBlockTransactions, summarizeValidators } from './analytics.js';
+
+const RPC_URL = 'https://free.rpc.fastnear.com';
+const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+const LLAMA_PRICE_URL = 'https://coins.llama.fi/prices/current/coingecko:near';
+const LLAMA_TVL_URL = 'https://api.llama.fi/v2/historicalChainTvl/near';
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+export function parseProviderTimestamp(value) {
+  if (typeof value === 'string' && !/^\d+$/.test(value)) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  }
+  const number = finiteNumber(value);
+  if (number === null || number <= 0) return null;
+  const millis = number > 1e15 ? number / 1e6 : number > 1e12 ? number : number * 1000;
+  const date = new Date(millis);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
 
 export const DATA_SOURCES = [
   {
-    id: 'nearblocks-txn-stats',
-    name: 'NearBlocks daily transaction statistics',
-    url: 'https://api.nearblocks.io/v3/txn-stats?limit=50',
-    docUrl: 'https://api.nearblocks.io/api-docs',
-    kind: 'Indexer API',
-    fields: 'date, txns, txn_fee, txn_volume, receipts',
-    cadence: 'Public daily aggregate; source update lag is visible in the newest returned date.',
-    caveat: 'Indexer-derived. Fees are not protocol revenue and indexed volume is not net flow. Official docs describe Bearer-key access, attribution and plan limits; a small unauthenticated test succeeded, but public-project use and terms need review.',
+    id: 'pikespeak-active-accounts', name: 'Daily account history candidate — Pikespeak, not connected',
+    url: 'https://api.pikespeak.ai/network/active-accounts', docUrl: 'https://api.pikespeak.ai/docs',
+    kind: 'Not queried — provider API key and plan required', fields: 'Would provide a provider-reported daily active-account count with UTC date',
+    cadence: 'No requests are made by this no-key MVP.',
+    caveat: 'No API key or account-history source is configured. A provider-reported address count would not establish verified people, returning-user retention or organic adoption.', connected: false,
   },
   {
-    id: 'nearblocks-address-stats',
-    name: 'NearBlocks daily account statistics',
-    url: 'https://api.nearblocks.io/v3/address-stats?limit=50',
-    docUrl: 'https://api.nearblocks.io/api-docs',
-    kind: 'Indexer API',
-    fields: 'date, active_accounts, active_contracts, new_contracts, meta_accounts',
-    cadence: 'Public daily aggregate; joined by UTC date to the transaction feed.',
-    caveat: 'Accounts and contracts are address-level observations, not verified humans or retained users.',
+    id: 'near-rpc-finalized', name: 'FastNear public mainnet RPC (free tier) — finalized block',
+    url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/block-chunk',
+    kind: 'Read-only JSON-RPC', fields: 'finalized block height/hash/time, per-shard gas used and gas limit',
+    cadence: 'Polled once per minute while the page is open.',
+    caveat: 'One provider view, not a network-wide health guarantee. NEAR lists this public endpoint in FastNear’s free tier but publishes no numeric limit; polling is intentionally conservative.', connected: true, staleAfterSeconds: 120,
   },
   {
-    id: 'nearblocks-recent-transactions',
-    name: 'NearBlocks latest transaction sample',
-    url: 'https://api.nearblocks.io/v3/txns?limit=100',
-    docUrl: 'https://api.nearblocks.io/api-docs',
-    kind: 'Indexer API',
-    fields: 'Recent indexed transaction signer identifiers',
-    cadence: 'Fetched once on page load or manual refresh.',
-    caveat: 'A small recent sample only; never extrapolated to network-wide concentration.',
+    id: 'near-rpc-block-transactions', name: 'FastNear public mainnet RPC (free tier) — sampled block transactions',
+    url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/block-chunk',
+    kind: 'Read-only JSON-RPC', fields: 'transaction-array lengths for every shard chunk referenced by one finalized block; matched chunk hashes and per-shard counts',
+    cadence: 'Sampled on initial load and no more than once every five minutes; one chunk read per shard in that block.',
+    caveat: 'A count for one finalized block is not a daily series, unique-user count or adoption trend. Identities, receipts and transaction contents are not retained. FastNear’s free-tier request limit is not published; the app samples conservatively.', connected: true, staleAfterSeconds: 600,
   },
   {
-    id: 'near-rpc-status',
-    name: 'NEAR public mainnet RPC status',
-    url: 'https://rpc.mainnet.near.org',
-    docUrl: 'https://docs.near.org/api/rpc/providers',
-    kind: 'JSON-RPC',
-    fields: 'chain_id, sync_info.latest_block_height, sync_info.latest_block_time, sync_info.syncing',
-    cadence: 'Single point-in-time request on page load or refresh.',
-    caveat: 'One status response is not an uptime history, validator concentration metric, or security assessment.',
+    id: 'near-rpc-status', name: 'FastNear public mainnet RPC (free tier) — node status',
+    url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/network',
+    kind: 'Read-only JSON-RPC', fields: 'chain ID, sync state, latest observed block/time',
+    cadence: 'Fetched on load and then every five minutes.',
+    caveat: 'The queried node’s status is not an uptime record or a consensus-wide diagnosis.', connected: true, staleAfterSeconds: 360,
+  },
+  {
+    id: 'near-rpc-validators', name: 'FastNear public mainnet RPC (free tier) — current validator set',
+    url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/network',
+    kind: 'Read-only JSON-RPC', fields: 'current and next validator sets, stake, epoch production counters',
+    cadence: 'Fetched on load and then every five minutes; cache the snapshot between requests.',
+    caveat: 'Concentration is within the RPC-reported active validator set, not all stakers, apps, or users. No historical epochs are fetched.', connected: true, staleAfterSeconds: 600,
+  },
+  {
+    id: 'coingecko-market', name: 'CoinGecko keyless market snapshot',
+    url: `${COINGECKO_BASE}/simple/price?ids=near&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true`,
+    docUrl: 'https://docs.coingecko.com/docs/keyless-public-api',
+    kind: 'Aggregated market data', fields: 'USD spot, market capitalization, gross 24-hour exchange volume, 24-hour change and provider time',
+    cadence: 'Fetched on page load or user refresh only; no background polling. User refresh is throttled.',
+    caveat: 'Keyless API is intended for testing/open-source/educational use and is not recommended for production or scheduled polling. Shared dynamic limit is about five calls/minute; visible attribution is required. Not on-chain volume or net flow.', connected: true, staleAfterSeconds: 1800,
+  },
+  {
+    id: 'coingecko-history', name: 'CoinGecko 32-day market history',
+    url: `${COINGECKO_BASE}/coins/near/market_chart?vs_currency=usd&days=32&interval=daily`,
+    docUrl: 'https://docs.coingecko.com/demo/reference/coins-id-market-chart',
+    kind: 'Aggregated daily market history', fields: 'daily price, market capitalization and gross market volume observations',
+    cadence: 'Fetched on page load or user refresh only; no background polling.',
+    caveat: 'Keyless market history is a short contextual sample and can be shared-limit or CORS constrained. Latest partial UTC date is excluded from matched history.', connected: true,
+  },
+  {
+    id: 'defillama-price', name: 'DefiLlama NEAR spot price',
+    url: LLAMA_PRICE_URL, docUrl: 'https://api-docs.defillama.com/llms.txt',
+    kind: 'Aggregated market data', fields: 'USD price, provider timestamp and confidence',
+    cadence: 'Polled every two minutes; provider response is cached and not tick-level.',
+    caveat: 'Independent price cross-check only. The value is not an on-chain price oracle or a guarantee of executable market price.', connected: true, staleAfterSeconds: 900,
+  },
+  {
+    id: 'defillama-tvl', name: 'DefiLlama NEAR historical DeFi TVL',
+    url: LLAMA_TVL_URL, docUrl: 'https://docs.llama.fi/analysts/data-definitions',
+    kind: 'Indexed daily USD snapshots', fields: 'date and NEAR DeFi total value locked (TVL)',
+    cadence: 'Fetched on load and then every 30 minutes; latest point is retained with its own UTC date.',
+    caveat: 'TVL is an asset stock, affected by market prices and provider coverage. It is not bridge volume, net inflow or capital retention.', connected: true,
+  },
+  {
+    id: 'nearblocks-history', name: 'NearBlocks daily account/transaction history',
+    url: 'https://api.nearblocks.io/api-docs', docUrl: 'https://nearblocks.io/terms',
+    kind: 'Not connected — provider permission required', fields: 'Would support indexed activity history and account-level measures',
+    cadence: 'No requests are made by this app.',
+    caveat: 'The free plan is personal-use; Terms require prior written consent for third-party apps and prohibit automated data collection. Legacy v1/v2 shutdown is scheduled for 22 Nov 2026. Obtain written permission before reconnecting.', connected: false,
+  },
+  {
+    id: 'fastnear-history', name: 'FastNEAR indexed history',
+    url: 'https://docs.fastnear.com/tx', docUrl: 'https://docs.fastnear.com/auth',
+    kind: 'Not connected — API key required', fields: 'Indexed transaction, receipt and account-history reads',
+    cadence: 'No requests are made by this app.',
+    caveat: 'Provider docs require an API key. Keep server keys server-side; browser keys must be domain-restricted. Not a credential-free replacement for global daily account statistics.', connected: false,
+  },
+  {
+    id: 'bigquery-history', name: 'NEAR public BigQuery dataset',
+    url: 'https://docs.near.org/data-infrastructure/big-query', docUrl: 'https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs/query',
+    kind: 'Not connected — Google project/auth required', fields: 'Historical blocks, transactions, actions, receipts and account changes',
+    cadence: 'No queries are made by this static app.',
+    caveat: 'A query project, OAuth/permissions and billing configuration are required; browser CORS and a fixed freshness SLA were not verified.', connected: false,
+  },
+  {
+    id: 'intents-history', name: 'NEAR Intents Explorer',
+    url: 'https://docs.near-intents.org/integration/distribution-channels/1click-api/explorer/introduction', docUrl: 'https://docs.near-intents.org/security-compliance/terms-of-service',
+    kind: 'Not connected — partner JWT required', fields: 'Historical 1Click swap records and statuses only',
+    cadence: 'No requests are made by this app.',
+    caveat: 'A JWT must not be embedded in the browser; scope is not all NEAR Intents or canonical ecosystem-wide net flow.', connected: false,
   },
 ];
 
-async function getJson(url, options = {}) {
+async function getJson(url, { method = 'GET', body, timeoutMs = 20_000 } = {}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 18_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = performance.now();
   try {
     const response = await fetch(url, {
-      method: options.method ?? 'GET',
-      headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}) },
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      method,
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
       mode: 'cors',
       cache: 'no-store',
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const body = await response.json();
-    if (body?.errors?.length) throw new Error(body.errors[0]?.message || 'Source reported an error');
-    if (body?.error) throw new Error(body.error.message || 'RPC returned an error');
-    return body;
+    if (!response.ok) {
+      let detail = `HTTP ${response.status}`;
+      try {
+        const errorBody = await response.json();
+        if (typeof errorBody?.error === 'string') detail = errorBody.error;
+        else if (typeof errorBody?.message === 'string') detail = errorBody.message;
+      } catch { /* Some providers return a non-JSON error page. */ }
+      throw new Error(detail);
+    }
+    const data = await response.json();
+    if (data?.error) throw new Error(data.error.message || 'Source returned an RPC error');
+    if (Array.isArray(data?.errors) && data.errors.length) throw new Error(data.errors[0]?.message || 'Source returned an error');
+    return { data, latencyMs: Math.round(performance.now() - started) };
   } finally {
     clearTimeout(timer);
   }
 }
 
-function statusRecord(sourceId, ok, detail = '') {
-  return { sourceId, ok, detail, checkedAt: new Date().toISOString() };
+async function sourceCall(sourceId, call, transform = (value) => value) {
+  try {
+    const response = await call();
+    const checkedAt = new Date().toISOString();
+    return {
+      value: transform(response.data, checkedAt),
+      status: { sourceId, ok: true, checkedAt, providerAt: null, latencyMs: response.latencyMs, detail: '' },
+    };
+  } catch (error) {
+    const checkedAt = new Date().toISOString();
+    const message = error?.name === 'AbortError' ? 'Request timed out' : error?.message || 'Request failed';
+    return { status: { sourceId, ok: false, checkedAt, providerAt: null, latencyMs: null, detail: message } };
+  }
 }
 
-export async function loadNearSignalData() {
-  const loadedAt = new Date().toISOString();
-  const txUrl = DATA_SOURCES[0].url;
-  const accountsUrl = DATA_SOURCES[1].url;
-  const sampleUrl = DATA_SOURCES[2].url;
-  const rpcUrl = DATA_SOURCES[3].url;
-  const rpcBody = { jsonrpc: '2.0', id: 'near-signal-status', method: 'status', params: [] };
-  const results = await Promise.allSettled([
-    getJson(txUrl),
-    getJson(accountsUrl),
-    getJson(sampleUrl),
-    getJson(rpcUrl, { method: 'POST', body: rpcBody }),
-  ]);
+const rpcRequest = (method, params) => getJson(RPC_URL, {
+  method: 'POST',
+  body: { jsonrpc: '2.0', id: `near-signal-${method}`, method, params },
+});
 
-  const [txResult, accountResult, sampleResult, rpcResult] = results;
-  const feedStatuses = [
-    statusRecord('nearblocks-txn-stats', txResult.status === 'fulfilled', txResult.status === 'fulfilled' ? '' : txResult.reason?.message || 'Request failed'),
-    statusRecord('nearblocks-address-stats', accountResult.status === 'fulfilled', accountResult.status === 'fulfilled' ? '' : accountResult.reason?.message || 'Request failed'),
-    statusRecord('nearblocks-recent-transactions', sampleResult.status === 'fulfilled', sampleResult.status === 'fulfilled' ? '' : sampleResult.reason?.message || 'Request failed'),
-    statusRecord('near-rpc-status', rpcResult.status === 'fulfilled' && rpcResult.value?.result?.chain_id === 'mainnet', rpcResult.status === 'fulfilled' ? (rpcResult.value?.result?.chain_id === 'mainnet' ? '' : 'RPC did not identify mainnet') : rpcResult.reason?.message || 'Request failed'),
-  ];
+export async function fetchFinalizedBlock() {
+  const result = await sourceCall('near-rpc-finalized', () => rpcRequest('block', { finality: 'final' }), (data, checkedAt) => {
+    const value = summarizeBlock(data.result, Date.now());
+    if (!value) throw new Error('RPC did not return a valid finalized block');
+    return { ...value, fetchedAt: checkedAt, finality: 'final', raw: data.result };
+  });
+  if (result.value) result.status.providerAt = result.value.timestamp;
+  return result;
+}
 
-  let daily = [];
-  let dataError = '';
-  if (txResult.status === 'fulfilled' && accountResult.status === 'fulfilled') {
-    const txRows = Array.isArray(txResult.value?.data) ? txResult.value.data : [];
-    const accountRows = Array.isArray(accountResult.value?.data) ? accountResult.value.data : [];
-    daily = normalizeDailyRows(txRows, accountRows);
-    if (daily.length < 2) dataError = 'Fewer than two complete UTC dates are available in both public indexer feeds.';
-  } else {
-    dataError = 'One or both required public daily feeds could not be loaded. No fallback values are used.';
-  }
+export async function fetchBlockTransactionCount(block) {
+  const result = await sourceCall('near-rpc-block-transactions', async () => {
+    if (!Number.isSafeInteger(block?.height) || !Array.isArray(block?.chunkRefs) || block.chunkRefs.length === 0) throw new Error('No complete finalized-block shard references are available');
+    if (block.chunkRefs.length > 128) throw new Error('RPC returned an unexpected shard count; chunk requests were withheld');
+    const started = performance.now();
+    const responses = await Promise.all(block.chunkRefs.map((ref) => rpcRequest('chunk', { block_id: block.height, shard_id: ref.shardId })));
+    return { data: responses.map((response) => response.data.result), latencyMs: Math.round(performance.now() - started) };
+  }, (chunkResults, checkedAt) => {
+    const value = summarizeBlockTransactions(block, chunkResults);
+    if (!value) throw new Error('A shard chunk was missing, mismatched or malformed; the full-block transaction total is withheld');
+    return { ...value, fetchedAt: checkedAt };
+  });
+  if (result.value) result.status.providerAt = block.timestamp;
+  return result;
+}
 
-  const recentTransactions = sampleResult.status === 'fulfilled' && Array.isArray(sampleResult.value?.data)
-    ? sampleResult.value.data
-    : [];
-  const rpcStatus = rpcResult.status === 'fulfilled' && rpcResult.value?.result?.chain_id === 'mainnet'
-    ? rpcResult.value.result
-    : null;
+export async function fetchRpcStatus() {
+  const result = await sourceCall('near-rpc-status', () => rpcRequest('status', []), (data) => {
+    const value = data.result;
+    if (value?.chain_id !== 'mainnet' || !value?.sync_info) throw new Error('RPC did not identify a usable NEAR mainnet status');
+    return value;
+  });
+  result.status.providerAt = parseProviderTimestamp(result.value?.sync_info?.latest_block_time);
+  return result;
+}
 
-  return {
-    loadedAt,
-    daily,
-    recentTransactions,
-    rpcStatus,
-    sourceStatuses: feedStatuses,
-    dataError,
-    rawFeedLengths: {
-      transactionDays: txResult.status === 'fulfilled' && Array.isArray(txResult.value?.data) ? txResult.value.data.length : 0,
-      accountDays: accountResult.status === 'fulfilled' && Array.isArray(accountResult.value?.data) ? accountResult.value.data.length : 0,
-      transactionSample: recentTransactions.length,
-    },
-  };
+export async function fetchValidatorSet() {
+  const result = await sourceCall('near-rpc-validators', () => rpcRequest('validators', [null]), (data, checkedAt) => {
+    const value = summarizeValidators(data.result);
+    if (!value) throw new Error('RPC did not return a current validator set');
+    return { ...value, asOf: checkedAt };
+  });
+  if (result.value) result.status.providerAt = result.value.asOf;
+  return result;
+}
+
+export async function fetchDefiLlamaPrice() {
+  const result = await sourceCall('defillama-price', () => getJson(LLAMA_PRICE_URL), (data) => {
+    const item = data?.coins?.['coingecko:near'];
+    const price = finiteNumber(item?.price), timestamp = finiteNumber(item?.timestamp);
+    if (price === null || price <= 0 || timestamp === null || timestamp <= 0) throw new Error('DefiLlama returned no usable NEAR price');
+    return {
+      priceUsd: price,
+      symbol: item.symbol || 'NEAR',
+      timestamp: new Date(timestamp * 1000).toISOString(),
+      confidence: finiteNumber(item.confidence),
+    };
+  });
+  if (result.value) result.status.providerAt = result.value.timestamp;
+  return result;
+}
+
+export async function fetchCoinGeckoMarket() {
+  const url = `${COINGECKO_BASE}/simple/price?ids=near&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true`;
+  const result = await sourceCall('coingecko-market', () => getJson(url), (data, checkedAt) => {
+    const item = data?.near;
+    const priceUsd = finiteNumber(item?.usd), marketCapUsd = finiteNumber(item?.usd_market_cap);
+    const grossVolume24hUsd = finiteNumber(item?.usd_24h_vol), priceChange24hPct = finiteNumber(item?.usd_24h_change);
+    const updatedAt = finiteNumber(item?.last_updated_at);
+    if (!item || priceUsd === null || priceUsd <= 0 || updatedAt === null || updatedAt <= 0) throw new Error('CoinGecko returned no timestamped NEAR price');
+    return {
+      priceUsd,
+      marketCapUsd: marketCapUsd !== null && marketCapUsd >= 0 ? marketCapUsd : null,
+      grossVolume24hUsd: grossVolume24hUsd !== null && grossVolume24hUsd >= 0 ? grossVolume24hUsd : null,
+      priceChange24hPct,
+      timestamp: updatedAt !== null && updatedAt > 0 ? new Date(updatedAt * 1000).toISOString() : null,
+      fetchedAt: checkedAt,
+    };
+  });
+  if (result.value) result.status.providerAt = result.value.timestamp;
+  return result;
+}
+
+export async function fetchCoinGeckoHistory() {
+  const url = `${COINGECKO_BASE}/coins/near/market_chart?vs_currency=usd&days=32&interval=daily`;
+  const result = await sourceCall('coingecko-history', () => getJson(url), (data, fetchedAt) => {
+    if (!Array.isArray(data?.prices) || data.prices.length < 2) throw new Error('CoinGecko returned too few daily market points');
+    return { ...data, fetchedAt };
+  });
+  const timestamps = result.value?.prices?.map((point) => Number(point?.[0])).filter(Number.isFinite) ?? [];
+  if (timestamps.length) result.status.providerAt = new Date(Math.max(...timestamps)).toISOString();
+  return result;
+}
+
+export async function fetchTvlHistory() {
+  const result = await sourceCall('defillama-tvl', () => getJson(LLAMA_TVL_URL), (data, fetchedAt) => {
+    if (!Array.isArray(data) || data.length < 2) throw new Error('DefiLlama returned too few TVL points');
+    return { rows: data, fetchedAt };
+  });
+  const timestamps = result.value?.rows?.map((row) => Number(row?.date)).filter(Number.isFinite) ?? [];
+  if (timestamps.length) result.status.providerAt = new Date(Math.max(...timestamps) * 1000).toISOString();
+  return result;
+}
+
+export function statusFromMissingSource(source) {
+  return { sourceId: source.id, ok: null, checkedAt: null, providerAt: null, latencyMs: null, detail: source.caveat, disconnected: true };
 }

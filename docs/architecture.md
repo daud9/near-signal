@@ -1,30 +1,33 @@
 # Architecture
 
-NEAR SIGNAL is a static, browser-rendered MVP. There is no backend, account system, wallet connection, database, or transaction-signing path. The original working application remains runnable with a static HTTP server.
+NEAR SIGNAL is a small browser-rendered application with ES modules and no third-party runtime dependencies. The local `server.mjs` binds to loopback only and serves static files with restrictive security headers. There is no public API backend, account service, database, wallet connection, transaction-signing path or hosted deployment.
 
 ## Data flow
 
-1. `src/data.js` requests four public feeds in parallel: NearBlocks `/v3/txn-stats`, `/v3/address-stats`, and `/v3/txns`, plus `status` from `https://rpc.mainnet.near.org`.
-2. The data layer records per-feed success/error and fetch time. A failed feed does not synthesize replacement values.
-3. `src/analytics.js` normalizes source values, inner-joins transactions and accounts on UTC date, omits the current UTC date, and requires complete contiguous windows for comparative changes. Metric means return `null` if any day in the relevant window lacks that metric.
-4. `src/app.js` renders SVG charts, current/prior means, indexed-fee and account indicators, risk states/confidence, and the deterministic hypothesis test. The UI exposes source URLs, API documentation, timestamps, and caveats.
-5. The browser Export button saves the current normalized rows and calculations as JSON. `npm run rebuild` independently fetches public NearBlocks feeds and writes `data/latest-evidence.json` for a reproducible dated snapshot.
+1. `src/data.js` owns source metadata, request timeouts, parsing, validation, provider timestamps and per-source errors. The browser sends direct read-only requests to FastNear’s public free mainnet RPC, CoinGecko’s keyless endpoints and DefiLlama endpoints. It never embeds an API key.
+2. The app fetches a finalized block, then requests every shard chunk referenced by it. The all-shard total is accepted only when every returned chunk matches the documented shard ID, hash and inclusion height and contains a transaction array. Raw transaction records are discarded after counting; only block metadata, chunk hashes, counts and times remain.
+3. Separate RPC reads expose current node status and the current active validator set. These are point-in-time provider observations. No historical validator epochs or uptime archive are synthesized.
+4. CoinGecko daily market arrays and DefiLlama daily TVL rows are joined on exact UTC dates. `src/analytics.js` contains pure calculation functions for window changes, daily correlations, block/validator metrics and risk states. Missing dates or invalid fields make calculations unavailable rather than filled.
+5. `src/app.js` renders source-specific status/freshness, charts and accessible data tables; local controls recalculate risk thresholds and the selected hypothesis. `updateHeader` waits for all eight connected feeds before saying all are responding. Errors retain only last-good values and timestamps.
+6. Browser JSON export contains current normalized/source data and browser-local RPC observation history. `scripts/rebuild-data.mjs` performs a reproducible local fetch and writes `data/latest-evidence.json`, including source statuses, calculations, selected raw responses and explicit limits. Neither path retains transaction identities or chunk contents.
 
-## Design choices
+## Refresh and access choices
 
-The browser architecture avoids storing a private credential and makes read-only operation visible. It also means no private key or authenticated API key can be safely embedded in the app. If a provider key is required, move the request behind a minimal server-side proxy with rate limiting, key storage, and caching before public release.
+The finalized block is polled about once a minute; all-shard transaction sampling is limited to once per five minutes. RPC status and validators refresh every five minutes, DefiLlama spot every two minutes, and TVL about every 30 minutes. CoinGecko snapshot and history are requested on load/manual refresh, with a manual cooldown. Requests are deduplicated and failures use capped backoff. FastNear’s free-tier numeric request limit is not published, so the product deliberately avoids tight polling and historical backfill.
 
-NearBlocks currently serves as a third-party indexer, not a consensus source. The dashboard distinguishes indexed fees from protocol revenue, account identifiers from people, gross indexed activity from net capital, and a single RPC response from uptime history. Data freshness is based on the latest complete date matched across daily feeds.
+NEAR’s [official provider list](https://docs.near.org/api/rpc/providers) lists `https://free.rpc.fastnear.com` as a public free-tier endpoint, but archival access is paid-only. It is used only for current/finalized reads. CoinGecko’s [keyless API guidance](https://docs.coingecko.com/docs/keyless-public-api) describes its shared testing/open-source/educational service and attribution needs. Recheck provider terms and availability before any public release.
 
-The NEHS methodology is present, but the numeric score is intentionally withheld because capital, network-wide concentration/dependency, and infrastructure history are not covered. Any proposed category weights are visibly marked provisional and are not applied to produce a score.
+## Security and privacy
+
+The static server’s CSP allows only the local app and the explicit public feed hosts. There is no API-key proxy or credential. The local browser keeps its own small finalized-block observation history in `localStorage`; it is not uploaded. Exported evidence contains no user account or wallet information. The app performs no state-changing transaction.
 
 ## Verification
 
-- `npm test`: nine deterministic unit tests, including source joins, date gaps, strict missing-data handling, HHI, Pearson correlation, alert thresholds, and hypothesis verdicts.
-- `npm run check`: syntax checks for analytics, feeds, UI, and rebuild script.
-- `npm run rebuild`: live source ingestion and 14-day calculation.
-- Chromium interaction check: live feeds loaded; window/metric selectors, risk threshold, hypothesis form, and 390px mobile layout passed. Screenshots are under `screenshots/`.
+- `npm test`: 21 deterministic analytics, source, import-safety, content-consistency and static-server tests.
+- `npm run check`: syntax validation for application, data, rebuild and test modules.
+- `npm run rebuild`: one-command live snapshot; the output labels each connection, timestamp and unavailable source separately.
+- Chromium end-to-end check: all eight connected feeds responded; current validator set and complete all-shard sample displayed; chart table, risk controls, selected hypothesis, JSON export and keyboard skip link worked; no console/page/request errors; 390px document width remained within the viewport.
 
 ## Not implemented
 
-No BigQuery credentials or SQL query pipeline, persistent time-series store, server-side API-key proxy, Intents/bridge flow indexer, account-cohort retention, full contract-level concentration, validator history, alert scheduler, user-saved hypotheses, AI explanation service, or public deployment is included. See [the source inventory](data-sources.md) and [submission package](submission-package.md) for release blockers.
+There is no daily account/transaction-history feed, account cohort/retention measure, full contract/application concentration inventory, reconciled bridge or NEAR Intents net-flow series, multi-epoch validator history, long-run RPC uptime monitor, server-side provider credentials, scheduled alert delivery, public API, hosted demo, public repository or published post. The overall NEAR Ecosystem Health Score is withheld. See the [source inventory](data-sources.md) and [submission draft](submission-package.md).

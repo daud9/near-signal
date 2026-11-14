@@ -1,9 +1,0 @@
-{
-  "deploy": {
-    "runtime": {
-      "type": "static",
-      "cwd": ".",
-      "spa": false
-    }
-  }
-}

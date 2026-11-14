@@ -1,84 +1,138 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { compareWindows, normalizeDailyRows, pearsonCorrelation, signerConcentration } from '../src/analytics.js';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  alignMarketAndTvl,
+  assessLiveRisks,
+  testHypothesis,
+  windowChange,
+} from '../src/analytics.js';
+import {
+  DATA_SOURCES,
+  fetchBlockTransactionCount,
+  fetchCoinGeckoHistory,
+  fetchCoinGeckoMarket,
+  fetchDefiLlamaPrice,
+  fetchFinalizedBlock,
+  fetchRpcStatus,
+  fetchTvlHistory,
+  fetchValidatorSet,
+  statusFromMissingSource,
+} from '../src/data.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const key = process.env.NEARBLOCKS_API_KEY;
-const endpoints = {
-  transactions: 'https://api.nearblocks.io/v3/txn-stats?limit=50',
-  accounts: 'https://api.nearblocks.io/v3/address-stats?limit=50',
-  recentTransactions: 'https://api.nearblocks.io/v3/txns?limit=100',
-};
 
-async function fetchJson(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) },
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    const body = await response.json();
-    if (body?.errors?.length) throw new Error(body.errors[0]?.message || 'Source returned an error');
-    return body;
-  } finally {
-    clearTimeout(timeout);
-  }
+function failedResult(sourceId, detail) {
+  return { status: { sourceId, ok: false, checkedAt: new Date().toISOString(), providerAt: null, latencyMs: null, detail } };
 }
 
-const fetchedAt = new Date().toISOString();
-const results = await Promise.allSettled(Object.entries(endpoints).map(async ([id, url]) => [id, url, await fetchJson(url)]));
-const failures = results.filter((item) => item.status === 'rejected');
-if (failures.length) {
-  for (const failure of failures) console.error(`Source fetch failed: ${failure.reason?.message || failure.reason}`);
-  process.exitCode = 1;
-  console.error('No evidence snapshot was written because one or more required feeds failed.');
-} else {
-  const feeds = Object.fromEntries(results.map((item) => item.value).map(([id, url, response]) => [id, { url, data: Array.isArray(response?.data) ? response.data : [] }]));
-  const daily = normalizeDailyRows(feeds.transactions.data, feeds.accounts.data);
-  const comparison = compareWindows(daily, 14);
-  const correlation = pearsonCorrelation([...comparison.prior, ...comparison.current], 'txns', 'activeAccounts');
+export async function rebuildSnapshot() {
+  const [block, market, marketChart, llamaPrice, tvl] = await Promise.all([
+    fetchFinalizedBlock(),
+    fetchCoinGeckoMarket(),
+    fetchCoinGeckoHistory(),
+    fetchDefiLlamaPrice(),
+    fetchTvlHistory(),
+  ]);
+  const blockTransactions = block.value
+    ? await fetchBlockTransactionCount(block.value)
+    : failedResult('near-rpc-block-transactions', 'Finalized block unavailable; no chunk requests were made.');
+
+  // Keep these shared public RPC reads sequential and conservative.
+  const rpcStatus = await fetchRpcStatus();
+  const validators = await fetchValidatorSet();
+  const results = { block, blockTransactions, market, marketChart, llamaPrice, tvl, rpcStatus, validators };
+  const resultBySource = {
+    'near-rpc-finalized': block,
+    'near-rpc-block-transactions': blockTransactions,
+    'near-rpc-status': rpcStatus,
+    'near-rpc-validators': validators,
+    'coingecko-market': market,
+    'coingecko-history': marketChart,
+    'defillama-price': llamaPrice,
+    'defillama-tvl': tvl,
+  };
+  const sourceStatuses = DATA_SOURCES.map((source) => resultBySource[source.id]?.status ?? statusFromMissingSource(source));
+  const daily = alignMarketAndTvl(tvl.value?.rows ?? [], marketChart.value ?? {});
+  const matchedWindows = Object.fromEntries([7, 14, 30].map((days) => [days, {
+    tvlUsd: windowChange(daily, 'tvlUsd', days),
+    priceUsd: windowChange(daily, 'priceUsd', days),
+    grossMarketVolumeUsd: windowChange(daily, 'grossVolumeUsd', days),
+  }]));
+  const hypothesis = testHypothesis(daily, 'priceUsd', 'tvlUsd', 'positive', 14);
+  const risks = assessLiveRisks({
+    market: market.value ? { priceChange24h: market.value.priceChange24hPct } : null,
+    tvl7d: matchedWindows[7].tvlUsd,
+    tvl30d: matchedWindows[30].tvlUsd,
+    validators: validators.value ?? null,
+    block: block.value ? { ...block.value, ageSeconds: Math.max(0, (Date.now() - block.value.timestampMs) / 1000) } : null,
+    rpcStatus: rpcStatus.value ?? null,
+    blockActivity: blockTransactions.value ?? null,
+  });
+  const generatedAt = new Date().toISOString();
   const snapshot = {
     product: 'NEAR SIGNAL',
-    generatedAt: fetchedAt,
-    mode: 'Live sourced data; no synthetic fallback',
-    sourceDefinitions: Object.entries(feeds).map(([id, source]) => ({ id, url: source.url, returnedRows: source.data.length })),
-    rawFeeds: Object.fromEntries(Object.entries(feeds).map(([id, source]) => [id, source.data])),
-    matchedDailyRows: daily.length,
-    latestMatchedDateUtc: daily.at(-1)?.date ?? null,
-    matchedWindowDays: 14,
-    comparison: {
-      ready: comparison.ready,
-      currentStartUtc: comparison.startDate,
-      currentEndUtc: comparison.endDate,
-      priorStartUtc: comparison.priorStartDate,
-      priorEndUtc: comparison.priorEndDate,
-      currentDailyMeans: comparison.currentMeans,
-      priorDailyMeans: comparison.priorMeans,
-      percentChange: comparison.changes,
-      transactionsPerActiveAccount: {
-        current: comparison.txnsPerActiveAccountCurrent,
-        prior: comparison.txnsPerActiveAccountPrior,
-        changePercent: comparison.txnsPerActiveAccountChange,
-      },
-      dailyTransactionsAndActiveAccountsPearson: correlation,
+    generatedAt,
+    mode: 'Observed public-source responses only; failed or unconfigured sources remain unavailable; no synthetic fallback',
+    externalStatus: 'Local snapshot only; no hosting, publication or submission performed',
+    sourceDefinitions: DATA_SOURCES,
+    sourceStatuses,
+    liveObservations: {
+      finalizedBlock: block.value ?? null,
+      sampledFinalizedBlockTransactions: blockTransactions.value ?? null,
+      rpcStatus: rpcStatus.value ? {
+        chainId: rpcStatus.value.chain_id,
+        syncing: rpcStatus.value.syncing,
+        latestBlockHeight: rpcStatus.value.sync_info?.latest_block_height ?? null,
+        latestBlockTime: rpcStatus.value.sync_info?.latest_block_time ?? null,
+      } : null,
+      currentValidatorSet: validators.value ?? null,
+      coinGeckoMarket: market.value ?? null,
+      independentDefiLlamaSpot: llamaPrice.value ?? null,
+      latestCompleteMatchedUtcDate: daily.at(-1)?.date ?? null,
     },
-    latestTransactionSignerSample: signerConcentration(feeds.recentTransactions.data),
-    dailyObservations: daily,
-    caveats: [
-      'NearBlocks is an indexer; validate coverage and freshness against its documentation.',
-      'Active accounts are addresses, not verified people or a retention cohort.',
-      'Fees are not protocol revenue. Indexed transaction volume is not net capital flow.',
-      'Correlation is descriptive and does not establish causality or prediction.',
-      'The recent signer sample is not extrapolated to ecosystem-wide concentration.',
+    dailyAlignedMarketAndTvl: daily,
+    matchedWindows,
+    selectedDescriptiveTest: {
+      claimLabel: 'NEAR price and TVL daily changes move in the same direction',
+      calculation: hypothesis,
+      rule: 'Pearson r threshold ±0.30; requires the full selected consecutive sample; no p-value or causal interpretation',
+    },
+    riskStates: risks,
+    rawReturnedData: {
+      finalizedBlock: block.value?.raw ?? null,
+      defillamaTvlRows: tvl.value?.rows ?? null,
+      coinGeckoMarketChart: marketChart.value ?? null,
+    },
+    limitations: [
+      'The transaction count covers one finalized block sample. It is not a daily series, unique-user count, retention measure or adoption trend.',
+      'Daily account cohorts, verified people and returning-user retention remain unavailable because no permitted account-history source is connected.',
+      'No canonical, deduplicated bridge or NEAR Intents net-flow history is connected.',
+      'The validator summary covers the RPC-reported current active set, not all stakers or historical validator performance.',
+      'One public RPC node status and browser-local observations do not establish network-wide uptime or security.',
+      'Market capitalization and volume are aggregated exchange-market measures. TVL is a daily USD asset stock. Neither is net investment or protocol revenue.',
+      'The NEAR Ecosystem Health Score is withheld because important evidence dimensions are unavailable.',
+      'The selected correlation is descriptive only. It does not establish causation, statistical significance, independence or a forecast.',
+      'Provider access, freshness, shared limits and endpoint availability can change. Successful access does not establish public/commercial permission or an SLA.',
     ],
   };
+
   const output = resolve(root, 'data/latest-evidence.json');
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');
-  console.log(`Wrote ${output}`);
-  console.log(`Fetched ${daily.length} matched UTC days; latest matched date ${snapshot.latestMatchedDateUtc || 'unavailable'}; 14-day comparison ${comparison.ready ? 'ready' : 'insufficient history'}.`);
+  const successful = sourceStatuses.filter((status) => status.ok === true).length;
+  const unavailable = sourceStatuses.filter((status) => status.ok === false).length;
+  return { snapshot, output, successful, unavailable, results };
+}
+
+const isDirectRun = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+if (isDirectRun) {
+  rebuildSnapshot().then(({ snapshot, output, successful, unavailable, results }) => {
+    console.log(`Wrote ${output}`);
+    console.log(`Observed ${successful}/${snapshot.sourceStatuses.length} sources successfully; ${unavailable} failed; disconnected candidates are listed separately.`);
+    console.log(`Finalized block: ${results.block.value?.height ?? 'unavailable'}; complete block transaction count: ${results.blockTransactions.value?.transactionCount ?? 'unavailable'}; current validators: ${results.validators.value?.validatorCount ?? 'unavailable'}; matched market/TVL dates: ${snapshot.dailyAlignedMarketAndTvl.length}; full 30-day TVL window: ${snapshot.matchedWindows[30].tvlUsd ? 'available' : 'unavailable'}.`);
+  }).catch((error) => {
+    console.error(`Snapshot rebuild failed: ${error?.message || 'unexpected error'}`);
+    process.exitCode = 1;
+  });
 }
