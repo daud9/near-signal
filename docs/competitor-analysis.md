@@ -1,0 +1,32 @@
+# Competitor analysis
+
+NEAR SIGNAL should not claim that on-chain charts, NEAR-specific activity counts, or fee dashboards are original. Existing products already cover much of that ground. The defensible product difference is the integration of a falsifiable thesis, visible evidence gaps, reproducible comparisons, and an overall health score that is withheld rather than guessed when critical dimensions are unmeasured.
+
+| Project | Primary functionality | Target users | NEAR metrics/data visible | Technical limitations | NEAR SIGNAL opportunity |
+|---|---|---|---|---|---|
+| **NearBlocks** [1] | NEAR explorer, analytics pages, and a GET-only indexed-data API. | NEAR users, developers, and teams needing explorer/API access. | Blocks, transactions, accounts, contracts, receipts, tokens, validators, unique accounts, fees, transaction volume, active contracts, and other charts. | Indexer/provider dependency; API terms, attribution, plan quotas, and key requirements apply. Current plan lists free personal use. | Build an integrated analyst workflow rather than another explorer: matched-window calculations, cautious interpretation, evidence gaps, multi-domain risk, and thesis testing. Credit its indexed data. |
+| **Dune** [2] | SQL query workspace, charts, dashboards, and query-result API. | Analysts, researchers, protocols, data teams, and investors. | NEAR directory and community dashboards expose transactions, active/unique accounts, blocks, shards, and other query-backed views. | Community dashboards may have external data provenance and varying refresh age. API/query execution and some refresh paths consume credits; broad NEAR table coverage must be checked query by query. | Link to useful public dashboards, but make NEAR SIGNAL calculations and caveats traceable and repeatable rather than merging dashboard values without provenance. |
+| **DefiLlama** [3] | DeFi TVL, protocols, DEX, stablecoin, fee/revenue, and bridge analytics. | DeFi users, analysts, protocols, and investors. | NEAR chain overview, protocol ranking, DEX activity, stablecoin market caps, and selected bridge summaries. | Adapter-dependent; TVL is not all assets or flow. Covered bridges are not necessarily all NEAR movement; bridge APIs have plan requirements. | Add DeFi context as a separately sourced dimension, never substitute it for network activity or treat TVL change as net capital flow. |
+| **Artemis** [4] | Cross-chain fundamentals, metric API, Terminal, and spreadsheet/data products. | Research analysts, funds, institutions, and protocols. | Near is listed as a chain; chain users, transactions, fees, revenue, TVL, stablecoins, and development indicators are available when explicitly supported. | Metric coverage varies by chain and has its own semantics/cadence; long-tail app/category metrics were deprecated. Programmatic access is tiered. | Preserve original metric names, aggregation, freshness, and limitations; compare NEAR’s chain indicators without assuming application-level coverage. |
+| **Token Terminal** [5] | Standardized financial/on-chain project metrics, statements, and ecosystem views. | Investors, analysts, research teams, and protocols. | NEAR project page lists 47 metrics across activity, financials, users, token/valuation, network/development, and ecosystem. | Data history varies by metric; empty cells mean no value rather than zero; metrics have different additivity. API is gated/plan-dependent. | Reproduce a small metric set with open source URLs and keep missing data explicit; do not create a composite score from incompatible measures. |
+| **NEAR Intents Explorer** [6] | Explorer for historical 1Click Swap transactions, aggregate activity, status, search, and referrals. | Intents users, partners, and analysts. | 1Click swap records, values, transaction status, referrals/affiliates, and history. | Scope is 1Click Swap, not every Intents or NEAR transaction. Programmatic API needs partner JWT and is rate-limited to one request per five seconds. | Use as a future, narrowly labelled capital/flow input after deduplication and API access. Do not make it a broad ecosystem-flow claim. |
+
+## What is meaningfully different here
+
+The MVP’s novelty is primarily analytical discipline, not raw data availability. It shows matched UTC periods instead of silently combining unmatched feeds. It discloses whether a result is a source fact, a derived comparison, or an unmeasured dimension. Its “Thesis Challenge” evaluates a defined relationship using transparent arithmetic and Pearson correlation; no language model invents a statistical result. Its NEHS weights are labelled provisional, and the score itself is withheld until capital resilience, ecosystem concentration/dependencies, and historical infrastructure health can be supported.
+
+This differentiation is still a product hypothesis. The current build does not yet include BigQuery validation, real account cohorts, a full application inventory, or a complete cross-chain capital-flow series.
+
+## References
+
+[1] [NearBlocks homepage](https://nearblocks.io/), [charts](https://nearblocks.io/charts), [API docs](https://api.nearblocks.io/api-docs), and [API plans](https://nearblocks.io/apis).
+
+[2] [Dune NEAR directory](https://dune.com/blockchains/near), [dashboard documentation](https://docs.dune.com/web-app/dashboards), and [query API](https://docs.dune.com/api-reference/overview/introduction).
+
+[3] [DefiLlama NEAR chain page](https://defillama.com/chain/near), [methodology definitions](https://docs.llama.fi/analysts/data-definitions), and [API docs](https://api-docs.defillama.com/).
+
+[4] [Artemis chain metric documentation](https://www.artemis.ai/docs/artemis-api/metrics/chains), [supported metrics](https://www.artemis.ai/docs/artemis-sheets/metrics/supported-metrics), and [application-metric deprecation](https://www.artemis.ai/docs/data-reference/application-metric-deprecation).
+
+[5] [Token Terminal NEAR metric inventory](https://tokenterminal.com/explorer/projects/near-protocol/metrics/all), [metric definitions](https://tokenterminal.com/docs/catalog/metric-definitions), and [FAQ](https://tokenterminal.com/docs/catalog/faq).
+
+[6] [NEAR Intents Explorer](https://explorer.near-intents.org/), [Explorer API introduction](https://docs.near-intents.org/integration/distribution-channels/1click-api/explorer/introduction), and [transaction endpoint](https://docs.near-intents.org/integration/distribution-channels/1click-api/explorer/transactions).

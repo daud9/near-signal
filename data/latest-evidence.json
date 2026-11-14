@@ -1,0 +1,4868 @@
+{
+  "product": "NEAR SIGNAL",
+  "generatedAt": "2026-11-14T00:20:08.161Z",
+  "mode": "Live sourced data; no synthetic fallback",
+  "sourceDefinitions": [
+    {
+      "id": "transactions",
+      "url": "https://api.nearblocks.io/v3/txn-stats?limit=50",
+      "returnedRows": 50
+    },
+    {
+      "id": "accounts",
+      "url": "https://api.nearblocks.io/v3/address-stats?limit=50",
+      "returnedRows": 50
+    },
+    {
+      "id": "recentTransactions",
+      "url": "https://api.nearblocks.io/v3/txns?limit=100",
+      "returnedRows": 100
+    }
+  ],
+  "rawFeeds": {
+    "transactions": [
+      {
+        "date": "2026-11-12",
+        "meta_txns": 359876,
+        "receipts": "4549722",
+        "txn_fee": "988.0718357402171916",
+        "txn_volume": "41143046.940162321990",
+        "txns": 891523
+      },
+      {
+        "date": "2026-11-11",
+        "meta_txns": 371481,
+        "receipts": "4399044",
+        "txn_fee": "931.1715000309616047",
+        "txn_volume": "32014594.773802351689",
+        "txns": 891297
+      },
+      {
+        "date": "2026-11-10",
+        "meta_txns": 387593,
+        "receipts": "4412473",
+        "txn_fee": "1006.8065752922905164",
+        "txn_volume": "50033135.956996181623",
+        "txns": 970505
+      },
+      {
+        "date": "2026-11-09",
+        "meta_txns": 439654,
+        "receipts": "4297720",
+        "txn_fee": "923.0161243235913718",
+        "txn_volume": "25646121.913467074927",
+        "txns": 895302
+      },
+      {
+        "date": "2026-11-08",
+        "meta_txns": 228683,
+        "receipts": "2923673",
+        "txn_fee": "684.0082488611740799",
+        "txn_volume": "10590963.766220825844",
+        "txns": 609504
+      },
+      {
+        "date": "2026-11-07",
+        "meta_txns": 297395,
+        "receipts": "3315381",
+        "txn_fee": "735.4785700286174943",
+        "txn_volume": "21874231.654877474446",
+        "txns": 682432
+      },
+      {
+        "date": "2026-11-06",
+        "meta_txns": 234230,
+        "receipts": "3774698",
+        "txn_fee": "860.6389260434893237",
+        "txn_volume": "20546660.625296472240",
+        "txns": 717484
+      },
+      {
+        "date": "2026-11-05",
+        "meta_txns": 237043,
+        "receipts": "4171348",
+        "txn_fee": "978.6791888957446877",
+        "txn_volume": "33765232.818619839858",
+        "txns": 848794
+      },
+      {
+        "date": "2026-11-04",
+        "meta_txns": 222937,
+        "receipts": "3585189",
+        "txn_fee": "894.6859053976466139",
+        "txn_volume": "44987966.307166651806",
+        "txns": 706690
+      },
+      {
+        "date": "2026-11-03",
+        "meta_txns": 217074,
+        "receipts": "3035955",
+        "txn_fee": "734.6766161683161271",
+        "txn_volume": "29693193.855081462309",
+        "txns": 597189
+      },
+      {
+        "date": "2026-11-02",
+        "meta_txns": 210890,
+        "receipts": "2702761",
+        "txn_fee": "777.2161770450832111",
+        "txn_volume": "59300651.286885637966",
+        "txns": 522358
+      },
+      {
+        "date": "2026-11-01",
+        "meta_txns": 205776,
+        "receipts": "2699122",
+        "txn_fee": "707.7355719375538548",
+        "txn_volume": "18961767.122063634943",
+        "txns": 509345
+      },
+      {
+        "date": "2026-10-31",
+        "meta_txns": 207701,
+        "receipts": "2604872",
+        "txn_fee": "710.7537062252872633",
+        "txn_volume": "28529207.413907966260",
+        "txns": 502649
+      },
+      {
+        "date": "2026-10-30",
+        "meta_txns": 227341,
+        "receipts": "3738008",
+        "txn_fee": "945.1183641728664774",
+        "txn_volume": "41793320.700009004922",
+        "txns": 691420
+      },
+      {
+        "date": "2026-10-29",
+        "meta_txns": 214864,
+        "receipts": "3591945",
+        "txn_fee": "859.9087981008828918",
+        "txn_volume": "71250974.469584325904",
+        "txns": 649103
+      },
+      {
+        "date": "2026-10-28",
+        "meta_txns": 212840,
+        "receipts": "3509049",
+        "txn_fee": "806.4790371895831941",
+        "txn_volume": "20774431.888351188996",
+        "txns": 520096
+      },
+      {
+        "date": "2026-10-27",
+        "meta_txns": 225647,
+        "receipts": "3356022",
+        "txn_fee": "853.0571829494834178",
+        "txn_volume": "27262080.410701668739",
+        "txns": 604320
+      },
+      {
+        "date": "2026-10-26",
+        "meta_txns": 208819,
+        "receipts": "3127634",
+        "txn_fee": "740.9471697280778009",
+        "txn_volume": "32218705.614259456949",
+        "txns": 573801
+      },
+      {
+        "date": "2026-10-25",
+        "meta_txns": 206467,
+        "receipts": "2873618",
+        "txn_fee": "679.6257940315517625",
+        "txn_volume": "15053580.946370109978",
+        "txns": 550250
+      },
+      {
+        "date": "2026-10-24",
+        "meta_txns": 243725,
+        "receipts": "3294777",
+        "txn_fee": "767.1356003107226548",
+        "txn_volume": "31341548.159158885627",
+        "txns": 635438
+      },
+      {
+        "date": "2026-10-23",
+        "meta_txns": 252405,
+        "receipts": "3405834",
+        "txn_fee": "820.7923063982667734",
+        "txn_volume": "35552783.918044339578",
+        "txns": 609236
+      },
+      {
+        "date": "2026-10-22",
+        "meta_txns": 199033,
+        "receipts": "3138297",
+        "txn_fee": "794.8673836421370407",
+        "txn_volume": "32983490.898581203463",
+        "txns": 547267
+      },
+      {
+        "date": "2026-10-21",
+        "meta_txns": 239696,
+        "receipts": "3629822",
+        "txn_fee": "1009.0648929506059828",
+        "txn_volume": "51891958.858120844673",
+        "txns": 658784
+      },
+      {
+        "date": "2026-10-20",
+        "meta_txns": 234655,
+        "receipts": "3441913",
+        "txn_fee": "846.6492673510975039",
+        "txn_volume": "53951580.614499550079",
+        "txns": 617990
+      },
+      {
+        "date": "2026-10-19",
+        "meta_txns": 237260,
+        "receipts": "3347771",
+        "txn_fee": "813.6222341032098844",
+        "txn_volume": "54069226.263023318383",
+        "txns": 607019
+      },
+      {
+        "date": "2026-10-18",
+        "meta_txns": 222184,
+        "receipts": "3196800",
+        "txn_fee": "756.0858814950873590",
+        "txn_volume": "24582599.272465143410",
+        "txns": 569735
+      },
+      {
+        "date": "2026-10-17",
+        "meta_txns": 224996,
+        "receipts": "3755998",
+        "txn_fee": "835.0395512072409510",
+        "txn_volume": "19705328.839508106882",
+        "txns": 557903
+      },
+      {
+        "date": "2026-10-16",
+        "meta_txns": 240472,
+        "receipts": "3680349",
+        "txn_fee": "943.6060920262448967",
+        "txn_volume": "62543154.870077124341",
+        "txns": 658427
+      },
+      {
+        "date": "2026-10-15",
+        "meta_txns": 240523,
+        "receipts": "14335195",
+        "txn_fee": "4918.9488395167878085",
+        "txn_volume": "45070021.111549613486",
+        "txns": 911980
+      },
+      {
+        "date": "2026-10-14",
+        "meta_txns": 237367,
+        "receipts": "5445651",
+        "txn_fee": "1146.0950263822173805",
+        "txn_volume": "69316619.607937056499",
+        "txns": 767812
+      },
+      {
+        "date": "2026-10-13",
+        "meta_txns": 242736,
+        "receipts": "7235198",
+        "txn_fee": "1208.6960860306908745",
+        "txn_volume": "177060001.391552281583",
+        "txns": 731054
+      },
+      {
+        "date": "2026-10-12",
+        "meta_txns": 244199,
+        "receipts": "5695779",
+        "txn_fee": "1149.5957748849922458",
+        "txn_volume": "55683555.958536877401",
+        "txns": 712621
+      },
+      {
+        "date": "2026-10-11",
+        "meta_txns": 235757,
+        "receipts": "27648520",
+        "txn_fee": "4116.1719279015331620",
+        "txn_volume": "24988338.030969351471",
+        "txns": 1109584
+      },
+      {
+        "date": "2026-10-10",
+        "meta_txns": 235684,
+        "receipts": "16747330",
+        "txn_fee": "2746.6153983485623971",
+        "txn_volume": "29769732.612287509511",
+        "txns": 850344
+      },
+      {
+        "date": "2026-10-09",
+        "meta_txns": 247464,
+        "receipts": "3616309",
+        "txn_fee": "905.4100767510081483",
+        "txn_volume": "52006593.372555393113",
+        "txns": 680332
+      },
+      {
+        "date": "2026-10-08",
+        "meta_txns": 254822,
+        "receipts": "5344451",
+        "txn_fee": "1492.9826078882754659",
+        "txn_volume": "131528251.097733202175",
+        "txns": 1014850
+      },
+      {
+        "date": "2026-10-07",
+        "meta_txns": 264841,
+        "receipts": "4504701",
+        "txn_fee": "1026.5320934153388602",
+        "txn_volume": "56149887.169402076397",
+        "txns": 971068
+      },
+      {
+        "date": "2026-10-06",
+        "meta_txns": 270158,
+        "receipts": "4241481",
+        "txn_fee": "986.3080444200426277",
+        "txn_volume": "83995010.751648103848",
+        "txns": 909765
+      },
+      {
+        "date": "2026-10-05",
+        "meta_txns": 312628,
+        "receipts": "4170534",
+        "txn_fee": "938.5780989718371142",
+        "txn_volume": "27819802.174205147118",
+        "txns": 865681
+      },
+      {
+        "date": "2026-10-04",
+        "meta_txns": 264612,
+        "receipts": "3918539",
+        "txn_fee": "896.6322880189095136",
+        "txn_volume": "58272856.329529820378",
+        "txns": 839450
+      },
+      {
+        "date": "2026-10-03",
+        "meta_txns": 262279,
+        "receipts": "3432534",
+        "txn_fee": "761.3635477526988098",
+        "txn_volume": "21936807.158706063165",
+        "txns": 690438
+      },
+      {
+        "date": "2026-10-02",
+        "meta_txns": 277817,
+        "receipts": "4335377",
+        "txn_fee": "992.0236291861953632",
+        "txn_volume": "65764523.108689590876",
+        "txns": 868026
+      },
+      {
+        "date": "2026-10-01",
+        "meta_txns": 310961,
+        "receipts": "5255049",
+        "txn_fee": "2971.5654852254757935",
+        "txn_volume": "100892367.973419508418",
+        "txns": 1151492
+      },
+      {
+        "date": "2026-09-30",
+        "meta_txns": 277793,
+        "receipts": "4693461",
+        "txn_fee": "2226.6249943749512262",
+        "txn_volume": "117949049.843874861805",
+        "txns": 923526
+      },
+      {
+        "date": "2026-09-29",
+        "meta_txns": 286496,
+        "receipts": "5434695",
+        "txn_fee": "1493.5216164885755550",
+        "txn_volume": "61798103.214643997243",
+        "txns": 987627
+      },
+      {
+        "date": "2026-09-28",
+        "meta_txns": 265811,
+        "receipts": "6312032",
+        "txn_fee": "1626.9110485160522923",
+        "txn_volume": "88436075.045900304020",
+        "txns": 1129793
+      },
+      {
+        "date": "2026-09-27",
+        "meta_txns": 252620,
+        "receipts": "6464555",
+        "txn_fee": "1552.5808781907399029",
+        "txn_volume": "50626444.011632727640",
+        "txns": 1217209
+      },
+      {
+        "date": "2026-09-26",
+        "meta_txns": 250644,
+        "receipts": "3340793",
+        "txn_fee": "974.7746088634351257",
+        "txn_volume": "34222617.688149690060",
+        "txns": 603143
+      },
+      {
+        "date": "2026-09-25",
+        "meta_txns": 250448,
+        "receipts": "4006695",
+        "txn_fee": "1221.1626912377161242",
+        "txn_volume": "79752835.616431383633",
+        "txns": 715469
+      },
+      {
+        "date": "2026-09-24",
+        "meta_txns": 246616,
+        "receipts": "3986710",
+        "txn_fee": "1086.3129721325306856",
+        "txn_volume": "109437302.482827407528",
+        "txns": 741291
+      }
+    ],
+    "accounts": [
+      {
+        "active_accounts": 113878,
+        "active_contracts": 76741,
+        "date": "2026-11-13",
+        "meta_accounts": 76545,
+        "meta_relayers": 19,
+        "new_contracts": null
+      },
+      {
+        "active_accounts": 198167,
+        "active_contracts": 112193,
+        "date": "2026-11-12",
+        "meta_accounts": 112560,
+        "meta_relayers": 35,
+        "new_contracts": 84
+      },
+      {
+        "active_accounts": 192389,
+        "active_contracts": 114185,
+        "date": "2026-11-11",
+        "meta_accounts": 115305,
+        "meta_relayers": 33,
+        "new_contracts": 65
+      },
+      {
+        "active_accounts": 308410,
+        "active_contracts": 130339,
+        "date": "2026-11-10",
+        "meta_accounts": 131478,
+        "meta_relayers": 36,
+        "new_contracts": 70
+      },
+      {
+        "active_accounts": 223852,
+        "active_contracts": 145602,
+        "date": "2026-11-09",
+        "meta_accounts": 146991,
+        "meta_relayers": 29,
+        "new_contracts": 64
+      },
+      {
+        "active_accounts": 158615,
+        "active_contracts": 78892,
+        "date": "2026-11-08",
+        "meta_accounts": 80193,
+        "meta_relayers": 19,
+        "new_contracts": 38
+      },
+      {
+        "active_accounts": 151420,
+        "active_contracts": 73823,
+        "date": "2026-11-07",
+        "meta_accounts": 75222,
+        "meta_relayers": 25,
+        "new_contracts": 48
+      },
+      {
+        "active_accounts": 154509,
+        "active_contracts": 75369,
+        "date": "2026-11-06",
+        "meta_accounts": 76466,
+        "meta_relayers": 25,
+        "new_contracts": 53
+      },
+      {
+        "active_accounts": 156559,
+        "active_contracts": 77822,
+        "date": "2026-11-05",
+        "meta_accounts": 78494,
+        "meta_relayers": 27,
+        "new_contracts": 42
+      },
+      {
+        "active_accounts": 144640,
+        "active_contracts": 64771,
+        "date": "2026-11-04",
+        "meta_accounts": 66400,
+        "meta_relayers": 23,
+        "new_contracts": 46
+      },
+      {
+        "active_accounts": 132422,
+        "active_contracts": 59087,
+        "date": "2026-11-03",
+        "meta_accounts": 60840,
+        "meta_relayers": 24,
+        "new_contracts": 41
+      },
+      {
+        "active_accounts": 98784,
+        "active_contracts": 49151,
+        "date": "2026-11-02",
+        "meta_accounts": 51033,
+        "meta_relayers": 22,
+        "new_contracts": 36
+      },
+      {
+        "active_accounts": 108904,
+        "active_contracts": 60683,
+        "date": "2026-11-01",
+        "meta_accounts": 62686,
+        "meta_relayers": 17,
+        "new_contracts": 29
+      },
+      {
+        "active_accounts": 96211,
+        "active_contracts": 48418,
+        "date": "2026-10-31",
+        "meta_accounts": 50534,
+        "meta_relayers": 12,
+        "new_contracts": 31
+      },
+      {
+        "active_accounts": 111048,
+        "active_contracts": 62196,
+        "date": "2026-10-30",
+        "meta_accounts": 63785,
+        "meta_relayers": 19,
+        "new_contracts": 34
+      },
+      {
+        "active_accounts": 101830,
+        "active_contracts": 51017,
+        "date": "2026-10-29",
+        "meta_accounts": 52682,
+        "meta_relayers": 19,
+        "new_contracts": 73
+      },
+      {
+        "active_accounts": 101430,
+        "active_contracts": 50535,
+        "date": "2026-10-28",
+        "meta_accounts": 52186,
+        "meta_relayers": 25,
+        "new_contracts": 64
+      },
+      {
+        "active_accounts": 125960,
+        "active_contracts": 62289,
+        "date": "2026-10-27",
+        "meta_accounts": 64289,
+        "meta_relayers": 21,
+        "new_contracts": 49
+      },
+      {
+        "active_accounts": 101311,
+        "active_contracts": 50042,
+        "date": "2026-10-26",
+        "meta_accounts": 51812,
+        "meta_relayers": 16,
+        "new_contracts": 30
+      },
+      {
+        "active_accounts": 101374,
+        "active_contracts": 50473,
+        "date": "2026-10-25",
+        "meta_accounts": 52377,
+        "meta_relayers": 14,
+        "new_contracts": 30
+      },
+      {
+        "active_accounts": 113727,
+        "active_contracts": 61922,
+        "date": "2026-10-24",
+        "meta_accounts": 63725,
+        "meta_relayers": 15,
+        "new_contracts": 38
+      },
+      {
+        "active_accounts": 115439,
+        "active_contracts": 62849,
+        "date": "2026-10-23",
+        "meta_accounts": 64422,
+        "meta_relayers": 20,
+        "new_contracts": 31
+      },
+      {
+        "active_accounts": 94767,
+        "active_contracts": 41683,
+        "date": "2026-10-22",
+        "meta_accounts": 43383,
+        "meta_relayers": 19,
+        "new_contracts": 65
+      },
+      {
+        "active_accounts": 116794,
+        "active_contracts": 61200,
+        "date": "2026-10-21",
+        "meta_accounts": 62772,
+        "meta_relayers": 18,
+        "new_contracts": 31
+      },
+      {
+        "active_accounts": 117851,
+        "active_contracts": 64105,
+        "date": "2026-10-20",
+        "meta_accounts": 65690,
+        "meta_relayers": 20,
+        "new_contracts": 16
+      },
+      {
+        "active_accounts": 118649,
+        "active_contracts": 63885,
+        "date": "2026-10-19",
+        "meta_accounts": 65505,
+        "meta_relayers": 22,
+        "new_contracts": 35
+      },
+      {
+        "active_accounts": 106962,
+        "active_contracts": 53535,
+        "date": "2026-10-18",
+        "meta_accounts": 55260,
+        "meta_relayers": 14,
+        "new_contracts": 18
+      },
+      {
+        "active_accounts": 108368,
+        "active_contracts": 52368,
+        "date": "2026-10-17",
+        "meta_accounts": 54155,
+        "meta_relayers": 16,
+        "new_contracts": 32
+      },
+      {
+        "active_accounts": 111789,
+        "active_contracts": 54782,
+        "date": "2026-10-16",
+        "meta_accounts": 57045,
+        "meta_relayers": 22,
+        "new_contracts": 23
+      },
+      {
+        "active_accounts": 112462,
+        "active_contracts": 55014,
+        "date": "2026-10-15",
+        "meta_accounts": 57080,
+        "meta_relayers": 22,
+        "new_contracts": 19
+      },
+      {
+        "active_accounts": 114691,
+        "active_contracts": 54603,
+        "date": "2026-10-14",
+        "meta_accounts": 56186,
+        "meta_relayers": 19,
+        "new_contracts": 32
+      },
+      {
+        "active_accounts": 112129,
+        "active_contracts": 54639,
+        "date": "2026-10-13",
+        "meta_accounts": 56757,
+        "meta_relayers": 21,
+        "new_contracts": 31
+      },
+      {
+        "active_accounts": 117472,
+        "active_contracts": 56607,
+        "date": "2026-10-12",
+        "meta_accounts": 58416,
+        "meta_relayers": 22,
+        "new_contracts": 22
+      },
+      {
+        "active_accounts": 111676,
+        "active_contracts": 54655,
+        "date": "2026-10-11",
+        "meta_accounts": 57009,
+        "meta_relayers": 16,
+        "new_contracts": 91
+      },
+      {
+        "active_accounts": 112275,
+        "active_contracts": 53707,
+        "date": "2026-10-10",
+        "meta_accounts": 55614,
+        "meta_relayers": 19,
+        "new_contracts": 78
+      },
+      {
+        "active_accounts": 111289,
+        "active_contracts": 56152,
+        "date": "2026-10-09",
+        "meta_accounts": 57234,
+        "meta_relayers": 26,
+        "new_contracts": 19
+      },
+      {
+        "active_accounts": 141843,
+        "active_contracts": 58143,
+        "date": "2026-10-08",
+        "meta_accounts": 59201,
+        "meta_relayers": 22,
+        "new_contracts": 26
+      },
+      {
+        "active_accounts": 236828,
+        "active_contracts": 58930,
+        "date": "2026-10-07",
+        "meta_accounts": 61313,
+        "meta_relayers": 21,
+        "new_contracts": 24
+      },
+      {
+        "active_accounts": 188089,
+        "active_contracts": 60770,
+        "date": "2026-10-06",
+        "meta_accounts": 63227,
+        "meta_relayers": 22,
+        "new_contracts": 39
+      },
+      {
+        "active_accounts": 189361,
+        "active_contracts": 90674,
+        "date": "2026-10-05",
+        "meta_accounts": 93325,
+        "meta_relayers": 23,
+        "new_contracts": 32
+      },
+      {
+        "active_accounts": 241363,
+        "active_contracts": 62486,
+        "date": "2026-10-04",
+        "meta_accounts": 63975,
+        "meta_relayers": 18,
+        "new_contracts": 16
+      },
+      {
+        "active_accounts": 238350,
+        "active_contracts": 60382,
+        "date": "2026-10-03",
+        "meta_accounts": 61482,
+        "meta_relayers": 16,
+        "new_contracts": 20
+      },
+      {
+        "active_accounts": 181285,
+        "active_contracts": 61441,
+        "date": "2026-10-02",
+        "meta_accounts": 63146,
+        "meta_relayers": 23,
+        "new_contracts": 30
+      },
+      {
+        "active_accounts": 133604,
+        "active_contracts": 69974,
+        "date": "2026-10-01",
+        "meta_accounts": 71462,
+        "meta_relayers": 19,
+        "new_contracts": 70
+      },
+      {
+        "active_accounts": 124083,
+        "active_contracts": 67069,
+        "date": "2026-09-30",
+        "meta_accounts": 64449,
+        "meta_relayers": 20,
+        "new_contracts": 81
+      },
+      {
+        "active_accounts": 129423,
+        "active_contracts": 66837,
+        "date": "2026-09-29",
+        "meta_accounts": 66510,
+        "meta_relayers": 20,
+        "new_contracts": 124
+      },
+      {
+        "active_accounts": 123945,
+        "active_contracts": 60701,
+        "date": "2026-09-28",
+        "meta_accounts": 61405,
+        "meta_relayers": 21,
+        "new_contracts": 103
+      },
+      {
+        "active_accounts": 114008,
+        "active_contracts": 47699,
+        "date": "2026-09-27",
+        "meta_accounts": 49692,
+        "meta_relayers": 16,
+        "new_contracts": 74
+      },
+      {
+        "active_accounts": 100606,
+        "active_contracts": 43008,
+        "date": "2026-09-26",
+        "meta_accounts": 46350,
+        "meta_relayers": 15,
+        "new_contracts": 35
+      },
+      {
+        "active_accounts": 104475,
+        "active_contracts": 44539,
+        "date": "2026-09-25",
+        "meta_accounts": 47126,
+        "meta_relayers": 16,
+        "new_contracts": 36
+      }
+    ],
+    "recentTransactions": [
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 0,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "315927312975",
+          "transaction_fee": "31592731297500000000"
+        },
+        "receipt_conversion_gas_burnt": "315927312975",
+        "receipt_conversion_tokens_burnt": "31592731297500000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 11,
+        "signer_account_id": "8056438973.tg",
+        "transaction_hash": "DasNDGfaUUmoQUh7NzjfzuGh79Y3DN1PeaPYNCmDEbXa"
+      },
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 0,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "517214773280",
+          "transaction_fee": "51721477328000000000"
+        },
+        "receipt_conversion_gas_burnt": "517214773280",
+        "receipt_conversion_tokens_burnt": "51721477328000000000",
+        "receiver_account_id": "wrap.near",
+        "shard_id": 8,
+        "signer_account_id": "bridge-mng.near",
+        "transaction_hash": "6UZgkwLue94wFX4NUA6e6gB3o9F91qxeongutRpwDbKY"
+      },
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 5,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "514067648090",
+          "transaction_fee": "51406764809000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "levi8841.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "9e49tXMEBqanrEdnMgYu8DfRHg4gCXCtDCoxTnEU6Bnj"
+      },
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 4,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "514067648090",
+          "transaction_fee": "51406764809000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "levakov.tg",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "GsLQJyytH7TVeLwf89aCpdtxno7cjtU843Z2Lf8WUQuv"
+      },
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 3,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "514067648090",
+          "transaction_fee": "51406764809000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "letudiant_harvestmoon.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "8r85aZE1NS8XJ6DydDWmBDnBmXJcc47WtSdoXCfwTn1D"
+      },
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 2,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "514067648090",
+          "transaction_fee": "51406764809000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "letus7.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "5jR1qKEGKXhrmTJZyxAdmayd3rAoa23z2af8vubmVyis"
+      },
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 1,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "514067648090",
+          "transaction_fee": "51406764809000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "levibik.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "53ffoQ1xPU2zWxJXFXs7bFnHDLGnu4FDEgY9qufTGgWv"
+      },
+      {
+        "actions": [],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "3fRgx8yNy2Me8LLw8RUShmaotMzZ5ANz8mFnZ7tL46AK",
+          "block_height": "224437957",
+          "block_timestamp": "1794615607146544680"
+        },
+        "block_timestamp": "1794615607146544680",
+        "index_in_chunk": 0,
+        "outcomes": {},
+        "outcomes_agg": {
+          "gas_used": "514067648090",
+          "transaction_fee": "51406764809000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "letsgomountaineers.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "yAvUGZbm4vvxakZCtnx4FWcdytUVJEHto1NayCNNVYj"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "FhyGVW8rTb2FSyCn9WcXkQfSmFmyqyBi4Noz7KnhyfS8",
+          "block_height": "224437956",
+          "block_timestamp": "1794615606415003908"
+        },
+        "block_timestamp": "1794615606415003908",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3047315876577",
+          "transaction_fee": "304731587657700000000"
+        },
+        "receipt_conversion_gas_burnt": "315974996690",
+        "receipt_conversion_tokens_burnt": "31597499669000000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 7,
+        "signer_account_id": "i1758006267.tg",
+        "transaction_hash": "EKM7dESSmnyukX87v2L2zpT3NPVyyiH1LaewwWos6qUp"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FhyGVW8rTb2FSyCn9WcXkQfSmFmyqyBi4Noz7KnhyfS8",
+          "block_height": "224437956",
+          "block_timestamp": "1794615606415003908"
+        },
+        "block_timestamp": "1794615606415003908",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "1028135296180",
+          "transaction_fee": "102813529618000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "lesnix.tg",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "5CpR2JGxcdZVwCrBYKAzEjETUYd9pwFBniEdB1f1eJe8"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "FhyGVW8rTb2FSyCn9WcXkQfSmFmyqyBi4Noz7KnhyfS8",
+          "block_height": "224437956",
+          "block_timestamp": "1794615606415003908"
+        },
+        "block_timestamp": "1794615606415003908",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "2629369320535",
+          "transaction_fee": "262936932053500000000"
+        },
+        "receipt_conversion_gas_burnt": "315974996690",
+        "receipt_conversion_tokens_burnt": "31597499669000000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 4,
+        "signer_account_id": "ronjitck.tg",
+        "transaction_hash": "ApBRxaHAy4i425uRT8mRFeKp2vgHzfRw2apqAifrTVSQ"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FhyGVW8rTb2FSyCn9WcXkQfSmFmyqyBi4Noz7KnhyfS8",
+          "block_height": "224437956",
+          "block_timestamp": "1794615606415003908"
+        },
+        "block_timestamp": "1794615606415003908",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "1028135296180",
+          "transaction_fee": "102813529618000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "letbewhite.tg",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "2vbcBU4Prnvk5WfgyN34ehu5Ejr4qJP2GRr6a2RTWKmc"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "respond"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "Cydn1WGXxYffF1QZU326sZGPV3jBUMtEDeqHyQ5kvRfQ",
+          "block_height": "224437955",
+          "block_timestamp": "1794615605942621702"
+        },
+        "block_timestamp": "1794615605942621702",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "8949856682855",
+          "transaction_fee": "872667412035500000000"
+        },
+        "receipt_conversion_gas_burnt": "330661580910",
+        "receipt_conversion_tokens_burnt": "33066158091000000000",
+        "receiver_account_id": "v1.signer",
+        "shard_id": 8,
+        "signer_account_id": "bitwise-mpc01.near",
+        "transaction_hash": "G1suxazwqMDt6wSqgHC95PCFDW6MCpdY1H2eVC7mNH4j"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4986225193627",
+          "transaction_fee": "453986006862700000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "z17216389877799857r.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "9Bbz2zwJex7HGpK2WNSEbYageRDLbURPRRcMbCzvhPtn"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4526255568178",
+          "transaction_fee": "407989044317800000000"
+        },
+        "receipt_conversion_gas_burnt": "515927312975",
+        "receipt_conversion_tokens_burnt": "51592731297500000000",
+        "receiver_account_id": "itz_prince.near",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "66FiSZXUL3pUAUbvKVXyozpsJNYvQdLZfTyAPeji13zd"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "execute_intents"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "100000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": false
+        },
+        "outcomes_agg": {
+          "gas_used": "4242635561933",
+          "transaction_fee": "401945299943300000000"
+        },
+        "receipt_conversion_gas_burnt": "338529393885",
+        "receipt_conversion_tokens_burnt": "33852939388500000000",
+        "receiver_account_id": "intents.near",
+        "shard_id": 9,
+        "signer_account_id": "escrow.ai.near",
+        "transaction_hash": "E5KKdAUhL55PUSdDCftkvAMidGZ569M58oKeh6h54mDD"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 6,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5476727558698",
+          "transaction_fee": "503036243369800000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leroyberserg.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "5ij9UAMVBzXKUQB3QKqnxTF4UpceJisYt3RPpbaYeo7L"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 5,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "6143357226108",
+          "transaction_fee": "569699210110800000000"
+        },
+        "receipt_conversion_gas_burnt": "508393286005",
+        "receipt_conversion_tokens_burnt": "50839328600500000000",
+        "receiver_account_id": "4ff973a6972b03e03fb53d890d66403b484058e761a5ccf74aec275a59e4d5a7",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "AcdZDqA57SU2bkeEvU9MwD44WD5YzsmLNYzXYbUR5mJu"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 4,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "6305120703947",
+          "transaction_fee": "585875557894700000000"
+        },
+        "receipt_conversion_gas_burnt": "508393286005",
+        "receipt_conversion_tokens_burnt": "50839328600500000000",
+        "receiver_account_id": "59e711d9a7c71533fde4d671ab7d31231d5d28dcd1eee8781758ec4120f3de7a",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "962u796CqfVpY2UTee6fhfthx4FZq8NTzv96TCsozT9C"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 3,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5468220108904",
+          "transaction_fee": "502185498390400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "le_snegir.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "FzPxV6pbNXCuUf9s1DnLE33t8nXACwpkgdq2SKEBdRA"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "update_total_staked"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "14262927593639",
+          "transaction_fee": "1359337990613900000000"
+        },
+        "receipt_conversion_gas_burnt": "309060858015",
+        "receipt_conversion_tokens_burnt": "30906085801500000000",
+        "receiver_account_id": "staker1.msig1.trufin.near",
+        "shard_id": 4,
+        "signer_account_id": "tf-updater.near",
+        "transaction_hash": "GbBpJcupoTpsx9iTvZG3rCqr25kAKoZfZeNZJwKtF4Ky"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5512340009782",
+          "transaction_fee": "506597488478200000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "lesafronov.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "GJy9yozoyx2KekC4zfhsurW4pz93qTHcWmn3XgswJ7F4"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "GM2QYDxM22ZoLjSanaqjDuweeWsgVzg52UmM44V7AsV",
+          "block_height": "224437954",
+          "block_timestamp": "1794615605260578954"
+        },
+        "block_timestamp": "1794615605260578954",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3739273364545",
+          "transaction_fee": "351609080204500000000"
+        },
+        "receipt_conversion_gas_burnt": "315974996690",
+        "receipt_conversion_tokens_burnt": "31597499669000000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 4,
+        "signer_account_id": "markarone-hot.tg",
+        "transaction_hash": "2whf6BVY3nYdpjsG6LHLUAJKg2HUwg3gYHmVnNDTHhCN"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "2qgAmY1PfFw53icPHhYMpUxCzwzqjPWbXCFopBqLs3ok",
+          "block_height": "224437953",
+          "block_timestamp": "1794615604633932542"
+        },
+        "block_timestamp": "1794615604633932542",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5703653583154",
+          "transaction_fee": "503410589565400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leonmadsen.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "92sSTwT5Ea7dnR6fK2Z8f5nFFMraGxAcBsj7kbjxYXf9"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "2qgAmY1PfFw53icPHhYMpUxCzwzqjPWbXCFopBqLs3ok",
+          "block_height": "224437953",
+          "block_timestamp": "1794615604633932542"
+        },
+        "block_timestamp": "1794615604633932542",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5695879170034",
+          "transaction_fee": "502633148253400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leoran.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "7Nkh9HK2WQhbDva15GDbTjrm1eSXB188bBzMCKNm6g7Y"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "2qgAmY1PfFw53icPHhYMpUxCzwzqjPWbXCFopBqLs3ok",
+          "block_height": "224437953",
+          "block_timestamp": "1794615604633932542"
+        },
+        "block_timestamp": "1794615604633932542",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5731417755124",
+          "transaction_fee": "506187006762400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leozizu.tg",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "9Y6tHFnTqjBQf12iYkwnw7LcjSBrDZwsFtyiCD4cZaQs"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "JA8YTZBfa3qkH7RcjL1Fs6URwLNwGsuX3vRZFtZh7MSS",
+          "block_height": "224437952",
+          "block_timestamp": "1794615604147007230"
+        },
+        "block_timestamp": "1794615604147007230",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5043225193627",
+          "transaction_fee": "459686006862700000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "b17215557982504973i.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "SUo5abBmKsE3c8sZVM4oBRjz8Fnck7cFdvANemhMYQq"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "JA8YTZBfa3qkH7RcjL1Fs6URwLNwGsuX3vRZFtZh7MSS",
+          "block_height": "224437952",
+          "block_timestamp": "1794615604147007230"
+        },
+        "block_timestamp": "1794615604147007230",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5700536000818",
+          "transaction_fee": "503098831331800000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leonidkaslyadnev.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "47F4keKPkT786osd3uUeJUgMmQEbhofDhFNnP8GpUZXF"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "JA8YTZBfa3qkH7RcjL1Fs6URwLNwGsuX3vRZFtZh7MSS",
+          "block_height": "224437952",
+          "block_timestamp": "1794615604147007230"
+        },
+        "block_timestamp": "1794615604147007230",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5707356089356",
+          "transaction_fee": "503780840185600000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leonidkit.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "ArtAJ8nTwcdcgNqB8PB3Hp4DmTdGdDcJ33Tczq8qm4Fb"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "JA8YTZBfa3qkH7RcjL1Fs6URwLNwGsuX3vRZFtZh7MSS",
+          "block_height": "224437952",
+          "block_timestamp": "1794615604147007230"
+        },
+        "block_timestamp": "1794615604147007230",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5741342930981",
+          "transaction_fee": "507179524348100000000"
+        },
+        "receipt_conversion_gas_burnt": "514163015520",
+        "receipt_conversion_tokens_burnt": "51416301552000000000",
+        "receiver_account_id": "leonh2002.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "EX2cPFDbyxEAZD9mAa41g9vu9TER5uh7bg3vLcQnL9N9"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "swap"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "60000000000000"
+        },
+        "block": {
+          "block_hash": "DvfGyTqB5QvtPsWmQnSopE39B1JdPdzhfGypZtVK3FaX",
+          "block_height": "224437951",
+          "block_timestamp": "1794615603614915570"
+        },
+        "block_timestamp": "1794615603614915570",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5800894491923",
+          "transaction_fee": "557771192942300000000"
+        },
+        "receipt_conversion_gas_burnt": "315307424680",
+        "receipt_conversion_tokens_burnt": "31530742468000000000",
+        "receiver_account_id": "v2.ref-finance.near",
+        "shard_id": 12,
+        "signer_account_id": "vx-zec.near",
+        "transaction_hash": "76aAPaevTmDK6gJe7jGs8usfFbcJNWw21X2hZWseVFXS"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "DvfGyTqB5QvtPsWmQnSopE39B1JdPdzhfGypZtVK3FaX",
+          "block_height": "224437951",
+          "block_timestamp": "1794615603614915570"
+        },
+        "block_timestamp": "1794615603614915570",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3257153965481",
+          "transaction_fee": "303397140298100000000"
+        },
+        "receipt_conversion_gas_burnt": "315974996690",
+        "receipt_conversion_tokens_burnt": "31597499669000000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 11,
+        "signer_account_id": "7886454662.tg",
+        "transaction_hash": "Cm17MDeTHtHkvbMmFvBziiZfYFcGXvpGv77k6JNTg1oL"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "DvfGyTqB5QvtPsWmQnSopE39B1JdPdzhfGypZtVK3FaX",
+          "block_height": "224437951",
+          "block_timestamp": "1794615603614915570"
+        },
+        "block_timestamp": "1794615603614915570",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5047785193627",
+          "transaction_fee": "460142006862700000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "i17215564945258152w.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "ELzCxykbESd1EBhTU5DWnTrJoNEHcsRSckCPqiR11o16"
+      },
+      {
+        "actions": [
+          {
+            "action": "TRANSFER",
+            "method": null
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1821872370000000000000000",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "DvfGyTqB5QvtPsWmQnSopE39B1JdPdzhfGypZtVK3FaX",
+          "block_height": "224437951",
+          "block_timestamp": "1794615603614915570"
+        },
+        "block_timestamp": "1794615603614915570",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "7971312812500",
+          "transaction_fee": "44636512500000000000"
+        },
+        "receipt_conversion_gas_burnt": "223182562500",
+        "receipt_conversion_tokens_burnt": "22318256250000000000",
+        "receiver_account_id": "bridge-mng.near",
+        "shard_id": 8,
+        "signer_account_id": "e89cddfc7a09c30512eae69ed226c96e05404139c935bd383005b0e8b8a47cd1",
+        "transaction_hash": "7pn3Evo451zQSWL9f6TZW4uCTSkPLSPAzR2NkRa1asAQ"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "DvfGyTqB5QvtPsWmQnSopE39B1JdPdzhfGypZtVK3FaX",
+          "block_height": "224437951",
+          "block_timestamp": "1794615603614915570"
+        },
+        "block_timestamp": "1794615603614915570",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3750894923115",
+          "transaction_fee": "352771236061500000000"
+        },
+        "receipt_conversion_gas_burnt": "315974996690",
+        "receipt_conversion_tokens_burnt": "31597499669000000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 7,
+        "signer_account_id": "gold_master_turk.tg",
+        "transaction_hash": "FGjpxdPRW49R9k4qkQVnheHvuhuwfE6pRuK7f8EnSS3x"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_total"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "DvfGyTqB5QvtPsWmQnSopE39B1JdPdzhfGypZtVK3FaX",
+          "block_height": "224437951",
+          "block_timestamp": "1794615603614915570"
+        },
+        "block_timestamp": "1794615603614915570",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "10341933496608",
+          "transaction_fee": "944920324660800000000"
+        },
+        "receipt_conversion_gas_burnt": "509394644020",
+        "receipt_conversion_tokens_burnt": "50939464402000000000",
+        "receiver_account_id": "e38bbb4cb2ad4144e4bddd6ec9319182d8f80b43906ebfcbe48a33eb5b9649dd",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "FzRefGBaEraLHCZvCNSU8sNEomikcAqKv2mSkD7fTrJU"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "DvfGyTqB5QvtPsWmQnSopE39B1JdPdzhfGypZtVK3FaX",
+          "block_height": "224437951",
+          "block_timestamp": "1794615603614915570"
+        },
+        "block_timestamp": "1794615603614915570",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5725322128336",
+          "transaction_fee": "505577444083600000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "lenkx.tg",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "7RxAFen9gnZzrff5VhAK3Zk1YkvGCxg7XgvYyJN8L8Lv"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "submit_blocks"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "500000000000000000000000",
+          "gas_attached": "1000000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "21306207420387",
+          "transaction_fee": "2085984229538700000000"
+        },
+        "receipt_conversion_gas_burnt": "379823491075",
+        "receipt_conversion_tokens_burnt": "37982349107500000000",
+        "receiver_account_id": "zcash-client.bridge.near",
+        "shard_id": 13,
+        "signer_account_id": "zcash-relayer.near",
+        "transaction_hash": "9UdKMPMQHC9EiuDUARwinoHMCn5nPpjGGHBvDenH9wYE"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 7,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5699644586148",
+          "transaction_fee": "503009689864800000000"
+        },
+        "receipt_conversion_gas_burnt": "514115331805",
+        "receipt_conversion_tokens_burnt": "51411533180500000000",
+        "receiver_account_id": "lekadw.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "7XbGkGiN6o3mwqeb1W4ojejZNNZyGX6xbfiknjcW6QM8"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 6,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5699614166734",
+          "transaction_fee": "503006647923400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "lehang87.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "HGbauKzF7PgVmBpVbPAHPUQFjeXRJQkEaKgWpGg5DiKZ"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 5,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5699559042082",
+          "transaction_fee": "503001135458200000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leisha5341.tg",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "Faa1k7Lh9prqjndfr9bEHHQyre4ohqCU29ddag1HkDFd"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 4,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5698245559414",
+          "transaction_fee": "502869787191400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "lemm13th.tg",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "A7Gev3DZBBhMvPU9aoztoL2pdExThuedzHXUmKF31hov"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 3,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5712750754028",
+          "transaction_fee": "504320306652800000000"
+        },
+        "receipt_conversion_gas_burnt": "514163015520",
+        "receipt_conversion_tokens_burnt": "51416301552000000000",
+        "receiver_account_id": "legendaryfishy.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "AtuGz9dkaeAYZGhPKAZswDk2UBmY8wX6aXANbiRhNnhp"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5695845437038",
+          "transaction_fee": "502629774953800000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leksan.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "GiC5GR62gtNuZTUAKVaKMvJKQXD54JLHHUpNnPTcKJsG"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5735924124313",
+          "transaction_fee": "506637643681300000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "lemanueldt.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "6xMtSdoJVisxNXvXaSVTdwk74GPjJdBMKcRZJ2ztezwq"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "create_account"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "FDkXFMH7FPLvFrkuW44JdcemcCyEYC3pezbTZRmJhgCP",
+          "block_height": "224437950",
+          "block_timestamp": "1794615602964824897"
+        },
+        "block_timestamp": "1794615602964824897",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "12300791286531",
+          "transaction_fee": "7443124359903100000000"
+        },
+        "receipt_conversion_gas_burnt": "313876913230",
+        "receipt_conversion_tokens_burnt": "31387691323000000000",
+        "receiver_account_id": "near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "BJxBjWqwhMKChChUciCrJ92W3dgGRC6ieaPWZMBvc46L"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 3,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5043225193627",
+          "transaction_fee": "459686006862700000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "z17210744245034053y.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "13qy7th3BSV2VzV4bPNxynmuDuRvJVBLkQnKeQ1RCLMM"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4081452689802",
+          "transaction_fee": "363508756480200000000"
+        },
+        "receipt_conversion_gas_burnt": "515831945545",
+        "receipt_conversion_tokens_burnt": "51583194554500000000",
+        "receiver_account_id": "jacksonricharddq546-hot1.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "JDZ6qHg9Xk8XBrAW2rJV2JBXyDJL6vwdhWyhp9hUcw4G"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4810665193627",
+          "transaction_fee": "436430006862700000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "n17210429951023533c.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "2ZvESqC9ekiV3tHsbLVQjx62ozp3ntP2Um244rvuoMNa"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_pyth_pro_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_pyth_pro_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_outlayer_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_atlas_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_prices"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "500000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": false
+        },
+        "outcomes_agg": {
+          "gas_used": "13971582178028",
+          "transaction_fee": "644663449052800000000"
+        },
+        "receipt_conversion_gas_burnt": "1408705323075",
+        "receipt_conversion_tokens_burnt": "140870532307500000000",
+        "receiver_account_id": "aggregate-oracle.near",
+        "shard_id": 10,
+        "signer_account_id": "3b1096233f9d1203bf562eeee05df3b5bba67e382f87f2a0502627fb6e711294",
+        "transaction_hash": "CAEavYJaYJtXvMc4tu6T35RxfGmP35NUiNqWMxsAA8aG"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3740874456249",
+          "transaction_fee": "351769189374900000000"
+        },
+        "receipt_conversion_gas_burnt": "315927312975",
+        "receipt_conversion_tokens_burnt": "31592731297500000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 8,
+        "signer_account_id": "dggxvhxsfh.tg",
+        "transaction_hash": "9As1L59izbzfszPFb1Sqvsu4jvh2sPYifRSSP9WSWHMq"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "ft_transfer_call"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "100000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "20072045363309",
+          "transaction_fee": "1895613255080900000000"
+        },
+        "receipt_conversion_gas_burnt": "319932745035",
+        "receipt_conversion_tokens_burnt": "31993274503500000000",
+        "receiver_account_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "shard_id": 7,
+        "signer_account_id": "hollowpine4417.near",
+        "transaction_hash": "CXNDMZYUmjVUmYAyQSJhNuUssTHjJxz2Rs8E88npGR7n"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "DELETE_KEY",
+            "method": null
+          },
+          {
+            "action": "DELETE_KEY",
+            "method": null
+          },
+          {
+            "action": "ADD_KEY",
+            "method": null
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 4,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "2045518750000",
+          "transaction_fee": "159915362500000000000"
+        },
+        "receipt_conversion_gas_burnt": "599717875000",
+        "receipt_conversion_tokens_burnt": "59971787500000000000",
+        "receiver_account_id": "c98990381e33c58865a8ec80467582a7c2c442aa0d73f97ec900543fe2678cb2",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "FX5Am2xWPJohArxy7tQxM2jGn3Bgo63wnoRR5qYT3e6f"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "restake"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 3,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "8048519512222",
+          "transaction_fee": "760215438722200000000"
+        },
+        "receipt_conversion_gas_burnt": "522126195925",
+        "receipt_conversion_tokens_burnt": "52212619592500000000",
+        "receiver_account_id": "edb38afb95f836c196d5d9b08a6d69655ec81b46a9360e62a72d61b0978d3c6b",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "GKd2jBc2vuigufwB2CV1ReZfKtzMrXinrAcReBUGtJxL"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "sign_transfer"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "12598377378749",
+          "transaction_fee": "1215201225374900000000"
+        },
+        "receipt_conversion_gas_burnt": "316308782695",
+        "receipt_conversion_tokens_burnt": "31630878269500000000",
+        "receiver_account_id": "omni.bridge.near",
+        "shard_id": 4,
+        "signer_account_id": "omni-relayer.bridge.near",
+        "transaction_hash": "EqVpSGonXG3WJeXUVKbNUbCrbVhfwaBqMiC8ZKA9MKyW"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5721801196786",
+          "transaction_fee": "505225350928600000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalurial2606.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "G4at9Fxpf8XbqignsQLB5LX6FnBsCbtrw2H8tUfwWo5u"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "8ef8LdNCHQKMY8iNZqLMh3Bp4VNYLtoGH22T1dBhnsa6",
+          "block_height": "224437949",
+          "block_timestamp": "1794615602304846948"
+        },
+        "block_timestamp": "1794615602304846948",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5757705908296",
+          "transaction_fee": "508815822079600000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalzone9058.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "2thSsG8EDMmHXMxdfpPYKbhN6PWnGgxAdvXkfchdu3Uh"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "swap"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "60000000000000"
+        },
+        "block": {
+          "block_hash": "DNFQHs5f4rjqmD7fkUweE6xpfyDFJWaGfvYnDgaBJFiP",
+          "block_height": "224437948",
+          "block_timestamp": "1794615601721365444"
+        },
+        "block_timestamp": "1794615601721365444",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5539050879451",
+          "transaction_fee": "531586831695100000000"
+        },
+        "receipt_conversion_gas_burnt": "315307424680",
+        "receipt_conversion_tokens_burnt": "31530742468000000000",
+        "receiver_account_id": "v2.ref-finance.near",
+        "shard_id": 12,
+        "signer_account_id": "vx-zec.near",
+        "transaction_hash": "3m5Ef73F9HZHg7yHZck146h8w2ebWd5qEY1HT37b5AaY"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "DNFQHs5f4rjqmD7fkUweE6xpfyDFJWaGfvYnDgaBJFiP",
+          "block_height": "224437948",
+          "block_timestamp": "1794615601721365444"
+        },
+        "block_timestamp": "1794615601721365444",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5021888957494",
+          "transaction_fee": "457552383249400000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "m1721785715080619f.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "BDhrDdbhd1ZvKBrzkgEbniamNU3b7fyyADzM9vsv6rXh"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "DNFQHs5f4rjqmD7fkUweE6xpfyDFJWaGfvYnDgaBJFiP",
+          "block_height": "224437948",
+          "block_timestamp": "1794615601721365444"
+        },
+        "block_timestamp": "1794615601721365444",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4566664143040",
+          "transaction_fee": "412029901804000000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "j1721557102816085l.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "FMRAPvjaGNoPEUmWAF2zM7x72abxor3na7p5xxH1orj2"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_pyth_pro_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_pyth_pro_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_outlayer_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_atlas_prices"
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "report_prices"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "500000000000000"
+        },
+        "block": {
+          "block_hash": "DNFQHs5f4rjqmD7fkUweE6xpfyDFJWaGfvYnDgaBJFiP",
+          "block_height": "224437948",
+          "block_timestamp": "1794615601721365444"
+        },
+        "block_timestamp": "1794615601721365444",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "41568003201414",
+          "transaction_fee": "3404305551391400000000"
+        },
+        "receipt_conversion_gas_burnt": "1408705323075",
+        "receipt_conversion_tokens_burnt": "140870532307500000000",
+        "receiver_account_id": "aggregate-oracle.near",
+        "shard_id": 10,
+        "signer_account_id": "216e218540d594fb8ba92f929b1fe41b1ddf51ca909b5e9b5f2b4d1eddb937ff",
+        "transaction_hash": "HGbesFhZ9qmsVrUgctST4P8N1VBKbsfRUT4gMTV2auU"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "ft_transfer_call"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "100000000000000"
+        },
+        "block": {
+          "block_hash": "DNFQHs5f4rjqmD7fkUweE6xpfyDFJWaGfvYnDgaBJFiP",
+          "block_height": "224437948",
+          "block_timestamp": "1794615601721365444"
+        },
+        "block_timestamp": "1794615601721365444",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "59816493550812",
+          "transaction_fee": "2219175511331200000000"
+        },
+        "receipt_conversion_gas_burnt": "319932745035",
+        "receipt_conversion_tokens_burnt": "31993274503500000000",
+        "receiver_account_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "shard_id": 9,
+        "signer_account_id": "edc80b8044df4af5a05486432be105a1831678aaf419fba43ffc6fe699a0986e",
+        "transaction_hash": "4cQix7gTXMQSyvSsT6fgYa29TosAQb6tXicLKwxcecTV"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "DELETE_KEY",
+            "method": null
+          },
+          {
+            "action": "ADD_KEY",
+            "method": null
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "0"
+        },
+        "block": {
+          "block_hash": "DNFQHs5f4rjqmD7fkUweE6xpfyDFJWaGfvYnDgaBJFiP",
+          "block_height": "224437948",
+          "block_timestamp": "1794615601721365444"
+        },
+        "block_timestamp": "1794615601721365444",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "1760678875000",
+          "transaction_fee": "131431375000000000000"
+        },
+        "receipt_conversion_gas_burnt": "504771250000",
+        "receipt_conversion_tokens_burnt": "50477125000000000000",
+        "receiver_account_id": "0d6773e0ab1ba770c19e48555039f1148b80648d819f8085309aa37201d21479",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "xHyb4zopS6YUT9RVywLc2QJFDdQAnQC5E6WKY494Tpo"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "G1dvKbR6Vqcnxjg2pPXBJCLD35AkKotZWEiAHz6isPrF",
+          "block_height": "224437947",
+          "block_timestamp": "1794615601086523106"
+        },
+        "block_timestamp": "1794615601086523106",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4722755032397",
+          "transaction_fee": "427638990739700000000"
+        },
+        "receipt_conversion_gas_burnt": "515879629260",
+        "receipt_conversion_tokens_burnt": "51587962926000000000",
+        "receiver_account_id": "i1946814205.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "42JfHcPZdKpSRMFqyzz1hM6GBLTsvD245Fjm34isehtY"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "execute_intents"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "100000000000000"
+        },
+        "block": {
+          "block_hash": "G1dvKbR6Vqcnxjg2pPXBJCLD35AkKotZWEiAHz6isPrF",
+          "block_height": "224437947",
+          "block_timestamp": "1794615601086523106"
+        },
+        "block_timestamp": "1794615601086523106",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": false
+        },
+        "outcomes_agg": {
+          "gas_used": "4219204828883",
+          "transaction_fee": "399602226638300000000"
+        },
+        "receipt_conversion_gas_burnt": "336192891850",
+        "receipt_conversion_tokens_burnt": "33619289185000000000",
+        "receiver_account_id": "intents.near",
+        "shard_id": 9,
+        "signer_account_id": "escrow.ai.near",
+        "transaction_hash": "8fCY2UbbrqjTc3TTvTBRmEBD38Z3eFAgTNnXWKWA4su8"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "G1dvKbR6Vqcnxjg2pPXBJCLD35AkKotZWEiAHz6isPrF",
+          "block_height": "224437947",
+          "block_timestamp": "1794615601086523106"
+        },
+        "block_timestamp": "1794615601086523106",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5721148569232",
+          "transaction_fee": "505160088173200000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalport9346.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "7LmPiZ9x21byeYTvoa1TpFCU7EKy6D75s59HwePD696K"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "G1dvKbR6Vqcnxjg2pPXBJCLD35AkKotZWEiAHz6isPrF",
+          "block_height": "224437947",
+          "block_timestamp": "1794615601086523106"
+        },
+        "block_timestamp": "1794615601086523106",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5762759608999",
+          "transaction_fee": "509321192149900000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalrobe4781.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "9CdQDWsnuSM1TnFyn3jUYUMEPEeaafJwA5rQsRfaZN1F"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "6zktVUQV9Z4FezFLEP1gfL9jhdUdoNko1a4Zbxkb3Knx",
+          "block_height": "224437946",
+          "block_timestamp": "1794615600580262570"
+        },
+        "block_timestamp": "1794615600580262570",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5021433452096",
+          "transaction_fee": "457506832709600000000"
+        },
+        "receipt_conversion_gas_burnt": "515831945545",
+        "receipt_conversion_tokens_burnt": "51583194554500000000",
+        "receiver_account_id": "maaaah_rokh40.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "7tLhLWtR6zfghDRkStQ9fpFZ2hfqfbGhZJEuShqdzRuT"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "6fv9NYMe65dtqE6cnuWpPupdq5WdvEgVbGJd2bi4hjKo",
+          "block_height": "224437945",
+          "block_timestamp": "1794615600092728766"
+        },
+        "block_timestamp": "1794615600092728766",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4537119480339",
+          "transaction_fee": "409075435533900000000"
+        },
+        "receipt_conversion_gas_burnt": "515831945545",
+        "receipt_conversion_tokens_burnt": "51583194554500000000",
+        "receiver_account_id": "i6377038730.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "68Hznk1nEW3RorKyyhwds9HieDSqw6ztSwpY1sD9kjpx"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "6fv9NYMe65dtqE6cnuWpPupdq5WdvEgVbGJd2bi4hjKo",
+          "block_height": "224437945",
+          "block_timestamp": "1794615600092728766"
+        },
+        "block_timestamp": "1794615600092728766",
+        "index_in_chunk": 5,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3259589281463",
+          "transaction_fee": "303640671896300000000"
+        },
+        "receipt_conversion_gas_burnt": "315879629260",
+        "receipt_conversion_tokens_burnt": "31587962926000000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 4,
+        "signer_account_id": "sazon6.tg",
+        "transaction_hash": "85AnGjdNAuePZ1YsYyzhWM1skaVPCaazNzoFhTTgrHFd"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "6fv9NYMe65dtqE6cnuWpPupdq5WdvEgVbGJd2bi4hjKo",
+          "block_height": "224437945",
+          "block_timestamp": "1794615600092728766"
+        },
+        "block_timestamp": "1794615600092728766",
+        "index_in_chunk": 4,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5726759191660",
+          "transaction_fee": "505721150416000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalpalace7003.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "8oyfqKWpHU2LwUfUd6XkfYWFptjhjRTehZsfhfis3vNo"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "6fv9NYMe65dtqE6cnuWpPupdq5WdvEgVbGJd2bi4hjKo",
+          "block_height": "224437945",
+          "block_timestamp": "1794615600092728766"
+        },
+        "block_timestamp": "1794615600092728766",
+        "index_in_chunk": 3,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5721346030672",
+          "transaction_fee": "505179834317200000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalnook5947.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "5ZXGz6ApcvdEQQFB2DNQFb3yFH8kAaeRDmrFQCeefXt"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "6fv9NYMe65dtqE6cnuWpPupdq5WdvEgVbGJd2bi4hjKo",
+          "block_height": "224437945",
+          "block_timestamp": "1794615600092728766"
+        },
+        "block_timestamp": "1794615600092728766",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5722712589466",
+          "transaction_fee": "505316490196600000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legaloil4079.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "464iqWkSpKhs5aYjcNq4XNzqxMxHxKVV1UkxV6ayZkzv"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "6fv9NYMe65dtqE6cnuWpPupdq5WdvEgVbGJd2bi4hjKo",
+          "block_height": "224437945",
+          "block_timestamp": "1794615600092728766"
+        },
+        "block_timestamp": "1794615600092728766",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5718108983398",
+          "transaction_fee": "504856129589800000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalpant666.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "2ELjQv1mjDNoYgNUkyp9H7daKSkL4rc4qTn8Myi3zMtB"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "6fv9NYMe65dtqE6cnuWpPupdq5WdvEgVbGJd2bi4hjKo",
+          "block_height": "224437945",
+          "block_timestamp": "1794615600092728766"
+        },
+        "block_timestamp": "1794615600092728766",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5764634765944",
+          "transaction_fee": "509508707844400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legaljava7598.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "7zUCXacr5sxSy19gXoNKSPMmR918CFjT9sBakW8vdJ8J"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "storage_deposit"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1250000000000000000000",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "5zM6PKf6e9seNeM7J4nUyiSBZ2ZHt1RK6a2HAzzF8eT4",
+          "block_height": "224437944",
+          "block_timestamp": "1794615599404512028"
+        },
+        "block_timestamp": "1794615599404512028",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "2089232718529",
+          "transaction_fee": "186605015602900000000"
+        },
+        "receipt_conversion_gas_burnt": "312637136640",
+        "receipt_conversion_tokens_burnt": "31263713664000000000",
+        "receiver_account_id": "wrap.near",
+        "shard_id": 8,
+        "signer_account_id": "bridge-mng.near",
+        "transaction_hash": "F4LPjxLXdQiHUwHoKGioTi8X5idHUvWjPb7VZA8ZXQjo"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "5zM6PKf6e9seNeM7J4nUyiSBZ2ZHt1RK6a2HAzzF8eT4",
+          "block_height": "224437944",
+          "block_timestamp": "1794615599404512028"
+        },
+        "block_timestamp": "1794615599404512028",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5756456000623",
+          "transaction_fee": "508690831312300000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalport6214.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "DeXnvmaAX8p92ooxHR4WFh6b3cMivYciJAF57b9cMM7P"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "ft_transfer_call"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "9795988057416",
+          "transaction_fee": "890325780741600000000"
+        },
+        "receipt_conversion_gas_burnt": "515736578115",
+        "receipt_conversion_tokens_burnt": "51573657811500000000",
+        "receiver_account_id": "79279f7a60dc898ced24e289a41bd1aa8774dd944bcb7fb959ba17ebf5cbe16a",
+        "shard_id": 8,
+        "signer_account_id": "bridge-mng.near",
+        "transaction_hash": "BSczgQdJadSjsx6XzSBoY6xLqXqgs6sPs1LKa2uHnX7Z"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 9,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5725693759624",
+          "transaction_fee": "505614607212400000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalbank1485.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "9FLsBTDYZk2kQCo31notjkmzW2dNFwUPUsZQHsUUJgSP"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 8,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5722633604890",
+          "transaction_fee": "505308591739000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalice4527.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "Fzsev9fheTHcMyTgeMX8fD1r16iffqojZRX2PdTVAupj"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 7,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5726978818471",
+          "transaction_fee": "505743113097100000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalant2322.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "219Y9naW4hxCM9pjiKTb7ExZcTxBJVjt4VGYePdT49yG"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_total"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 6,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "10918333630817",
+          "transaction_fee": "1002560338081700000000"
+        },
+        "receipt_conversion_gas_burnt": "509394644020",
+        "receipt_conversion_tokens_burnt": "50939464402000000000",
+        "receiver_account_id": "4ff973a6972b03e03fb53d890d66403b484058e761a5ccf74aec275a59e4d5a7",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "2BhkvfJUvzGh8emhpWEE9yDKJTQZsHmhdE2XbGYdPfuh"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 5,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5717351446090",
+          "transaction_fee": "504780375859000000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legallemon2748.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "EWqChmuaEvCfPNZvcSLyGEbjBaey2KcygaZaq7adgrHz"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_total"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 4,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "10023864592970",
+          "transaction_fee": "913113434297000000000"
+        },
+        "receipt_conversion_gas_burnt": "509394644020",
+        "receipt_conversion_tokens_burnt": "50939464402000000000",
+        "receiver_account_id": "59e711d9a7c71533fde4d671ab7d31231d5d28dcd1eee8781758ec4120f3de7a",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "BKuZo1C3qcQzUkz2S8BT2dMM4wpqHCqcrTh3xaS26oCA"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 3,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5714979670057",
+          "transaction_fee": "504543198255700000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leftzip8411.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "FwqDZWewGGoswdV9D6f4eP3zKhtbNpsrWZzb8MPfcXVx"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5728114143543",
+          "transaction_fee": "505856645604300000000"
+        },
+        "receipt_conversion_gas_burnt": "514115331805",
+        "receipt_conversion_tokens_burnt": "51411533180500000000",
+        "receiver_account_id": "legaljaguar1443.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "4KyiVf4Ev9MisemyGir49z1aeWT2dj1MVstxRU3CjDEw"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5720326453942",
+          "transaction_fee": "505077876644200000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legaldome506.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "Fptog8rj57tJYz81CAFU3fLDa3tHF54Y1Xr55SbutFtj"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "ACFt7KSb9Zdex2nEDvBgXb5B46UTX1UveznUNBwSYNHz",
+          "block_height": "224437943",
+          "block_timestamp": "1794615598947715321"
+        },
+        "block_timestamp": "1794615598947715321",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5755474031158",
+          "transaction_fee": "508592634365800000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "legalnecktie3568.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "9i4m22T7AwscteAiuAkSNZbKL3dfFy42oLk5ywkoYWj6"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "ft_transfer_call"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "100000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "31024895604381",
+          "transaction_fee": "845005254188100000000"
+        },
+        "receipt_conversion_gas_burnt": "320743368190",
+        "receipt_conversion_tokens_burnt": "32074336819000000000",
+        "receiver_account_id": "wrap.near",
+        "shard_id": 11,
+        "signer_account_id": "7dad72ef20fc837c82be4e6fdbbda47de0ee838a35f1e8c3ba5bddf36b98f009",
+        "transaction_hash": "FqzrUmsMB5YHHwkSmwrz5XvC2tKYxqbrF1G6C71exqZn"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5043225193627",
+          "transaction_fee": "459686006862700000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "q17216388274616187w.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "AipfK5doG5s8HfFDxM5cZMKjV6LACEsvWo9gnifWodw2"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "ft_transfer_call"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "100000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "31015841424861",
+          "transaction_fee": "844099836236100000000"
+        },
+        "receipt_conversion_gas_burnt": "320743368190",
+        "receipt_conversion_tokens_burnt": "32074336819000000000",
+        "receiver_account_id": "wrap.near",
+        "shard_id": 9,
+        "signer_account_id": "edc80b8044df4af5a05486432be105a1831678aaf419fba43ffc6fe699a0986e",
+        "transaction_hash": "5u6KYJjSJ3je3EKCrmNRYhHrkfFuxJUbwThrWfjAAKoQ"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "ping"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "50000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "27427507564347",
+          "transaction_fee": "485266450184700000000"
+        },
+        "receipt_conversion_gas_burnt": "308440969720",
+        "receipt_conversion_tokens_burnt": "30844096972000000000",
+        "receiver_account_id": "lst-pool.near",
+        "shard_id": 8,
+        "signer_account_id": "c3f9e002e0265c986978b90f0ab1db9a30a509db2136c5fa201993b79f72653f",
+        "transaction_hash": "FSTdMHVtq5S27aHBYhPFaYnQdrSz4Hc5Ss64RprW735z"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "ft_transfer_call"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "1",
+          "gas_attached": "100000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "19214715425731",
+          "transaction_fee": "1809880261323100000000"
+        },
+        "receipt_conversion_gas_burnt": "320743368190",
+        "receipt_conversion_tokens_burnt": "32074336819000000000",
+        "receiver_account_id": "wrap.near",
+        "shard_id": 7,
+        "signer_account_id": "hollowpine4417.near",
+        "transaction_hash": "A9TsEX6BTWkTHH23LniQj63QNcvygF1H9zD3XKhhyD7W"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3159678633089",
+          "transaction_fee": "293649607058900000000"
+        },
+        "receipt_conversion_gas_burnt": "315974996690",
+        "receipt_conversion_tokens_burnt": "31597499669000000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 7,
+        "signer_account_id": "i5737794608.tg",
+        "transaction_hash": "BBWVkNmBtJujhcLBDf44NubQFCB89str35AtsRjeaA38"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "20000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "3720761092202",
+          "transaction_fee": "349757852970200000000"
+        },
+        "receipt_conversion_gas_burnt": "315927312975",
+        "receipt_conversion_tokens_burnt": "31592731297500000000",
+        "receiver_account_id": "game.hot.tg",
+        "shard_id": 4,
+        "signer_account_id": "simbareturns.tg",
+        "transaction_hash": "CL4SuwHG2hga544MLvtbLTfKUWhaWYucw3m5FJ4eDDeG"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "8cwZ7c2EknTs1o4rnYwVZgGasN5BrQ7uke3WaZwYCcH6",
+          "block_height": "224437942",
+          "block_timestamp": "1794615597934692971"
+        },
+        "block_timestamp": "1794615597934692971",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5752263731818",
+          "transaction_fee": "508271604431800000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leftzone9707.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "FHYqADHpR8G1fWbJynftBRX8qk292gLdH9kXS38Bq8uM"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "l2_claim"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "30000000000000"
+        },
+        "block": {
+          "block_hash": "BjFGDwp2YRRneXd7HMjQonXZfsZVtzRAxamWddUWP3yT",
+          "block_height": "224437941",
+          "block_timestamp": "1794615597036174136"
+        },
+        "block_timestamp": "1794615597036174136",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "4733920379173",
+          "transaction_fee": "428755525417300000000"
+        },
+        "receipt_conversion_gas_burnt": "515784261830",
+        "receipt_conversion_tokens_burnt": "51578426183000000000",
+        "receiver_account_id": "z17219151965653079g.tg",
+        "shard_id": 10,
+        "signer_account_id": "0here.tg",
+        "transaction_hash": "NRo6rnUjC4wH7gLUrPPHE1nwtF71a1bMLGuHwGrSWe4"
+      },
+      {
+        "actions": [
+          {
+            "action": "FUNCTION_CALL",
+            "method": "forward_tokens"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "BjFGDwp2YRRneXd7HMjQonXZfsZVtzRAxamWddUWP3yT",
+          "block_height": "224437941",
+          "block_timestamp": "1794615597036174136"
+        },
+        "block_timestamp": "1794615597036174136",
+        "index_in_chunk": 0,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "18354141735611",
+          "transaction_fee": "1656868123561100000000"
+        },
+        "receipt_conversion_gas_burnt": "308305452740",
+        "receipt_conversion_tokens_burnt": "30830545274000000000",
+        "receiver_account_id": "deposit.aurora",
+        "shard_id": 8,
+        "signer_account_id": "deposit.aurora",
+        "transaction_hash": "AyTtnR4a4Lj5PfpP1oM88kQfKiYWmQFwaAjcJF6f3vqW"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "claim_meteor_staking_reward"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "BjFGDwp2YRRneXd7HMjQonXZfsZVtzRAxamWddUWP3yT",
+          "block_height": "224437941",
+          "block_timestamp": "1794615597036174136"
+        },
+        "block_timestamp": "1794615597036174136",
+        "index_in_chunk": 2,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "5715870121198",
+          "transaction_fee": "504632243369800000000"
+        },
+        "receipt_conversion_gas_burnt": "514067648090",
+        "receipt_conversion_tokens_burnt": "51406764809000000000",
+        "receiver_account_id": "leftsalt9218.near",
+        "shard_id": 4,
+        "signer_account_id": "meteor-relayer.near",
+        "transaction_hash": "9XdP89JypGvt49WTJiMAyV9DW9w6d7cjs86XVuusk6rR"
+      },
+      {
+        "actions": [
+          {
+            "action": "DELEGATE_ACTION",
+            "method": null
+          },
+          {
+            "action": "FUNCTION_CALL",
+            "method": "withdraw_all"
+          }
+        ],
+        "actions_agg": {
+          "deposit": "0",
+          "gas_attached": "300000000000000"
+        },
+        "block": {
+          "block_hash": "BjFGDwp2YRRneXd7HMjQonXZfsZVtzRAxamWddUWP3yT",
+          "block_height": "224437941",
+          "block_timestamp": "1794615597036174136"
+        },
+        "block_timestamp": "1794615597036174136",
+        "index_in_chunk": 1,
+        "outcomes": {
+          "status": true
+        },
+        "outcomes_agg": {
+          "gas_used": "10202182482396",
+          "transaction_fee": "930945223239600000000"
+        },
+        "receipt_conversion_gas_burnt": "511111257760",
+        "receipt_conversion_tokens_burnt": "51111125776000000000",
+        "receiver_account_id": "18903f0aebab750df0afc8349ada3ee9c0f2ccad9b274d881bf93ea1029db033",
+        "shard_id": 4,
+        "signer_account_id": "sweat-relayer.near",
+        "transaction_hash": "CAfDbvcv3UGvyWj2KswmEQVDZ2Pvwoi941iLKJZxRaMa"
+      }
+    ]
+  },
+  "matchedDailyRows": 49,
+  "latestMatchedDateUtc": "2026-11-12",
+  "matchedWindowDays": 14,
+  "comparison": {
+    "ready": true,
+    "currentStartUtc": "2026-10-30",
+    "currentEndUtc": "2026-11-12",
+    "priorStartUtc": "2026-10-16",
+    "priorEndUtc": "2026-10-29",
+    "currentDailyMeans": {
+      "txns": 716892.2857142857,
+      "activeAccounts": 159709.2857142857,
+      "activeContracts": 82323.64285714286,
+      "feesNear": 848.4326650116315,
+      "indexedVolumeNear": 32777149.65246835,
+      "receipts": 3586426.1428571427
+    },
+    "priorDailyMeans": {
+      "txns": 597097.7857142857,
+      "activeAccounts": 109732.21428571429,
+      "activeContracts": 55763.21428571428,
+      "feesNear": 823.3486565345854,
+      "indexedVolumeNear": 38084388.93019609,
+      "receipts": 3382130.6428571427
+    },
+    "percentChange": {
+      "txns": 20.062794213295287,
+      "activeAccounts": 45.54457572362849,
+      "activeContracts": 47.630734547224556,
+      "feesNear": 3.046584005204163,
+      "indexedVolumeNear": -13.935471795163226,
+      "receipts": 6.040437865150474
+    },
+    "transactionsPerActiveAccount": {
+      "current": 4.488732652632238,
+      "prior": 5.441408337569837,
+      "changePercent": -17.507888139177393
+    },
+    "dailyTransactionsAndActiveAccountsPearson": {
+      "n": 28,
+      "r": 0.8814525701116825
+    }
+  },
+  "latestTransactionSignerSample": {
+    "sampleSize": 100,
+    "uniqueSigners": 28,
+    "topSigner": "meteor-relayer.near",
+    "topShare": 0.46,
+    "hhi": 2438
+  },
+  "dailyObservations": [
+    {
+      "date": "2026-09-25",
+      "txns": 715469,
+      "feesNear": 1221.1626912377162,
+      "indexedVolumeNear": 79752835.61643139,
+      "receipts": 4006695,
+      "activeAccounts": 104475,
+      "activeContracts": 44539,
+      "newContracts": 36,
+      "metaAccounts": 47126
+    },
+    {
+      "date": "2026-09-26",
+      "txns": 603143,
+      "feesNear": 974.7746088634351,
+      "indexedVolumeNear": 34222617.68814969,
+      "receipts": 3340793,
+      "activeAccounts": 100606,
+      "activeContracts": 43008,
+      "newContracts": 35,
+      "metaAccounts": 46350
+    },
+    {
+      "date": "2026-09-27",
+      "txns": 1217209,
+      "feesNear": 1552.58087819074,
+      "indexedVolumeNear": 50626444.011632726,
+      "receipts": 6464555,
+      "activeAccounts": 114008,
+      "activeContracts": 47699,
+      "newContracts": 74,
+      "metaAccounts": 49692
+    },
+    {
+      "date": "2026-09-28",
+      "txns": 1129793,
+      "feesNear": 1626.9110485160522,
+      "indexedVolumeNear": 88436075.0459003,
+      "receipts": 6312032,
+      "activeAccounts": 123945,
+      "activeContracts": 60701,
+      "newContracts": 103,
+      "metaAccounts": 61405
+    },
+    {
+      "date": "2026-09-29",
+      "txns": 987627,
+      "feesNear": 1493.5216164885755,
+      "indexedVolumeNear": 61798103.214644,
+      "receipts": 5434695,
+      "activeAccounts": 129423,
+      "activeContracts": 66837,
+      "newContracts": 124,
+      "metaAccounts": 66510
+    },
+    {
+      "date": "2026-09-30",
+      "txns": 923526,
+      "feesNear": 2226.6249943749513,
+      "indexedVolumeNear": 117949049.84387486,
+      "receipts": 4693461,
+      "activeAccounts": 124083,
+      "activeContracts": 67069,
+      "newContracts": 81,
+      "metaAccounts": 64449
+    },
+    {
+      "date": "2026-10-01",
+      "txns": 1151492,
+      "feesNear": 2971.5654852254756,
+      "indexedVolumeNear": 100892367.9734195,
+      "receipts": 5255049,
+      "activeAccounts": 133604,
+      "activeContracts": 69974,
+      "newContracts": 70,
+      "metaAccounts": 71462
+    },
+    {
+      "date": "2026-10-02",
+      "txns": 868026,
+      "feesNear": 992.0236291861953,
+      "indexedVolumeNear": 65764523.10868959,
+      "receipts": 4335377,
+      "activeAccounts": 181285,
+      "activeContracts": 61441,
+      "newContracts": 30,
+      "metaAccounts": 63146
+    },
+    {
+      "date": "2026-10-03",
+      "txns": 690438,
+      "feesNear": 761.3635477526988,
+      "indexedVolumeNear": 21936807.15870606,
+      "receipts": 3432534,
+      "activeAccounts": 238350,
+      "activeContracts": 60382,
+      "newContracts": 20,
+      "metaAccounts": 61482
+    },
+    {
+      "date": "2026-10-04",
+      "txns": 839450,
+      "feesNear": 896.6322880189095,
+      "indexedVolumeNear": 58272856.32952982,
+      "receipts": 3918539,
+      "activeAccounts": 241363,
+      "activeContracts": 62486,
+      "newContracts": 16,
+      "metaAccounts": 63975
+    },
+    {
+      "date": "2026-10-05",
+      "txns": 865681,
+      "feesNear": 938.5780989718371,
+      "indexedVolumeNear": 27819802.174205147,
+      "receipts": 4170534,
+      "activeAccounts": 189361,
+      "activeContracts": 90674,
+      "newContracts": 32,
+      "metaAccounts": 93325
+    },
+    {
+      "date": "2026-10-06",
+      "txns": 909765,
+      "feesNear": 986.3080444200426,
+      "indexedVolumeNear": 83995010.7516481,
+      "receipts": 4241481,
+      "activeAccounts": 188089,
+      "activeContracts": 60770,
+      "newContracts": 39,
+      "metaAccounts": 63227
+    },
+    {
+      "date": "2026-10-07",
+      "txns": 971068,
+      "feesNear": 1026.5320934153387,
+      "indexedVolumeNear": 56149887.16940208,
+      "receipts": 4504701,
+      "activeAccounts": 236828,
+      "activeContracts": 58930,
+      "newContracts": 24,
+      "metaAccounts": 61313
+    },
+    {
+      "date": "2026-10-08",
+      "txns": 1014850,
+      "feesNear": 1492.9826078882754,
+      "indexedVolumeNear": 131528251.0977332,
+      "receipts": 5344451,
+      "activeAccounts": 141843,
+      "activeContracts": 58143,
+      "newContracts": 26,
+      "metaAccounts": 59201
+    },
+    {
+      "date": "2026-10-09",
+      "txns": 680332,
+      "feesNear": 905.4100767510082,
+      "indexedVolumeNear": 52006593.37255539,
+      "receipts": 3616309,
+      "activeAccounts": 111289,
+      "activeContracts": 56152,
+      "newContracts": 19,
+      "metaAccounts": 57234
+    },
+    {
+      "date": "2026-10-10",
+      "txns": 850344,
+      "feesNear": 2746.6153983485624,
+      "indexedVolumeNear": 29769732.61228751,
+      "receipts": 16747330,
+      "activeAccounts": 112275,
+      "activeContracts": 53707,
+      "newContracts": 78,
+      "metaAccounts": 55614
+    },
+    {
+      "date": "2026-10-11",
+      "txns": 1109584,
+      "feesNear": 4116.171927901533,
+      "indexedVolumeNear": 24988338.03096935,
+      "receipts": 27648520,
+      "activeAccounts": 111676,
+      "activeContracts": 54655,
+      "newContracts": 91,
+      "metaAccounts": 57009
+    },
+    {
+      "date": "2026-10-12",
+      "txns": 712621,
+      "feesNear": 1149.5957748849924,
+      "indexedVolumeNear": 55683555.95853688,
+      "receipts": 5695779,
+      "activeAccounts": 117472,
+      "activeContracts": 56607,
+      "newContracts": 22,
+      "metaAccounts": 58416
+    },
+    {
+      "date": "2026-10-13",
+      "txns": 731054,
+      "feesNear": 1208.6960860306908,
+      "indexedVolumeNear": 177060001.39155227,
+      "receipts": 7235198,
+      "activeAccounts": 112129,
+      "activeContracts": 54639,
+      "newContracts": 31,
+      "metaAccounts": 56757
+    },
+    {
+      "date": "2026-10-14",
+      "txns": 767812,
+      "feesNear": 1146.0950263822174,
+      "indexedVolumeNear": 69316619.60793705,
+      "receipts": 5445651,
+      "activeAccounts": 114691,
+      "activeContracts": 54603,
+      "newContracts": 32,
+      "metaAccounts": 56186
+    },
+    {
+      "date": "2026-10-15",
+      "txns": 911980,
+      "feesNear": 4918.948839516788,
+      "indexedVolumeNear": 45070021.111549616,
+      "receipts": 14335195,
+      "activeAccounts": 112462,
+      "activeContracts": 55014,
+      "newContracts": 19,
+      "metaAccounts": 57080
+    },
+    {
+      "date": "2026-10-16",
+      "txns": 658427,
+      "feesNear": 943.6060920262449,
+      "indexedVolumeNear": 62543154.870077126,
+      "receipts": 3680349,
+      "activeAccounts": 111789,
+      "activeContracts": 54782,
+      "newContracts": 23,
+      "metaAccounts": 57045
+    },
+    {
+      "date": "2026-10-17",
+      "txns": 557903,
+      "feesNear": 835.039551207241,
+      "indexedVolumeNear": 19705328.839508105,
+      "receipts": 3755998,
+      "activeAccounts": 108368,
+      "activeContracts": 52368,
+      "newContracts": 32,
+      "metaAccounts": 54155
+    },
+    {
+      "date": "2026-10-18",
+      "txns": 569735,
+      "feesNear": 756.0858814950874,
+      "indexedVolumeNear": 24582599.272465143,
+      "receipts": 3196800,
+      "activeAccounts": 106962,
+      "activeContracts": 53535,
+      "newContracts": 18,
+      "metaAccounts": 55260
+    },
+    {
+      "date": "2026-10-19",
+      "txns": 607019,
+      "feesNear": 813.6222341032098,
+      "indexedVolumeNear": 54069226.26302332,
+      "receipts": 3347771,
+      "activeAccounts": 118649,
+      "activeContracts": 63885,
+      "newContracts": 35,
+      "metaAccounts": 65505
+    },
+    {
+      "date": "2026-10-20",
+      "txns": 617990,
+      "feesNear": 846.6492673510975,
+      "indexedVolumeNear": 53951580.61449955,
+      "receipts": 3441913,
+      "activeAccounts": 117851,
+      "activeContracts": 64105,
+      "newContracts": 16,
+      "metaAccounts": 65690
+    },
+    {
+      "date": "2026-10-21",
+      "txns": 658784,
+      "feesNear": 1009.064892950606,
+      "indexedVolumeNear": 51891958.858120844,
+      "receipts": 3629822,
+      "activeAccounts": 116794,
+      "activeContracts": 61200,
+      "newContracts": 31,
+      "metaAccounts": 62772
+    },
+    {
+      "date": "2026-10-22",
+      "txns": 547267,
+      "feesNear": 794.867383642137,
+      "indexedVolumeNear": 32983490.898581203,
+      "receipts": 3138297,
+      "activeAccounts": 94767,
+      "activeContracts": 41683,
+      "newContracts": 65,
+      "metaAccounts": 43383
+    },
+    {
+      "date": "2026-10-23",
+      "txns": 609236,
+      "feesNear": 820.7923063982668,
+      "indexedVolumeNear": 35552783.918044336,
+      "receipts": 3405834,
+      "activeAccounts": 115439,
+      "activeContracts": 62849,
+      "newContracts": 31,
+      "metaAccounts": 64422
+    },
+    {
+      "date": "2026-10-24",
+      "txns": 635438,
+      "feesNear": 767.1356003107227,
+      "indexedVolumeNear": 31341548.159158885,
+      "receipts": 3294777,
+      "activeAccounts": 113727,
+      "activeContracts": 61922,
+      "newContracts": 38,
+      "metaAccounts": 63725
+    },
+    {
+      "date": "2026-10-25",
+      "txns": 550250,
+      "feesNear": 679.6257940315518,
+      "indexedVolumeNear": 15053580.94637011,
+      "receipts": 2873618,
+      "activeAccounts": 101374,
+      "activeContracts": 50473,
+      "newContracts": 30,
+      "metaAccounts": 52377
+    },
+    {
+      "date": "2026-10-26",
+      "txns": 573801,
+      "feesNear": 740.9471697280778,
+      "indexedVolumeNear": 32218705.614259455,
+      "receipts": 3127634,
+      "activeAccounts": 101311,
+      "activeContracts": 50042,
+      "newContracts": 30,
+      "metaAccounts": 51812
+    },
+    {
+      "date": "2026-10-27",
+      "txns": 604320,
+      "feesNear": 853.0571829494834,
+      "indexedVolumeNear": 27262080.41070167,
+      "receipts": 3356022,
+      "activeAccounts": 125960,
+      "activeContracts": 62289,
+      "newContracts": 49,
+      "metaAccounts": 64289
+    },
+    {
+      "date": "2026-10-28",
+      "txns": 520096,
+      "feesNear": 806.4790371895832,
+      "indexedVolumeNear": 20774431.88835119,
+      "receipts": 3509049,
+      "activeAccounts": 101430,
+      "activeContracts": 50535,
+      "newContracts": 64,
+      "metaAccounts": 52186
+    },
+    {
+      "date": "2026-10-29",
+      "txns": 649103,
+      "feesNear": 859.9087981008829,
+      "indexedVolumeNear": 71250974.46958433,
+      "receipts": 3591945,
+      "activeAccounts": 101830,
+      "activeContracts": 51017,
+      "newContracts": 73,
+      "metaAccounts": 52682
+    },
+    {
+      "date": "2026-10-30",
+      "txns": 691420,
+      "feesNear": 945.1183641728664,
+      "indexedVolumeNear": 41793320.700009,
+      "receipts": 3738008,
+      "activeAccounts": 111048,
+      "activeContracts": 62196,
+      "newContracts": 34,
+      "metaAccounts": 63785
+    },
+    {
+      "date": "2026-10-31",
+      "txns": 502649,
+      "feesNear": 710.7537062252873,
+      "indexedVolumeNear": 28529207.413907968,
+      "receipts": 2604872,
+      "activeAccounts": 96211,
+      "activeContracts": 48418,
+      "newContracts": 31,
+      "metaAccounts": 50534
+    },
+    {
+      "date": "2026-11-01",
+      "txns": 509345,
+      "feesNear": 707.7355719375538,
+      "indexedVolumeNear": 18961767.122063637,
+      "receipts": 2699122,
+      "activeAccounts": 108904,
+      "activeContracts": 60683,
+      "newContracts": 29,
+      "metaAccounts": 62686
+    },
+    {
+      "date": "2026-11-02",
+      "txns": 522358,
+      "feesNear": 777.2161770450832,
+      "indexedVolumeNear": 59300651.28688564,
+      "receipts": 2702761,
+      "activeAccounts": 98784,
+      "activeContracts": 49151,
+      "newContracts": 36,
+      "metaAccounts": 51033
+    },
+    {
+      "date": "2026-11-03",
+      "txns": 597189,
+      "feesNear": 734.6766161683162,
+      "indexedVolumeNear": 29693193.85508146,
+      "receipts": 3035955,
+      "activeAccounts": 132422,
+      "activeContracts": 59087,
+      "newContracts": 41,
+      "metaAccounts": 60840
+    },
+    {
+      "date": "2026-11-04",
+      "txns": 706690,
+      "feesNear": 894.6859053976466,
+      "indexedVolumeNear": 44987966.30716665,
+      "receipts": 3585189,
+      "activeAccounts": 144640,
+      "activeContracts": 64771,
+      "newContracts": 46,
+      "metaAccounts": 66400
+    },
+    {
+      "date": "2026-11-05",
+      "txns": 848794,
+      "feesNear": 978.6791888957447,
+      "indexedVolumeNear": 33765232.81861984,
+      "receipts": 4171348,
+      "activeAccounts": 156559,
+      "activeContracts": 77822,
+      "newContracts": 42,
+      "metaAccounts": 78494
+    },
+    {
+      "date": "2026-11-06",
+      "txns": 717484,
+      "feesNear": 860.6389260434893,
+      "indexedVolumeNear": 20546660.625296474,
+      "receipts": 3774698,
+      "activeAccounts": 154509,
+      "activeContracts": 75369,
+      "newContracts": 53,
+      "metaAccounts": 76466
+    },
+    {
+      "date": "2026-11-07",
+      "txns": 682432,
+      "feesNear": 735.4785700286175,
+      "indexedVolumeNear": 21874231.654877473,
+      "receipts": 3315381,
+      "activeAccounts": 151420,
+      "activeContracts": 73823,
+      "newContracts": 48,
+      "metaAccounts": 75222
+    },
+    {
+      "date": "2026-11-08",
+      "txns": 609504,
+      "feesNear": 684.008248861174,
+      "indexedVolumeNear": 10590963.766220827,
+      "receipts": 2923673,
+      "activeAccounts": 158615,
+      "activeContracts": 78892,
+      "newContracts": 38,
+      "metaAccounts": 80193
+    },
+    {
+      "date": "2026-11-09",
+      "txns": 895302,
+      "feesNear": 923.0161243235914,
+      "indexedVolumeNear": 25646121.913467076,
+      "receipts": 4297720,
+      "activeAccounts": 223852,
+      "activeContracts": 145602,
+      "newContracts": 64,
+      "metaAccounts": 146991
+    },
+    {
+      "date": "2026-11-10",
+      "txns": 970505,
+      "feesNear": 1006.8065752922905,
+      "indexedVolumeNear": 50033135.95699618,
+      "receipts": 4412473,
+      "activeAccounts": 308410,
+      "activeContracts": 130339,
+      "newContracts": 70,
+      "metaAccounts": 131478
+    },
+    {
+      "date": "2026-11-11",
+      "txns": 891297,
+      "feesNear": 931.1715000309616,
+      "indexedVolumeNear": 32014594.77380235,
+      "receipts": 4399044,
+      "activeAccounts": 192389,
+      "activeContracts": 114185,
+      "newContracts": 65,
+      "metaAccounts": 115305
+    },
+    {
+      "date": "2026-11-12",
+      "txns": 891523,
+      "feesNear": 988.0718357402172,
+      "indexedVolumeNear": 41143046.94016232,
+      "receipts": 4549722,
+      "activeAccounts": 198167,
+      "activeContracts": 112193,
+      "newContracts": 84,
+      "metaAccounts": 112560
+    }
+  ],
+  "caveats": [
+    "NearBlocks is an indexer; validate coverage and freshness against its documentation.",
+    "Active accounts are addresses, not verified people or a retention cohort.",
+    "Fees are not protocol revenue. Indexed transaction volume is not net capital flow.",
+    "Correlation is descriptive and does not establish causality or prediction.",
+    "The recent signer sample is not extrapolated to ecosystem-wide concentration."
+  ]
+}

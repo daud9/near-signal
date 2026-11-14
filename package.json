@@ -1,0 +1,13 @@
+{
+  "name": "near-signal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only evidence-first NEAR ecosystem intelligence MVP",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/analytics.js && node --check src/data.js && node --check src/app.js && node --check scripts/rebuild-data.mjs",
+    "rebuild": "node scripts/rebuild-data.mjs",
+    "dev": "python3 -m http.server 8000"
+  }
+}
