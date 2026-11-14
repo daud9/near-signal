@@ -57,7 +57,6 @@ class StorageSafetyTests(unittest.TestCase):
         self.assertFalse(sources['fastnear-indexed-api']['enabled'])
         self.assertFalse(sources['intear-events-api']['enabled'])
         self.assertFalse(sources['near-intents-explorer-api']['enabled'])
-        self.assertFalse(sources['bigquery-near-mainnet']['enabled'])
         self.assertIn('10/min', sources['nearblocks-api']['rate_limit_note'])
         self.assertIn('no earliest', sources['nearblocks-api']['historical_coverage'])
 

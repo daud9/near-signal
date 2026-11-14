@@ -10,6 +10,14 @@ function finiteNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
+function hasTwoValidPairs(points) {
+  return Array.isArray(points) && points.filter((point) => Array.isArray(point) && point.length >= 2
+    && finiteNumber(point[0]) > 0 && finiteNumber(point[1]) !== null).length >= 2;
+}
+function hasTwoValidTvlRows(rows) {
+  return Array.isArray(rows) && rows.filter((row) => finiteNumber(row?.date) > 0
+    && finiteNumber(row?.tvl) !== null && finiteNumber(row.tvl) >= 0).length >= 2;
+}
 export function parseProviderTimestamp(value) {
   if (typeof value === 'string' && !/^\d+$/.test(value)) {
     const parsed = Date.parse(value);
@@ -23,13 +31,6 @@ export function parseProviderTimestamp(value) {
 }
 
 export const DATA_SOURCES = [
-  {
-    id: 'pikespeak-active-accounts', name: 'Daily account history candidate — Pikespeak, not connected',
-    url: 'https://api.pikespeak.ai/network/active-accounts', docUrl: 'https://api.pikespeak.ai/docs',
-    kind: 'Not queried — provider API key and plan required', fields: 'Would provide a provider-reported daily active-account count with UTC date',
-    cadence: 'No requests are made by this no-key MVP.',
-    caveat: 'No API key or account-history source is configured. A provider-reported address count would not establish verified people, returning-user retention or organic adoption.', connected: false,
-  },
   {
     id: 'near-rpc-finalized', name: 'FastNear public mainnet RPC (free tier) — finalized block',
     url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/block-chunk',
@@ -72,7 +73,7 @@ export const DATA_SOURCES = [
     docUrl: 'https://docs.coingecko.com/demo/reference/coins-id-market-chart',
     kind: 'Aggregated daily market history', fields: 'daily price, market capitalization and gross market volume observations',
     cadence: 'Fetched on page load or user refresh only; no background polling.',
-    caveat: 'Keyless market history is a short contextual sample and can be shared-limit or CORS constrained. Latest partial UTC date is excluded from matched history.', connected: true,
+    caveat: 'Keyless market history is a short contextual sample and can be shared-limit or CORS constrained. Latest partial UTC date is excluded from matched history.', connected: true, staleAfterSeconds: 172800,
   },
   {
     id: 'defillama-price', name: 'DefiLlama NEAR spot price',
@@ -86,35 +87,7 @@ export const DATA_SOURCES = [
     url: LLAMA_TVL_URL, docUrl: 'https://docs.llama.fi/analysts/data-definitions',
     kind: 'Indexed daily USD snapshots', fields: 'date and NEAR DeFi total value locked (TVL)',
     cadence: 'Fetched on load and then every 30 minutes; latest point is retained with its own UTC date.',
-    caveat: 'TVL is an asset stock, affected by market prices and provider coverage. It is not bridge volume, net inflow or capital retention.', connected: true,
-  },
-  {
-    id: 'nearblocks-history', name: 'NearBlocks daily account/transaction history',
-    url: 'https://api.nearblocks.io/api-docs', docUrl: 'https://nearblocks.io/terms',
-    kind: 'Not connected — provider permission required', fields: 'Would support indexed activity history and account-level measures',
-    cadence: 'No requests are made by this app.',
-    caveat: 'The free plan is personal-use; Terms require prior written consent for third-party apps and prohibit automated data collection. Legacy v1/v2 shutdown is scheduled for 22 Nov 2026. Obtain written permission before reconnecting.', connected: false,
-  },
-  {
-    id: 'fastnear-history', name: 'FastNEAR indexed history',
-    url: 'https://docs.fastnear.com/tx', docUrl: 'https://docs.fastnear.com/auth',
-    kind: 'Not connected — API key required', fields: 'Indexed transaction, receipt and account-history reads',
-    cadence: 'No requests are made by this app.',
-    caveat: 'Provider docs require an API key. Keep server keys server-side; browser keys must be domain-restricted. Not a credential-free replacement for global daily account statistics.', connected: false,
-  },
-  {
-    id: 'bigquery-history', name: 'NEAR public BigQuery dataset',
-    url: 'https://console.cloud.google.com/bigquery?p=bigquery-public-data&d=crypto_near_mainnet_us&page=dataset', docUrl: 'https://docs.near.org/data-infrastructure/big-query',
-    kind: 'Not connected — Google Cloud project/auth required', fields: '16 objects inspected in the live console; query tables transactions, receipt_actions and receipt_origin_transaction are partitioned on block_date DATE; signer/hash/receiver fields are STRING',
-    cadence: 'No queries are made by this static app.',
-    caveat: 'Live inventory and three query-table schemas inspected on 14 Nov 2026; application data integration remains disconnected. No query or dry-run was submitted. Review estimated bytes and obtain spending approval before execution.', connected: false,
-  },
-  {
-    id: 'intents-history', name: 'NEAR Intents Explorer',
-    url: 'https://explorer.near-intents.org/api/v0/transactions', docUrl: 'https://docs.near-intents.org/integration/distribution-channels/1click-api/explorer/introduction',
-    kind: 'Not connected — partner JWT required', fields: 'Historical 1Click swap records and statuses only',
-    cadence: 'No requests are made by this app.',
-    caveat: 'Explorer requests require a Partner Dashboard JWT in the Bearer header and are limited to one request every five seconds per partner. Scope is historical 1Click Swap only, not all NEAR Intents or canonical ecosystem-wide net flow. A JWT must not be embedded in browser code.', connected: false,
+    caveat: 'TVL is an asset stock, affected by market prices and provider coverage. It is not bridge volume, net inflow or capital retention.', connected: true, staleAfterSeconds: 172800,
   },
 ];
 
@@ -254,7 +227,9 @@ export async function fetchCoinGeckoMarket() {
 export async function fetchCoinGeckoHistory() {
   const url = `${COINGECKO_BASE}/coins/near/market_chart?vs_currency=usd&days=32&interval=daily`;
   const result = await sourceCall('coingecko-history', () => getJson(url), (data, fetchedAt) => {
-    if (!Array.isArray(data?.prices) || data.prices.length < 2) throw new Error('CoinGecko returned too few daily market points');
+    if (!hasTwoValidPairs(data?.prices) || !hasTwoValidPairs(data?.market_caps) || !hasTwoValidPairs(data?.total_volumes)) {
+      throw new Error('CoinGecko returned too few valid dated price, market-cap or volume points');
+    }
     return { ...data, fetchedAt };
   });
   const timestamps = result.value?.prices?.map((point) => Number(point?.[0])).filter(Number.isFinite) ?? [];
@@ -264,16 +239,12 @@ export async function fetchCoinGeckoHistory() {
 
 export async function fetchTvlHistory() {
   const result = await sourceCall('defillama-tvl', () => getJson(LLAMA_TVL_URL), (data, fetchedAt) => {
-    if (!Array.isArray(data) || data.length < 2) throw new Error('DefiLlama returned too few TVL points');
+    if (!hasTwoValidTvlRows(data)) throw new Error('DefiLlama returned too few valid dated TVL points');
     return { rows: data, fetchedAt };
   });
   const timestamps = result.value?.rows?.map((row) => Number(row?.date)).filter(Number.isFinite) ?? [];
   if (timestamps.length) result.status.providerAt = new Date(Math.max(...timestamps) * 1000).toISOString();
   return result;
-}
-
-export function statusFromMissingSource(source) {
-  return { sourceId: source.id, ok: null, checkedAt: null, providerAt: null, latencyMs: null, detail: source.caveat, disconnected: true };
 }
 
 // On-demand public account state only. No wallet, signing, account history or JWT.

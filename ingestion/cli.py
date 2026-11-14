@@ -1,7 +1,7 @@
 """NEAR SIGNAL unified ingestion entry point.
 
 Default mode performs one read-only Neardata fetch and prints a compact report; it
-does not persist, schedule, backfill, run BigQuery, or call credential-gated providers.
+does not persist, schedule, backfill, or call credential-gated providers.
 """
 from __future__ import annotations
 

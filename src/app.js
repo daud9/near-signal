@@ -1,12 +1,11 @@
 import { alignMarketAndTvl, assessLiveRisks, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
 import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchAccountSnapshot } from './data.js';
-import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, BIGQUERY_REBUILD_NOTE, CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from './query-registry.js';
+import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from './query-registry.js';
 
 import { replayChartInputs, replayRpcObservations } from './replay.js';
-import { WORKSPACES, resolveWorkspace, isNearAccountId, buildActivitySql, estimateExecutionCost, toCsv } from './workspace.js';
+import { WORKSPACES, resolveWorkspace, isNearAccountId, estimateExecutionCost, toCsv } from './workspace.js';
 import { createThesisTestEvidence } from './thesis.js';
 const chartExportData = new Map();
-let generatedSql = '';
 let accountInspection = null;
 let lastAccountRequestAt = 0;
 
@@ -109,6 +108,20 @@ function sourceIsStale(status) {
   const observedAt = Date.parse(status?.providerAt ?? status?.lastProviderAt);
   return Boolean(source?.staleAfterSeconds && Number.isFinite(observedAt) && Date.now() - observedAt > source.staleAfterSeconds * 1000);
 }
+function failedSources(sourceIds) {
+  return (Array.isArray(sourceIds) ? sourceIds : [sourceIds]).filter((sourceId) => state.sourceStatuses.get(sourceId)?.ok === false);
+}
+function allSourcesFailed(sourceIds) {
+  const ids = Array.isArray(sourceIds) ? sourceIds : [sourceIds];
+  return ids.length > 0 && ids.every((sourceId) => state.sourceStatuses.get(sourceId)?.ok === false);
+}
+function unavailableOrWaiting(sourceIds, waiting) { return allSourcesFailed(sourceIds) ? 'Unavailable' : waiting; }
+function sourceFailureText(sourceIds) {
+  return failedSources(sourceIds).map((sourceId) => {
+    const source = DATA_SOURCES.find((item) => item.id === sourceId), status = state.sourceStatuses.get(sourceId);
+    return `${source?.name ?? sourceId}: ${status?.detail || 'latest request failed'}${status?.retryAt ? `; retry scheduled ${utcDateTime(status.retryAt)}` : ''}`;
+  }).join(' · ');
+}
 function titleCaseDirection(direction) { return direction === 'negative' ? 'negative co-movement' : 'positive co-movement'; }
 function valueForChart(metric, row) { const raw = row?.[metric]; if (raw === null || raw === undefined || raw === '') return null; const value = Number(raw); return Number.isFinite(value) ? value : null; }
 function chartLabel(value, format) {
@@ -195,61 +208,69 @@ function updateHeader() {
 }
 function renderOverview() {
   const daily = allDailyRows(), marketFallback = !state.market && state.llamaPrice;
+  const spotSources = ['coingecko-market', 'defillama-price'];
+  const spotFailure = sourceFailureText(spotSources), marketFailure = sourceFailureText('coingecko-market');
+  const dailyFailure = sourceFailureText(['coingecko-history', 'defillama-tvl']);
   const currentPrice = state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null;
-  $('#marketPrice').textContent = currentPrice === null ? 'Waiting for market feed' : usd(currentPrice, currentPrice < 1 ? 4 : 2);
-  $('#marketPriceFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · fetched ${ago(state.market.fetchedAt)}` : marketFallback ? `DefiLlama fallback price · provider time ${utcDateTime(state.llamaPrice.timestamp)}` : 'Waiting for a timestamped market snapshot';
-  $('#marketChange').textContent = state.market?.priceChange24hPct === null || state.market?.priceChange24hPct === undefined ? 'Waiting for live 24-hour change' : formatSignedPercent(state.market.priceChange24hPct, 2);
-  $('#marketChangeFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · exchange-aggregated` : 'Awaiting a timestamped CoinGecko observation';
-  $('#finalizedBlock').textContent = state.block ? compact(state.block.height, 0) : 'Waiting for finalized block';
-  $('#finalizedBlockFoot').textContent = state.block ? `Finalized · block time ${utcDateTime(state.block.timestamp)} · fetched ${ago(state.block.fetchedAt)}` : 'Waiting for NEAR mainnet RPC';
+  $('#marketPrice').textContent = currentPrice === null ? unavailableOrWaiting(spotSources, 'Waiting for market feed') : usd(currentPrice, currentPrice < 1 ? 4 : 2);
+  $('#marketPriceFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · fetched ${ago(state.market.fetchedAt)}${marketFailure ? ' · latest read failed; prior value retained' : ''}` : marketFallback ? `DefiLlama fallback price · provider time ${utcDateTime(state.llamaPrice.timestamp)}${spotFailure ? ` · latest source warning: ${spotFailure}` : ''}` : spotFailure ? `Live price read failed: ${spotFailure}` : 'Waiting for a timestamped market snapshot';
+  $('#marketChange').textContent = state.market?.priceChange24hPct === null || state.market?.priceChange24hPct === undefined ? unavailableOrWaiting('coingecko-market', 'Waiting for live 24-hour change') : formatSignedPercent(state.market.priceChange24hPct, 2);
+  $('#marketChangeFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · exchange-aggregated${marketFailure ? ' · latest read failed; prior value retained' : ''}` : marketFailure ? `CoinGecko read failed: ${marketFailure}` : 'Awaiting a timestamped CoinGecko observation';
+  const blockFailure = sourceFailureText('near-rpc-finalized');
+  $('#finalizedBlock').textContent = state.block ? compact(state.block.height, 0) : unavailableOrWaiting('near-rpc-finalized', 'Waiting for finalized block');
+  $('#finalizedBlockFoot').textContent = state.block ? `Finalized · block time ${utcDateTime(state.block.timestamp)} · fetched ${ago(state.block.fetchedAt)}${blockFailure ? ' · latest read failed; prior value retained' : ''}` : blockFailure ? `Latest RPC read failed: ${blockFailure}` : 'Waiting for NEAR mainnet RPC';
   renderBlockAge();
   const chartRows = daily.slice(-(state.days + 1)), metric = state.chartMetric, meta = METRICS[metric] || METRICS.priceUsd;
-  renderLineChart($('#overviewChart'), chartRows, metric, { label: meta.label, color: meta.color, format: meta.format, emptyText: 'No matched dated series yet. Current live spot data is shown above; the chart requires matching daily price and TVL dates.' });
-  $('#observedSpan').textContent = chartRows.length > 1 ? `${chartRows.length} matched dates · ${chartRows[0].date} to ${chartRows.at(-1).date}` : 'Waiting for matched daily observations';
-  $('#dataAsOf').textContent = `Daily series through ${daily.at(-1)?.date ?? '—'} UTC`;
+  renderLineChart($('#overviewChart'), chartRows, metric, { label: meta.label, color: meta.color, format: meta.format, emptyText: dailyFailure ? `Unavailable: ${dailyFailure}` : 'No matched dated series yet. Current live spot data is shown above; the chart requires matching daily price and TVL dates.' });
+  $('#observedSpan').textContent = chartRows.length > 1 ? `${chartRows.length} matched dates · ${chartRows[0].date} to ${chartRows.at(-1).date}` : dailyFailure || 'Waiting for matched daily observations';
+  $('#dataAsOf').textContent = `Daily series through ${daily.at(-1)?.date ?? '—'} UTC${dailyFailure ? ` · latest history read failed; prior/partial range retained: ${dailyFailure}` : ''}`;
   $('#overviewChartSubtitle').textContent = `${meta.label}; matched UTC dates only, current partial UTC day excluded.`;
   const tvl7d = windowChange(daily, 'tvlUsd', 7), tvl30d = windowChange(daily, 'tvlUsd', 30);
   const dims = [
-    ['Finalized NEAR block', state.block ? `Block ${compact(state.block.height, 0)} observed` : 'Waiting for live block'],
+    ['Finalized NEAR block', state.block ? `Block ${compact(state.block.height, 0)} observed` : unavailableOrWaiting('near-rpc-finalized', 'Waiting for live block')],
     ['Verified block activity', state.blockActivity ? `${compact(state.blockActivity.transactionCount, 0)} transactions in one block` : 'Waiting for complete shard match'],
     ['Current validator snapshot', state.validators ? `${compact(state.validators.validatorCount, 0)} active-set records` : 'Waiting for live validator set'],
-    ['Market and TVL context', state.market && state.tvlHistory ? 'Market snapshot and daily TVL loaded' : 'Checking connected market feeds'],
+    ['Market and TVL context', state.market && state.tvlHistory ? dailyFailure ? 'Partial data · latest history read failed' : 'Market snapshot and daily TVL loaded' : dailyFailure ? 'Unavailable: a history feed failed' : 'Checking connected market feeds'],
   ];
   $('#dimensionList').innerHTML = dims.map(([name, status]) => `<div class="dimension-row"><span>${escapeHtml(name)}</span><span class="dim-status">${escapeHtml(status)}</span></div>`).join('');
   const nodeSync = typeof state.rpcStatus?.syncing === 'boolean' ? (state.rpcStatus.syncing ? 'syncing' : 'not syncing') : 'not reported';
   const nodeHeight = state.rpcStatus?.sync_info?.latest_block_height ? ` · RPC node latest height ${compact(state.rpcStatus.sync_info.latest_block_height, 0)}` : '';
   const activityText = state.blockActivity ? ` Most recent sampled block ${compact(state.blockActivity.blockHeight, 0)} contains ${compact(state.blockActivity.transactionCount, 0)} transactions across ${state.blockActivity.shardCount ?? state.blockActivity.chunkCount} shards; ${state.blockActivity.chunkCount} newly included chunks were verified${state.blockActivity.reusedShardCount ? ` and ${state.blockActivity.reusedShardCount} prior-height reference${state.blockActivity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''}.` : ' Waiting for a complete per-block transaction sample.';
-  $('#liveSummary').textContent = state.block ? `Finalized block ${compact(state.block.height, 0)} · ${state.block.activeChunks}/${state.block.chunkCount} chunks used gas · ${state.block.gasUtilizationPct?.toFixed(2) ?? '—'}% of reported chunk gas limits.${activityText} RPC node reports ${nodeSync}${nodeHeight}.` : `Waiting for live finalized block. RPC node reports ${nodeSync}${nodeHeight}.`;
-  $('#contextSummary').textContent = daily.length ? `${daily.length} complete matched daily dates; current UTC date excluded. TVL change: 7-day ${tvl7d ? formatSignedPercent(tvl7d.changePct) : 'waiting for 8 consecutive dates'}, 30-day ${tvl30d ? formatSignedPercent(tvl30d.changePct) : 'waiting for 31 consecutive dates'}.` : 'Waiting for complete matched UTC-date history from market and TVL feeds.';
+  $('#liveSummary').textContent = state.block ? `Finalized block ${compact(state.block.height, 0)} · ${state.block.activeChunks}/${state.block.chunkCount} chunks used gas · ${state.block.gasUtilizationPct?.toFixed(2) ?? '—'}% of reported chunk gas limits.${activityText} RPC node reports ${nodeSync}${nodeHeight}.${blockFailure ? ` Latest block request failed: ${blockFailure}.` : ''}` : blockFailure ? `Unavailable: latest finalized-block request failed (${blockFailure}). RPC node reports ${nodeSync}${nodeHeight}.` : `Waiting for live finalized block. RPC node reports ${nodeSync}${nodeHeight}.`;
+  $('#contextSummary').textContent = daily.length ? `${daily.length} complete matched daily dates; current UTC date excluded${dailyFailure ? `; latest history read failed and the prior/partial range is retained (${dailyFailure})` : ''}. TVL change: 7-day ${tvl7d ? formatSignedPercent(tvl7d.changePct) : dailyFailure ? 'unavailable' : 'waiting for 8 consecutive dates'}, 30-day ${tvl30d ? formatSignedPercent(tvl30d.changePct) : dailyFailure ? 'unavailable' : 'waiting for 31 consecutive dates'}.` : dailyFailure ? `Daily history unavailable: ${dailyFailure}` : 'Waiting for complete matched UTC-date history from market and TVL feeds.';
   $('#gapSummary').textContent = 'A block-local transaction count describes one sample, not a daily or unique-user adoption measure. Market volume and TVL are context signals, not directional net flows.';
 }
 function renderBlockAge() {
-  if (!state.block) { $('#blockAge').textContent = 'Waiting'; $('#blockAgeFoot').textContent = 'Waiting for NEAR mainnet RPC'; return; }
+  if (!state.block) { const failure = sourceFailureText('near-rpc-finalized'); $('#blockAge').textContent = unavailableOrWaiting('near-rpc-finalized', 'Waiting'); $('#blockAgeFoot').textContent = failure ? `Finalized-block read failed: ${failure}` : 'Waiting for NEAR mainnet RPC'; return; }
   const age = Math.max(0, (Date.now() - state.block.timestampMs) / 1000);
   $('#blockAge').textContent = `${age.toFixed(1)} sec`;
-  $('#blockAgeFoot').textContent = `Finalized block time ${utcDateTime(state.block.timestamp)} · last fetched ${ago(state.block.fetchedAt)}`;
+  const failure = sourceFailureText('near-rpc-finalized');
+  $('#blockAgeFoot').textContent = `Finalized block time ${utcDateTime(state.block.timestamp)} · last fetched ${ago(state.block.fetchedAt)}${failure ? ` · latest read failed: ${failure}` : ''}`;
 }
 function renderValueCapture() {
   const block = state.block;
-  $('#valueStatus').textContent = block ? 'Live block estimate' : 'Waiting for finalized block';
-  $('#valueStatus').className = `status-pill ${block ? 'good' : 'warn'}`;
-  $('#blockGasCost').textContent = block ? `${block.estimatedGasFeeNear.toFixed(6)} Ⓝ` : 'Waiting for block';
-  $('#blockGasUsed').textContent = block ? `${(block.gasUsed / 1e12).toFixed(2)} Tgas` : 'Waiting for block';
-  $('#blockGasUsedFoot').textContent = block ? `${block.activeChunks}/${block.chunkCount} returned chunks have non-zero gas used` : 'Waiting for finalized chunk data';
-  $('#blockGasUtil').textContent = block?.gasUtilizationPct === null || !block ? 'Waiting for block' : `${block.gasUtilizationPct.toFixed(2)}%`;
-  $('#blockGasUtilFoot').textContent = block ? `Block ${compact(block.height, 0)} · ${utcDateTime(block.timestamp)}` : 'Waiting for finalized chunk data';
-  $('#gasPrice').textContent = block ? `${block.gasPriceNearPerTgas.toFixed(6)} Ⓝ` : 'Waiting for block';
-  $('#marketCap').textContent = state.market?.marketCapUsd === null || state.market?.marketCapUsd === undefined ? 'Waiting for market feed' : shortUsd(state.market.marketCapUsd);
-  $('#grossVolume').textContent = state.market?.grossVolume24hUsd === null || state.market?.grossVolume24hUsd === undefined ? 'Waiting for market feed' : shortUsd(state.market.grossVolume24hUsd);
+  const blockFailure = sourceFailureText('near-rpc-finalized');
+  const blockMissing = unavailableOrWaiting('near-rpc-finalized', 'Waiting for block');
+  $('#valueStatus').textContent = block ? (blockFailure ? 'Retained block estimate' : 'Live block estimate') : unavailableOrWaiting('near-rpc-finalized', 'Waiting for finalized block');
+  $('#valueStatus').className = `status-pill ${block && !blockFailure ? 'good' : 'warn'}`;
+  $('#blockGasCost').textContent = block ? `${block.estimatedGasFeeNear.toFixed(6)} Ⓝ` : blockMissing;
+  $('#blockGasUsed').textContent = block ? `${(block.gasUsed / 1e12).toFixed(2)} Tgas` : blockMissing;
+  $('#blockGasUsedFoot').textContent = block ? `${block.activeChunks}/${block.chunkCount} returned chunks have non-zero gas used${blockFailure ? ' · latest block read failed; prior value retained' : ''}` : blockFailure || 'Waiting for finalized chunk data';
+  $('#blockGasUtil').textContent = block?.gasUtilizationPct === null || !block ? blockMissing : `${block.gasUtilizationPct.toFixed(2)}%`;
+  $('#blockGasUtilFoot').textContent = block ? `Block ${compact(block.height, 0)} · ${utcDateTime(block.timestamp)}${blockFailure ? ' · latest block read failed; prior value retained' : ''}` : blockFailure || 'Waiting for finalized chunk data';
+  $('#gasPrice').textContent = block ? `${block.gasPriceNearPerTgas.toFixed(6)} Ⓝ` : blockMissing;
+  $('#marketCap').textContent = state.market?.marketCapUsd === null || state.market?.marketCapUsd === undefined ? unavailableOrWaiting('coingecko-market', 'Waiting for market feed') : shortUsd(state.market.marketCapUsd);
+  $('#grossVolume').textContent = state.market?.grossVolume24hUsd === null || state.market?.grossVolume24hUsd === undefined ? unavailableOrWaiting('coingecko-market', 'Waiting for market feed') : shortUsd(state.market.grossVolume24hUsd);
   const coinGeckoTime = Date.parse(state.market?.timestamp ?? ''), llamaTime = Date.parse(state.llamaPrice?.timestamp ?? '');
   const bothSpotPrices = Number.isFinite(state.market?.priceUsd) && state.market.priceUsd > 0 && Number.isFinite(state.llamaPrice?.priceUsd) && state.llamaPrice.priceUsd > 0;
   const timestampsValid = Number.isFinite(coinGeckoTime) && Number.isFinite(llamaTime);
   const timestampGapMs = timestampsValid ? Math.abs(coinGeckoTime - llamaTime) : null;
   const spotGap = bothSpotPrices && timestampsValid && timestampGapMs <= 300_000 ? Math.abs(state.market.priceUsd - state.llamaPrice.priceUsd) / state.market.priceUsd * 100 : null;
-  $('#spotDifference').textContent = spotGap === null ? (bothSpotPrices && timestampsValid ? 'Not time-matched' : 'Waiting for two spot feeds') : `${spotGap.toFixed(2)}%`;
-  $('#marketCapTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'Waiting for provider timestamp';
-  $('#grossVolumeTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'Waiting for provider timestamp';
-  $('#spotDifferenceFoot').textContent = timestampsValid ? timestampGapMs <= 300_000 ? `CoinGecko ${utcDateTime(state.market.timestamp)} · DefiLlama ${utcDateTime(state.llamaPrice.timestamp)}` : `Not compared: provider timestamps differ by ${(timestampGapMs / 60_000).toFixed(1)} minutes` : 'Waiting for both timestamped spot feeds';
+  const spotFailure = sourceFailureText(['coingecko-market', 'defillama-price']), marketFailure = sourceFailureText('coingecko-market');
+  $('#spotDifference').textContent = spotGap === null ? (bothSpotPrices && timestampsValid ? 'Not time-matched' : unavailableOrWaiting(['coingecko-market', 'defillama-price'], 'Waiting for two spot feeds')) : `${spotGap.toFixed(2)}%`;
+  $('#marketCapTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}${marketFailure ? ' · latest read failed; prior value retained' : ''}` : marketFailure || 'Waiting for provider timestamp';
+  $('#grossVolumeTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}${marketFailure ? ' · latest read failed; prior value retained' : ''}` : marketFailure || 'Waiting for provider timestamp';
+  $('#spotDifferenceFoot').textContent = timestampsValid ? timestampGapMs <= 300_000 ? `CoinGecko ${utcDateTime(state.market.timestamp)} · DefiLlama ${utcDateTime(state.llamaPrice.timestamp)}${spotFailure ? ` · latest read failed: ${spotFailure}` : ''}` : `Not compared: provider timestamps differ by ${(timestampGapMs / 60_000).toFixed(1)} minutes` : spotFailure || 'Waiting for both timestamped spot feeds';
   renderFeeEstimate();
   const observations = state.observations.map((row) => ({ ...row, gasTgas: Number(row.gasUsed) / 1e12 }));
   renderLineChart($('#gasChart'), observations, 'gasTgas', { label: 'Gas used per sampled finalized block', color: '#197e78', format: 'tgas', dateKey: 'observedAt', emptyText: 'Collecting real finalized-block observations. No historical values are fabricated.' });
@@ -258,22 +279,23 @@ function renderValueCapture() {
 }
 function renderParticipation() {
   const validators = state.validators;
-  const validatorStatus = state.sourceStatuses.get('near-rpc-validators');
-  const validatorPlaceholder = validatorStatus?.ok === false ? 'Retrying live feed' : 'Waiting for live feed';
+  const validatorFailure = sourceFailureText('near-rpc-validators');
+  const validatorPlaceholder = unavailableOrWaiting('near-rpc-validators', 'Waiting for live feed');
   $('#validatorCount').textContent = validators ? compact(validators.validatorCount, 0) : validatorPlaceholder;
-  $('#validatorEpoch').textContent = validators?.epochHeight === null || validators?.epochHeight === undefined ? validatorStatus?.ok === false ? 'Retrying current epoch read' : 'Waiting for current epoch' : `Epoch height ${compact(validators.epochHeight, 0)} · ${validators.nextValidatorCount ?? '—'} next-set records`;
+  $('#validatorEpoch').textContent = validators?.epochHeight === null || validators?.epochHeight === undefined ? validatorFailure || 'Waiting for current epoch' : `Epoch height ${compact(validators.epochHeight, 0)} · ${validators.nextValidatorCount ?? '—'} next-set records`;
   $('#validatorTop10').textContent = validators ? `${validators.top10SharePct.toFixed(1)}%` : validatorPlaceholder;
   $('#validatorHhi').textContent = validators ? `Current-set stake HHI: ${validators.hhi.toFixed(0)}` : `${validatorPlaceholder} · no concentration estimate`;
   $('#validatorProduction').textContent = validators?.blockProductionPct === null || !validators ? validatorPlaceholder : `${validators.blockProductionPct.toFixed(1)}%`;
-  $('#validatorProductionFoot').textContent = validators ? `${compact(validators.producedBlocks, 0)} produced / ${compact(validators.expectedBlocks, 0)} expected blocks in returned epoch counters` : validatorStatus?.ok === false ? 'Retrying current epoch counters' : 'Waiting for current epoch counters';
+  $('#validatorProductionFoot').textContent = validators ? `${compact(validators.producedBlocks, 0)} produced / ${compact(validators.expectedBlocks, 0)} expected blocks in returned epoch counters${validatorFailure ? ` · latest read failed: ${validatorFailure}` : ''}` : validatorFailure || 'Waiting for current epoch counters';
   const activity = state.blockActivity;
   const sourceStatus = state.sourceStatuses.get('fastnear-neardata-block-transactions');
-  const activityPlaceholder = sourceStatus?.ok === false ? 'Retrying sample' : 'Waiting for sample';
+  const activityFailure = sourceFailureText('fastnear-neardata-block-transactions');
+  const activityPlaceholder = unavailableOrWaiting('fastnear-neardata-block-transactions', 'Waiting for sample');
   $('#blockTxLatest').textContent = activity ? compact(activity.transactionCount, 0) : activityPlaceholder;
-  $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} new chunks / ${activity.shardCount ?? activity.chunkCount} shards${activity.reusedShardCount ? ` · ${activity.reusedShardCount} prior-height reference${activity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''} · ${utcDateTime(activity.blockTimestamp)}` : sourceStatus?.ok === false ? 'Retrying for a complete all-shard count' : 'Waiting for complete all-shard count';
+  $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} new chunks / ${activity.shardCount ?? activity.chunkCount} shards${activity.reusedShardCount ? ` · ${activity.reusedShardCount} prior-height reference${activity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''} · ${utcDateTime(activity.blockTimestamp)}${activityFailure ? ` · latest read failed; prior sample retained: ${activityFailure}` : ''}` : activityFailure || 'Waiting for complete all-shard count';
   $('#blockTxChunks').textContent = activity ? compact(activity.chunkCount, 0) : activityPlaceholder;
-  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · current-height chunk matches, prior-height references and transaction hashes are retained for offline replay; full transaction bodies and receipts are discarded.` : sourceStatus?.ok === false ? 'Latest read failed; retrying for a complete finalized-block sample.' : 'Requesting a complete finalized-block sample.';
-  $('#activityStatus').textContent = activity ? (sourceStatus?.ok === false ? 'Last sample retained · retrying' : 'Live block count observed') : (sourceStatus?.ok === false ? 'Retrying complete chunk sample' : 'Sampling finalized chunks');
+  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · current-height chunk matches, prior-height references and transaction hashes are retained for offline replay; full transaction bodies and receipts are discarded.${activityFailure ? ` Latest read failed: ${activityFailure}` : ''}` : activityFailure ? `Latest sample unavailable: ${activityFailure}` : 'Requesting a complete finalized-block sample.';
+  $('#activityStatus').textContent = activity ? (sourceStatus?.ok === false ? 'Prior sample retained · latest read failed' : 'Live block count observed') : (sourceStatus?.ok === false ? 'Sample unavailable' : 'Sampling finalized chunks');
   $('#activityStatus').className = `status-pill ${activity && sourceStatus?.ok !== false ? 'good' : 'warn'}`;
   const observations = state.observations;
   renderLineChart($('#blockTxChart'), observations, 'transactionCount', { label: 'Transactions per sampled finalized block', color: '#7f61a6', format: 'count', dateKey: 'observedAt', emptyText: 'Waiting for at least two complete live samples. No historical transaction values are fabricated.' });
@@ -288,7 +310,7 @@ function renderRiskSources(risk) {
     if (!source) return '';
     const status = state.sourceStatuses.get(sourceId);
     let label = 'Checking first live read';
-    if (status?.ok && sourceIsStale(status)) label = 'Observation is stale';
+    if (status && sourceIsStale(status)) label = status.ok === false ? 'Latest read failed; retained observation is stale' : 'Observation is stale';
     else if (status?.ok) label = 'Responding';
     else if (status?.ok === false && dataAvailableFor(sourceId)) label = 'Latest read failed; prior observation retained';
     else if (status?.ok === false) label = 'Not responding';
@@ -319,19 +341,23 @@ function renderRisks() {
 function renderCapital() {
   const daily = allDailyRows(), latest = daily.at(-1);
   const change7 = windowChange(daily, 'tvlUsd', 7), change30 = windowChange(daily, 'tvlUsd', 30);
-  $('#latestTvl').textContent = latest ? shortUsd(latest.tvlUsd) : 'Waiting for daily observation';
-  $('#tvlAsOf').textContent = latest ? `DefiLlama daily snapshot · ${latest.date} UTC` : 'Waiting for a matched source date';
-  $('#tvlChange7d').textContent = change7 ? formatSignedPercent(change7.changePct) : 'Waiting for a complete window';
+  const alignmentFailure = sourceFailureText(['defillama-tvl', 'coingecko-history']);
+  const missingData = alignmentFailure ? 'Unavailable' : 'Waiting for daily observation';
+  $('#latestTvl').textContent = latest ? shortUsd(latest.tvlUsd) : missingData;
+  $('#tvlAsOf').textContent = latest ? `DefiLlama daily snapshot · ${latest.date} UTC` : alignmentFailure || 'Waiting for a matched source date';
+  $('#tvlChange7d').textContent = change7 ? formatSignedPercent(change7.changePct) : alignmentFailure ? 'Unavailable' : 'Waiting for a complete window';
   $('#tvlSpan7d').textContent = change7 ? `${change7.startDate} to ${change7.endDate} · USD TVL stock` : 'Requires 8 consecutive matched daily dates';
-  $('#tvlChange30d').textContent = change30 ? formatSignedPercent(change30.changePct) : 'Waiting for a complete window';
+  $('#tvlChange30d').textContent = change30 ? formatSignedPercent(change30.changePct) : alignmentFailure ? 'Unavailable' : 'Waiting for a complete window';
   $('#tvlSpan30d').textContent = change30 ? `${change30.startDate} to ${change30.endDate} · USD TVL stock` : 'Requires 31 consecutive matched daily dates';
   const chartDays = Number($('#capitalWindowSelect')?.value || 30), capitalRows = daily.slice(-(chartDays + 1));
-  renderLineChart($('#capitalChart'), capitalRows, 'tvlUsd', { label: 'NEAR DeFi total value locked, daily USD snapshot', color: '#197e78', format: 'usd', emptyText: 'Waiting for aligned daily NEAR DeFi TVL and market dates.' });
-  $('#tvlDateSpan').textContent = capitalRows.length ? `${capitalRows.length} complete matched dates · ${capitalRows[0].date} to ${capitalRows.at(-1).date}` : 'No aligned daily series';
-  $('#capitalFreshness').textContent = state.tvlHistory?.fetchedAt ? `Fetched ${ago(state.tvlHistory.fetchedAt)}` : 'Source not yet fetched';
-  $('#capitalStatus').textContent = latest ? 'Matched daily TVL' : 'Checking daily TVL';
-  $('#capitalStatus').className = `status-pill ${latest ? 'good' : 'warn'}`;
-  $('#capitalLastChecked').textContent = state.tvlHistory?.fetchedAt ? `TVL source fetched ${utcDateTime(state.tvlHistory.fetchedAt)}; dates are matched to CoinGecko market history.` : 'Waiting for live TVL snapshots.';
+  renderLineChart($('#capitalChart'), capitalRows, 'tvlUsd', { label: 'NEAR DeFi total value locked, daily USD snapshot', color: '#197e78', format: 'usd', emptyText: alignmentFailure ? `Unavailable: ${alignmentFailure}` : 'Waiting for aligned daily NEAR DeFi TVL and market dates.' });
+  $('#tvlDateSpan').textContent = capitalRows.length ? `${capitalRows.length} complete matched dates · ${capitalRows[0].date} to ${capitalRows.at(-1).date}` : alignmentFailure || 'No aligned daily series';
+  $('#capitalFreshness').textContent = state.tvlHistory?.fetchedAt ? `Fetched ${ago(state.tvlHistory.fetchedAt)}` : alignmentFailure || 'Source not yet fetched';
+  const tvlStatus = state.sourceStatuses.get('defillama-tvl'), tvlStale = sourceIsStale(tvlStatus);
+  $('#capitalStatus').textContent = !latest ? alignmentFailure ? 'TVL unavailable' : 'Checking daily TVL' : tvlStale ? 'Stale TVL snapshot' : tvlStatus?.ok === false ? 'Retained TVL snapshot' : 'Matched daily TVL';
+  $('#capitalStatus').className = `status-pill ${latest && !tvlStale && tvlStatus?.ok !== false ? 'good' : 'warn'}`;
+  const tvlReadState = tvlStale ? 'provider observation is stale' : tvlStatus?.ok === false ? dataAvailableFor('defillama-tvl') ? 'latest read failed; prior observation retained' : 'latest read failed; no TVL observation is available' : 'source responding';
+  $('#capitalLastChecked').textContent = state.tvlHistory?.fetchedAt ? `TVL source fetched ${utcDateTime(state.tvlHistory.fetchedAt)} · ${tvlReadState}; dates are matched to CoinGecko market history.` : alignmentFailure || 'Waiting for live TVL snapshots.';
 }
 function renderHypothesis() {
   renderThesisProvenance();
@@ -360,7 +386,7 @@ function renderThesisProvenance() {
     const status = state.sourceStatuses.get(sourceId);
     const fetchedAt = sourceId === 'coingecko-history' ? state.marketChart?.fetchedAt : state.tvlHistory?.fetchedAt;
     const providerAt = status?.providerAt ?? status?.lastProviderAt;
-    const stateText = status?.ok === true ? sourceIsStale(status) ? 'responding; last provider observation is stale' : 'responding' : status?.ok === false ? dataAvailableFor(sourceId) ? 'latest request failed; previous data retained' : 'no successful response yet' : 'checking';
+    const stateText = status?.ok === true ? sourceIsStale(status) ? 'responding; last provider observation is stale' : 'responding' : status?.ok === false ? dataAvailableFor(sourceId) ? sourceIsStale(status) ? 'latest request failed; retained observation is stale' : 'latest request failed; previous data retained' : 'no successful response yet' : 'checking';
     return `${source?.name ?? sourceId}: ${stateText}${providerAt ? ` · provider time ${utcDateTime(providerAt)}` : ''}${fetchedAt ? ` · fetched ${utcDateTime(fetchedAt)}` : ''}`;
   });
   $('#thesisSourceStatus').innerHTML = observations.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
@@ -423,6 +449,7 @@ async function refreshBlock() {
     const result = await fetchAndApply('block', fetchFinalizedBlock);
     const block = result?.value ?? state.block;
     if (block) appendBlockObservation(block);
+    renderAll();
     const blockIsRecent = Number.isFinite(block?.timestampMs) && Date.now() - block.timestampMs <= 30_000;
     const sampleIsDue = Date.now() - state.lastChunkRequestAt >= BLOCK_TRANSACTION_INTERVAL_MS;
     if (block && blockIsRecent && sampleIsDue && state.blockActivity?.blockHeight !== block.height) {
@@ -459,10 +486,15 @@ async function initialLoad() {
   $('#refreshButton').disabled = true;
   try {
     state.lastMarketRefresh = Date.now();
+    const fetchThenRender = async (field, fetcher) => {
+      const result = await fetchAndApply(field, fetcher);
+      renderAll();
+      return result;
+    };
     await Promise.all([
-      refreshBlock(), fetchAndApply('llamaPrice', fetchDefiLlamaPrice),
-      fetchAndApply('tvlHistory', fetchTvlHistory), fetchAndApply('market', fetchCoinGeckoMarket),
-      fetchAndApply('marketChart', fetchCoinGeckoHistory),
+      refreshBlock(), fetchThenRender('llamaPrice', fetchDefiLlamaPrice),
+      fetchThenRender('tvlHistory', fetchTvlHistory), fetchThenRender('market', fetchCoinGeckoMarket),
+      fetchThenRender('marketChart', fetchCoinGeckoHistory),
     ]);
     renderAll();
     await refreshSlowRpc();
@@ -493,9 +525,8 @@ function exportEvidence() {
     executionCostScenario: { gasTgas: Number($('#feeGasInput').value), gasPriceNearPerTgas: state.block?.gasPriceNearPerTgas ?? null, priceUsd: state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null, estimate: estimateExecutionCost($('#feeGasInput').value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd) },
     chartQueryRecipes: CHART_QUERY_RECIPES,
     thesisTestRecipe: THESIS_TEST_RECIPE,
-    unexecutedBigQuery: { dataset: BIGQUERY_DATASET, inspectedTables: BIGQUERY_INSPECTED_TABLES, inspectedQueryFields: BIGQUERY_INSPECTED_FIELDS, sql: BIGQUERY_ACTIVITY_QUERY, status: 'Not connected; no query was submitted.' },
     sourceRegistry: DATA_SOURCES.map((source) => ({ ...source, status: state.sourceStatuses.get(source.id) ?? null })),
-    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction counts and contract activity are not included; no BigQuery query was run.', 'BigQuery schemas were inspected, but no application credentials, cost-approved query or data result is connected.', 'No Intents Explorer JWT is configured and no canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
+    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction trends and contract activity are unavailable; no such metrics are inferred from a block sample.', 'No canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
   };
   bundle.replayedChartInputs = replayChartInputs(bundle);
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
@@ -532,19 +563,12 @@ function navigateWorkspace(focus = false) {
 }
 function renderFeeEstimate() {
   const result = estimateExecutionCost($('#feeGasInput')?.value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd);
-  $('#feeEstimateNear').textContent = result ? `${result.near.toFixed(6)} Ⓝ` : 'Waiting for live gas price';
-  $('#feeEstimateUsd').textContent = result?.usd !== null && result?.usd !== undefined ? usd(result.usd, 6) : 'Waiting for timestamped market price';
-  $('#feeEstimateSource').textContent = state.block ? `Block ${state.block.height} · ${utcDateTime(state.block.timestamp)} · ${state.block.gasPriceNearPerTgas.toFixed(6)} Ⓝ/Tgas` : 'Waiting for live gas price';
-  $('#feeCalculatorStatus').textContent = result ? 'Live gas price' : state.block ? 'Check gas budget' : 'Needs live gas price';
-  $('#feeCalculatorFeedback').textContent = result ? `${result.gasTgas} Tgas × latest block gas price. USD equivalent uses a separately timestamped market price; storage and other charges are excluded.` : 'Enter a budget above 0 and no greater than 300 Tgas. A live gas price is required.';
-}
-function generateSql() {
-  try {
-    generatedSql = buildActivitySql({ startDate: $('#sqlStartDate').value, endDate: $('#sqlEndDate').value, contractId: $('#sqlContractId').value.trim() });
-    $('#generatedSqlCode').textContent = generatedSql;
-    $('#sqlBuilderFeedback').textContent = 'SQL generated locally. Every scanned table is block_date-filtered. Nothing has been executed; review estimated bytes and obtain approval before running.';
-    return true;
-  } catch (error) { generatedSql = ''; $('#generatedSqlCode').textContent = ''; $('#sqlBuilderFeedback').textContent = error.message; return false; }
+  const gasFailure = sourceFailureText('near-rpc-finalized');
+  $('#feeEstimateNear').textContent = result ? `${result.near.toFixed(6)} Ⓝ` : unavailableOrWaiting('near-rpc-finalized', 'Waiting for live gas price');
+  $('#feeEstimateUsd').textContent = result?.usd !== null && result?.usd !== undefined ? usd(result.usd, 6) : unavailableOrWaiting(['coingecko-market', 'defillama-price'], 'Waiting for timestamped market price');
+  $('#feeEstimateSource').textContent = state.block ? `Block ${state.block.height} · ${utcDateTime(state.block.timestamp)} · ${state.block.gasPriceNearPerTgas.toFixed(6)} Ⓝ/Tgas${gasFailure ? ` · latest read failed; prior value retained: ${gasFailure}` : ''}` : gasFailure || 'Waiting for live gas price';
+  $('#feeCalculatorStatus').textContent = result ? (gasFailure ? 'Retained gas price' : 'Live gas price') : gasFailure ? 'Gas source unavailable' : state.block ? 'Check gas budget' : 'Needs live gas price';
+  $('#feeCalculatorFeedback').textContent = result ? `${result.gasTgas} Tgas × ${gasFailure ? 'retained' : 'latest'} block gas price.${gasFailure ? ` Latest request failed: ${gasFailure}.` : ''} USD equivalent uses a separately timestamped market price; storage and other charges are excluded.` : gasFailure ? `Gas estimate unavailable because the finalized-block read failed: ${gasFailure}` : 'Enter a budget above 0 and no greater than 300 Tgas. A live gas price is required.';
 }
 async function inspectAccount(event) {
   event.preventDefault();
@@ -597,10 +621,6 @@ function setupWorkspaceControls() {
   $('#feeCalculatorForm').addEventListener('submit', (event) => { event.preventDefault(); renderFeeEstimate(); });
   $('#feeGasInput').addEventListener('input', renderFeeEstimate);
   $('#accountInspectorForm').addEventListener('submit', inspectAccount);
-  $('#sqlBuilderForm').addEventListener('submit', (event) => { event.preventDefault(); generateSql(); });
-  $('#downloadSqlButton').addEventListener('click', () => { if (generateSql()) { downloadFile('near-signal-activity.sql', generatedSql, 'application/sql'); announce('SQL downloaded. No BigQuery job has been submitted.'); } });
-  const end = new Date(); end.setUTCDate(end.getUTCDate() - 1); const start = new Date(end); start.setUTCDate(start.getUTCDate() - 6);
-  $('#sqlEndDate').value = end.toISOString().slice(0, 10); $('#sqlStartDate').value = start.toISOString().slice(0, 10); generateSql();
   $('#capitalWindowSelect').addEventListener('change', renderCapital);
   $('#riskFilter').addEventListener('change', renderRisks);
   $('#exportHypothesisButton').addEventListener('click', exportHypothesis);

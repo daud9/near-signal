@@ -34,7 +34,7 @@ ORDER BY utc_date, source_id;
 
 -- Daily function-call transactions observed directly in transaction action arrays.
 -- This does not count receipt-generated cross-contract calls; use a validated indexed
--- receipt dataset (e.g., BigQuery receipt_actions) for that broader definition.
+-- receipt dataset for that broader definition.
 SELECT
   source_id,
   date_trunc('day', occurred_at AT TIME ZONE 'UTC')::date AS utc_date,

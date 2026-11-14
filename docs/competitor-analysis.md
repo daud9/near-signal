@@ -17,7 +17,7 @@ NEAR SIGNAL should not claim that on-chain charts, NEAR-specific activity counts
 
 The MVP’s novelty is primarily analytical discipline, not raw data availability. It shows matched UTC periods instead of silently combining unmatched feeds. It discloses whether a result is a source fact, a derived comparison, or an unmeasured dimension. Its “Thesis Challenge” evaluates a defined relationship using transparent arithmetic and Pearson correlation; no language model invents a statistical result. Its NEHS weights are labelled provisional, and the score itself is withheld until capital resilience, ecosystem concentration/dependencies, and historical infrastructure health can be supported.
 
-This differentiation is still a product hypothesis. The current build does not yet include BigQuery validation, real account cohorts, a full application inventory, or a complete cross-chain capital-flow series.
+This differentiation is still a product hypothesis. The current build does not yet include historical account cohorts, a full application inventory, or a complete cross-chain capital-flow series.
 
 ## References
 

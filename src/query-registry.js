@@ -1,65 +1,3 @@
-export const BIGQUERY_DATASET = 'bigquery-public-data.crypto_near_mainnet_us';
-
-export const BIGQUERY_INSPECTED_TABLES = [
-  'account_changes', 'accounts (view)', 'blocks', 'chunks', 'circulating_supply',
-  'execution_outcomes', 'ft_balances_daily', 'ft_events',
-  'ft_events_contracts_by_account (materialized view)', 'nft_events',
-  'nft_events_contracts_by_account (materialized view)', 'receipt_actions',
-  'receipt_details', 'receipt_origin_transaction', 'transaction_actions', 'transactions',
-];
-
-export const BIGQUERY_INSPECTED_FIELDS = [
-  'block_date (DATE)', 'transaction_hash (STRING)', 'signer_account_id (STRING)',
-  'receipt_id (STRING)', 'action_kind (STRING)', 'receipt_receiver_account_id (STRING)',
-  'receipt_predecessor_account_id (STRING)', 'originated_from_transaction_hash (STRING)',
-];
-
-// All three schemas were inspected in the authenticated BigQuery console on 2026-11-14.
-// This SQL has not been executed or dry-run; a schema check is not a data integration.
-export const BIGQUERY_ACTIVITY_QUERY = String.raw`-- On-chain account/activity proxies, not verified people or organic adoption.
--- Parameters: @start_date DATE inclusive; @end_date DATE exclusive;
--- @contract_account_id STRING, the exact receiver contract account.
-WITH daily_activity AS (
-  SELECT
-    block_date,
-    COUNT(DISTINCT transaction_hash) AS transaction_count,
-    COUNT(DISTINCT signer_account_id) AS active_signer_accounts
-  FROM \`bigquery-public-data.crypto_near_mainnet_us.transactions\`
-  WHERE block_date >= @start_date AND block_date < @end_date
-  GROUP BY block_date
-),
-receipt_origins AS (
-  SELECT receipt_id, originated_from_transaction_hash
-  FROM \`bigquery-public-data.crypto_near_mainnet_us.receipt_origin_transaction\`
-  WHERE block_date >= @start_date AND block_date < @end_date
-),
-contract_usage AS (
-  SELECT
-    ra.block_date,
-    COUNT(DISTINCT ro.originated_from_transaction_hash) AS contract_transactions,
-    COUNT(DISTINCT ra.signer_account_id) AS contract_signer_accounts,
-    COUNT(DISTINCT ra.receipt_id) AS function_call_receipts,
-    COUNT(DISTINCT IF(ro.originated_from_transaction_hash IS NULL, ra.receipt_id, NULL))
-      AS receipts_without_in_window_origin
-  FROM \`bigquery-public-data.crypto_near_mainnet_us.receipt_actions\` AS ra
-  LEFT JOIN receipt_origins AS ro ON ro.receipt_id = ra.receipt_id
-  WHERE ra.block_date >= @start_date AND ra.block_date < @end_date
-    AND ra.action_kind = 'FUNCTION_CALL'
-    AND ra.receipt_receiver_account_id = @contract_account_id
-  GROUP BY ra.block_date
-)
-SELECT
-  activity.block_date,
-  activity.transaction_count,
-  activity.active_signer_accounts,
-  COALESCE(usage.contract_transactions, 0) AS contract_transactions,
-  COALESCE(usage.contract_signer_accounts, 0) AS contract_signer_accounts,
-  COALESCE(usage.function_call_receipts, 0) AS function_call_receipts,
-  COALESCE(usage.receipts_without_in_window_origin, 0) AS receipts_without_in_window_origin
-FROM daily_activity AS activity
-LEFT JOIN contract_usage AS usage USING (block_date)
-ORDER BY activity.block_date;`;
-
 export const CHART_QUERY_RECIPES = {
   overviewChart: {
     title: 'Daily market and liquidity context',
@@ -86,8 +24,6 @@ export const CHART_QUERY_RECIPES = {
     query: 'GET https://api.llama.fi/v2/historicalChainTvl/near\nGET https://api.coingecko.com/api/v3/coins/near/market_chart?vs_currency=usd&days=32&interval=daily\n\nKeep DefiLlama rows whose UTC date also appears in CoinGecko daily prices. Exclude the current UTC date and do not fill gaps.',
   },
 };
-
-export const BIGQUERY_REBUILD_NOTE = 'The live dataset inventory and all three query-table schemas were inspected in the authenticated BigQuery console on 14 Nov 2026. Each table is partitioned on block_date (DATE). This SQL has not been executed or dry-run; no application credentials, query project or spending approval is configured. Set explicit date/contract parameters and review estimated bytes before running it. Receipt-day origin counts cover only mappings in the selected date range; unmatched mappings are reported separately.';
 
 export const THESIS_TEST_RECIPE = {
   title: 'Thesis Challenge Engine — daily market/TVL co-movement test',

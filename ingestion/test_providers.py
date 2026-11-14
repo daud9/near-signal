@@ -1,6 +1,5 @@
 import unittest
 
-from ingestion.bigquery_dry_run import build_dry_run_request
 from ingestion.providers.neardata import _block_batch
 
 
@@ -64,6 +63,23 @@ class NeardataNormalizationTests(unittest.TestCase):
         self.assertIsNone(batch.records[0].fields['dimensions']['transaction_count'])
         self.assertTrue(batch.warnings)
 
+    def test_duplicate_returned_shard_withholds_all_transaction_rows_and_count(self):
+        payload = self.make_payload()
+        payload['shards'].append(dict(payload['shards'][0]))
+        batch = self.batch(payload)
+        self.assertEqual(batch.completeness, 'partial_block_only')
+        self.assertEqual(len(batch.records), 1)
+        self.assertIsNone(batch.records[0].fields['dimensions']['transaction_count'])
+        self.assertTrue(any('duplicate' in warning.lower() for warning in batch.warnings))
+
+    def test_duplicate_block_reference_withholds_all_transaction_rows_and_count(self):
+        payload = self.make_payload()
+        payload['block']['chunks'].append(dict(payload['block']['chunks'][0]))
+        batch = self.batch(payload)
+        self.assertEqual(batch.completeness, 'partial_block_only')
+        self.assertEqual(len(batch.records), 1)
+        self.assertIsNone(batch.records[0].fields['dimensions']['transaction_count'])
+        self.assertTrue(any('duplicate' in warning.lower() for warning in batch.warnings))
     def test_verified_empty_block_is_zero_for_that_block_not_history(self):
         batch = self.batch(self.make_payload(transactions=False))
         self.assertEqual(batch.records[0].fields['dimensions']['transaction_count'], 0)
@@ -86,30 +102,6 @@ class NeardataNormalizationTests(unittest.TestCase):
         self.assertEqual(batch.completeness, 'complete_for_returned_block_chunks')
         self.assertEqual(batch.records[0].fields['dimensions']['transaction_count'], 1)
         self.assertNotIn('old-tx', [record.fields.get('transaction_hash') for record in batch.records])
-
-
-class BigQueryDryRunTests(unittest.TestCase):
-    def test_dry_run_only_request_is_parameterized_and_never_executes(self):
-        url, request = build_dry_run_request(
-            'SELECT @start_date, @end_date, @contract_account_id',
-            start_date='2026-01-01', end_date='2026-01-03',
-            contract_account_id='sample.near', project_id='near-signal-test1',
-        )
-        self.assertIn('/projects/near-signal-test1/jobs', url)
-        self.assertIs(request['configuration']['dryRun'], True)
-        self.assertIs(request['configuration']['query']['useLegacySql'], False)
-        params = request['configuration']['query']['queryParameters']
-        self.assertEqual([item['name'] for item in params], ['start_date', 'end_date', 'contract_account_id'])
-        self.assertEqual([item['parameterType']['type'] for item in params], ['DATE', 'DATE', 'STRING'])
-        self.assertNotIn('destinationTable', request['configuration']['query'])
-
-    def test_project_and_range_must_be_explicit_and_valid(self):
-        with self.assertRaisesRegex(ValueError, 'project ID'):
-            build_dry_run_request('SELECT 1', start_date='2026-01-01', end_date='2026-01-02',
-                                  contract_account_id='a.near', project_id='')
-        with self.assertRaisesRegex(ValueError, 'earlier'):
-            build_dry_run_request('SELECT 1', start_date='2026-01-02', end_date='2026-01-01',
-                                  contract_account_id='a.near', project_id='near-signal-test1')
 
 
 if __name__ == '__main__':

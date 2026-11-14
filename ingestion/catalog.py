@@ -66,16 +66,6 @@ SOURCE_CATALOG = {
         'historical_coverage': 'Cursor pagination documents older/newer directions and timestamp filters; only historical 1Click swaps, no documented earliest floor/retention/completeness guarantee.',
         'notes': 'Unauthenticated endpoint returned HTTP 400 with an empty body. This demonstrates endpoint reachability but not authenticated data access; partner JWT is unavailable.',
     },
-    'bigquery-near-mainnet': {
-        'source_id': 'bigquery-near-mainnet', 'provider': 'Google BigQuery public NEAR dataset',
-        'endpoint': 'https://bigquery.googleapis.com/bigquery/v2',
-        'docs_url': 'https://docs.near.org/data-infrastructure/big-query',
-        'terms_url': 'https://cloud.google.com/bigquery/pricing', 'auth_mode': 'google_oauth_adc_plus_execution_project',
-        'access_status': 'reachable_requires_authenticated_project', 'enabled': False,
-        'rate_limit_note': 'Google documents API quotas separately from query-processing free tier; no query job or dry run was submitted.',
-        'historical_coverage': 'NEAR public dataset schema (16 objects) was previously inspected; no query or data result establishes table floor, freshness or completeness.',
-        'notes': 'Unauthenticated metadata GET returned HTTP 401. A different identity/project can work only with OAuth, selected project, required IAM/API access and organization policy. No project/ADC configured here. Adapter supports dry-run only.',
-    },
 }
 
 

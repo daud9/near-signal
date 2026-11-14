@@ -17,10 +17,9 @@ import {
   fetchRpcStatus,
   fetchTvlHistory,
   fetchValidatorSet,
-  statusFromMissingSource,
 } from '../src/data.js';
 import { replayChartInputs, replayRpcObservations } from '../src/replay.js';
-import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from '../src/query-registry.js';
+import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from '../src/query-registry.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,7 +53,7 @@ export async function rebuildSnapshot() {
     'defillama-price': llamaPrice,
     'defillama-tvl': tvl,
   };
-  const sourceStatuses = DATA_SOURCES.map((source) => resultBySource[source.id]?.status ?? statusFromMissingSource(source));
+  const sourceStatuses = DATA_SOURCES.map((source) => resultBySource[source.id]?.status ?? failedResult(source.id, 'No source result was recorded.'));
   const generatedAt = new Date().toISOString();
   const daily = alignMarketAndTvl(tvl.value?.rows ?? [], marketChart.value ?? {}, generatedAt.slice(0, 10));
   let previousObservations = [];
@@ -110,7 +109,6 @@ export async function rebuildSnapshot() {
     },
     chartQueryRecipes: CHART_QUERY_RECIPES,
     thesisTestRecipe: THESIS_TEST_RECIPE,
-    unexecutedBigQuery: { dataset: BIGQUERY_DATASET, sql: BIGQUERY_ACTIVITY_QUERY, status: 'Not connected; no query was submitted.' },
     matchedWindows,
     selectedDescriptiveTest: {
       claimLabel: 'NEAR price and TVL daily changes move in the same direction',
@@ -130,7 +128,7 @@ export async function rebuildSnapshot() {
     },
     limitations: [
       'The transaction count covers one finalized block sample. It is not a daily series, unique-user count, retention measure or adoption trend.',
-      'Daily account cohorts, verified people and returning-user retention remain unavailable because no permitted account-history source is connected.',
+      'Daily account cohorts, historical transaction/contract trends, verified people and returning-user retention are unavailable; no such metrics are inferred from a block sample.',
       'No canonical, deduplicated bridge or NEAR Intents net-flow history is connected.',
       'The validator summary covers the RPC-reported current active set, not all stakers or historical validator performance.',
       'One public RPC node status and browser-local observations do not establish network-wide uptime or security.',
@@ -153,7 +151,7 @@ const isDirectRun = process.argv[1] && pathToFileURL(resolve(process.argv[1])).h
 if (isDirectRun) {
   rebuildSnapshot().then(({ snapshot, output, successful, unavailable, results }) => {
     console.log(`Wrote ${output}`);
-    console.log(`Observed ${successful}/${snapshot.sourceStatuses.length} sources successfully; ${unavailable} failed; disconnected candidates are listed separately.`);
+    console.log(`Observed ${successful}/${snapshot.sourceStatuses.length} connected feeds successfully; ${unavailable} failed.`);
     console.log(`Finalized block: ${results.block.value?.height ?? 'unavailable'}; complete block transaction count: ${results.blockTransactions.value?.transactionCount ?? 'unavailable'}; current validators: ${results.validators.value?.validatorCount ?? 'unavailable'}; matched market/TVL dates: ${snapshot.dailyAlignedMarketAndTvl.length}; full 30-day TVL window: ${snapshot.matchedWindows[30].tvlUsd ? 'available' : 'unavailable'}.`);
   }).catch((error) => {
     console.error(`Snapshot rebuild failed: ${error?.message || 'unexpected error'}`);

@@ -91,13 +91,29 @@ def _summaries(payload: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
     block_time = utc_timestamp(header.get('timestamp_nanosec') or header.get('timestamp'))
     if height is None or not isinstance(block_hash, str) or not block_hash or not block_time:
         raise ProviderError(SOURCE_ID, 'Neardata returned a block without valid height, hash, or timestamp')
-    by_shard = {shard.get('shard_id'): shard for shard in shards if isinstance(shard, dict) and shard.get('shard_id') is not None}
-    tx_rows: list[tuple[int, dict[str, Any]]] = []
-    compact_chunks: list[dict[str, Any]] = []
     complete = True
     warnings: list[str] = []
+    by_shard: dict[int, dict[str, Any]] = {}
+    for shard in shards:
+        if not isinstance(shard, dict):
+            complete = False
+            warnings.append('Returned shard entry is malformed; full-block transaction count withheld.')
+            continue
+        returned_shard_id = _positive_int(shard.get('shard_id'))
+        if returned_shard_id is None:
+            complete = False
+            warnings.append('Returned shard has no valid shard identifier; full-block transaction count withheld.')
+            continue
+        if returned_shard_id in by_shard:
+            complete = False
+            warnings.append(f'Duplicate returned shard identifier {returned_shard_id}; full-block transaction count withheld.')
+            continue
+        by_shard[returned_shard_id] = shard
+    tx_rows: list[tuple[int, dict[str, Any]]] = []
+    compact_chunks: list[dict[str, Any]] = []
     gas_used_parts: list[int] = []
     gas_limit_parts: list[int] = []
+    seen_ref_shards: set[int] = set()
 
     for ref in block['chunks']:
         if not isinstance(ref, dict):
@@ -107,7 +123,13 @@ def _summaries(payload: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
         shard_id = _positive_int(ref.get('shard_id'))
         height_included = _positive_int(ref.get('height_included'))
         chunk_hash = ref.get('chunk_hash')
-        shard = by_shard.get(ref.get('shard_id'))
+        if shard_id is not None and shard_id in seen_ref_shards:
+            complete = False
+            warnings.append(f'Duplicate block shard reference {shard_id}; full-block transaction count withheld.')
+            continue
+        if shard_id is not None:
+            seen_ref_shards.add(shard_id)
+        shard = by_shard.get(shard_id)
         chunk = shard.get('chunk') if isinstance(shard, dict) else None
         chunk_header = chunk.get('header') if isinstance(chunk, dict) else None
         transactions = chunk.get('transactions') if isinstance(chunk, dict) else None
@@ -182,8 +204,6 @@ def _summaries(payload: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
     if not block['chunks']:
         complete = False
         warnings.append('Block response included no shard chunk references; transaction completeness is unknown.')
-    if len(by_shard) != len(shards):
-        warnings.append('Some returned shard identifiers were not usable; transaction completeness is not asserted.')
     return header, compact_chunks, tx_rows, complete, list(dict.fromkeys(warnings))
 
 

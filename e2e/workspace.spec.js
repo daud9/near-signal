@@ -5,9 +5,9 @@ const routes = ['overview', 'thesis-challenge', 'risk-radar', 'value-capture', '
 test('desktop workspace tools use live sources and all navigation/actions work end to end', async ({ page }) => {
   const errors = [], forbiddenRequests = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('request', (request) => { if (/bigquery\.googleapis|explorer\.near-intents\.org\/api/.test(request.url())) forbiddenRequests.push(request.url()); });
+  page.on('request', (request) => { if (/explorer\.near-intents\.org\/api/.test(request.url())) forbiddenRequests.push(request.url()); });
   await page.goto('/');
-  await expect(page.locator('#finalizedBlock')).not.toHaveText('—');
+  await expect(page.locator('#finalizedBlock')).toHaveText(/^\d+(?:\.\d+)?[KMB]?$/);
   await expect(page.locator('#overviewChart svg')).toBeVisible();
   for (const route of routes) {
     await page.locator(`.nav a[href="#${route}"]`).click();
@@ -15,7 +15,7 @@ test('desktop workspace tools use live sources and all navigation/actions work e
     await expect(page.locator('main > section.block:visible')).toHaveCount(1);
     await expect(page.locator(`.nav a[href="#${route}"]`)).toHaveAttribute('aria-current', 'page');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (route === 'adoption') await expect(page.locator('#blockTxAsOf')).toContainText(/new chunks|Waiting for|Retrying/);
+    if (route === 'adoption') await expect(page.locator('#blockTxAsOf')).toContainText(/new chunks|Waiting for|Unavailable|failed/);
   }
   await page.locator('.nav a[href="#overview"]').click();
   await page.locator('#windowSelect').selectOption('7');
@@ -39,11 +39,7 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   await expect(page.locator('#accountInspectorStatus')).toHaveText('Finalized account state');
   await expect(page.locator('#accountInspectorResult')).toContainText('intents.near');
   await expect(page.locator('#accountInspectorResult')).toContainText('Yes');
-  await page.locator('#sqlStartDate').fill('2026-11-01'); await page.locator('#sqlEndDate').fill('2026-11-07');
-  await page.getByRole('button', { name: 'Generate SQL', exact: true }).click();
-  await expect(page.locator('#generatedSqlCode')).toContainText("DATE '2026-11-01'");
-  const sqlDownload = page.waitForEvent('download'); await page.locator('#downloadSqlButton').click();
-  expect(await readFile(await (await sqlDownload).path(), 'utf8')).toContain('block_date >= start_date AND block_date < end_date');
+  await expect(page.locator('#sqlBuilderForm')).toHaveCount(0);
 
   await page.locator('.nav a[href="#risk-radar"]').click();
   await expect(page.locator('#riskGrid')).toContainText('FastNEAR Neardata');
@@ -86,6 +82,35 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   expect(evidence.onDemandAccountInspection.accountId).toBe('intents.near');
   expect(evidence.replayedChartInputs.capitalChart).toHaveLength(8);
   expect(forbiddenRequests).toEqual([]); expect(errors).toEqual([]);
+});
+
+test('historical TVL beyond its freshness threshold is visibly marked stale', async ({ page }) => {
+  const midnightUtc = new Date();
+  midnightUtc.setUTCHours(0, 0, 0, 0);
+  const rows = [];
+  for (let ageDays = 35; ageDays >= 5; ageDays -= 1) {
+    rows.push({ date: Math.floor((midnightUtc.getTime() - ageDays * 86_400_000) / 1000), tvl: 100_000_000 + ageDays * 1000 });
+  }
+  await page.route('https://api.llama.fi/v2/historicalChainTvl/near', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) }));
+  await page.goto('/#capital-flows');
+  await expect(page.locator('#capitalStatus')).toHaveText('Stale TVL snapshot');
+  await expect(page.locator('#capitalStatus')).toHaveClass(/warn/);
+  await expect(page.locator('#capitalLastChecked')).toContainText('provider observation is stale');
+});
+
+test('failed public feeds show unavailable values and explain the failed reads', async ({ page }) => {
+  const fail = (route) => route.fulfill({ status: 503, contentType: 'text/plain', body: 'provider unavailable' });
+  await page.route(/^https:\/\/free\.rpc\.fastnear\.com\/?$/, fail);
+  await page.route('https://api.coingecko.com/**', fail);
+  await page.route('https://coins.llama.fi/**', fail);
+  await page.route('https://api.llama.fi/**', fail);
+  await page.goto('/#overview');
+  await expect(page.locator('#finalizedBlock')).toHaveText('Unavailable');
+  await expect(page.locator('#finalizedBlockFoot')).toContainText('Latest RPC read failed');
+  await expect(page.locator('#marketPrice')).toHaveText('Unavailable');
+  await expect(page.locator('#marketPriceFoot')).toContainText('read failed');
+  await expect(page.locator('#marketChange')).toHaveText('Unavailable');
+  await expect(page.locator('#feedStatus')).toContainText('source checks failed');
 });
 
 test('mobile side menu opens, routes, closes and does not overflow', async ({ page }) => {
