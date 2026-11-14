@@ -1,4 +1,4 @@
-import { summarizeBlock, summarizeNeardataBlockTransactions, summarizeValidators } from './analytics.js';
+import { summarizeBlock, summarizeNeardataBlockTransactions, summarizeValidators, toUtcDate } from './analytics.js';
 
 const RPC_URL = 'https://free.rpc.fastnear.com';
 const NEARDATA_BASE_URL = 'https://mainnet.neardata.xyz';
@@ -8,6 +8,9 @@ const LLAMA_TVL_URL = 'https://api.llama.fi/v2/historicalChainTvl/near';
 const LLAMA_PROTOCOLS_URL = 'https://api.llama.fi/protocols';
 const LLAMA_PROTOCOL_BASE = 'https://api.llama.fi/protocol';
 const LLAMA_STABLECOINS_URL = 'https://stablecoins.llama.fi/stablecoins?includePrices=true';
+const LLAMA_DEX_OVERVIEW_URL = 'https://api.llama.fi/overview/dexs/Near';
+const LLAMA_FEES_OVERVIEW_URL = 'https://api.llama.fi/overview/fees/Near';
+const GECKOTERMINAL_POOLS_URL = 'https://api.geckoterminal.com/api/v2/networks/near/pools?page=1';
 function finiteNumber(value) {
   if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
   const parsed = Number(value);
@@ -106,16 +109,44 @@ export const DATA_SOURCES = [
     cadence: 'Fetched on load and then every 30 minutes; browser check time is shown because the response does not expose a price timestamp.',
     caveat: 'A market quote does not prove redemption or reserves. Chain circulation is aggregator coverage and not a protocol-liability measure.', connected: true, staleAfterSeconds: 7200,
   },
+  {
+    id: 'defillama-near-dex-volume', name: 'DefiLlama — NEAR DEX volume history',
+    url: LLAMA_DEX_OVERVIEW_URL, docUrl: 'https://api-docs.defillama.com/',
+    kind: 'Indexed daily USD activity history', fields: 'dated chain DEX volume and daily protocol breakdown when returned',
+    cadence: 'Fetched on load and then every 30 minutes; current partial UTC date is excluded from daily windows.',
+    caveat: 'DEX notional volume can include arbitrage and routing. It is activity, not pool depth, deposits, net inflow or investment.', connected: true, staleAfterSeconds: 172800,
+  },
+  {
+    id: 'defillama-near-fees', name: 'DefiLlama — NEAR indexed chain-fee history',
+    url: LLAMA_FEES_OVERVIEW_URL, docUrl: 'https://api-docs.defillama.com/',
+    kind: 'Provider-indexed daily USD fee series', fields: 'dated chain fee observations from the DefiLlama fees dashboard',
+    cadence: 'Fetched on load and then every 30 minutes; only consecutive dated observations are aggregated.',
+    caveat: 'Provider coverage and methodology; not a reconciled transaction/receipt fee ledger, realized revenue, validator income or APY.', connected: true, staleAfterSeconds: 172800,
+  },
+  {
+    id: 'geckoterminal-near-pools', name: 'GeckoTerminal — NEAR top-pool page 1 snapshot',
+    url: GECKOTERMINAL_POOLS_URL, docUrl: 'https://api.geckoterminal.com/docs/index.html',
+    kind: 'Public rolling pool-market snapshot', fields: 'up to 20 returned pool reserves, rolling volumes, transaction counts and price changes',
+    cadence: 'Fetched on load and then every five minutes; provider cache is one minute.',
+    caveat: 'Beta API with an approximate 10-call/minute public limit. Page 1 is bounded coverage, not all pools; pool reserves are not chain-wide TVL.', connected: true, staleAfterSeconds: 360,
+  },
+  {
+    id: 'near-rpc-protocol-config', name: 'FastNEAR public mainnet RPC — block-specific protocol configuration',
+    url: RPC_URL, docUrl: 'https://docs.near.org/api/rpc/protocol',
+    kind: 'Read-only JSON-RPC', fields: 'protocol version and runtime burnt_gas_reward rule queried by observed block height',
+    cadence: 'Fetched on load and on protocol-version change; otherwise rechecked every 30 minutes.',
+    caveat: 'A fee rule is not a realized burn ledger. Block gas × gas price remains an execution-value proxy, not exact user-paid fees or revenue.', connected: true, staleAfterSeconds: 3600,
+  },
 ];
 
-async function getJson(url, { method = 'GET', body, timeoutMs = 20_000 } = {}) {
+async function getJson(url, { method = 'GET', body, timeoutMs = 20_000, headers = {} } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = performance.now();
   try {
     const response = await fetch(url, {
       method,
-      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers },
       body: body ? JSON.stringify(body) : undefined,
       mode: 'cors',
       cache: 'no-store',
@@ -166,6 +197,35 @@ export async function fetchFinalizedBlock() {
     return { ...value, fetchedAt: checkedAt, finality: 'final', raw: data.result };
   });
   if (result.value) result.status.providerAt = result.value.timestamp;
+  return result;
+}
+
+export async function fetchProtocolConfig(block) {
+  const result = await sourceCall('near-rpc-protocol-config', () => {
+    if (!Number.isSafeInteger(block?.height) || block.height < 0 || block.protocolVersion === null || block.protocolVersion === undefined || !Number.isSafeInteger(Number(block.protocolVersion))) {
+      throw new Error('A finalized block with a reported protocol version is required');
+    }
+    return rpcRequest('EXPERIMENTAL_protocol_config', { block_id: block.height });
+  }, (data, checkedAt) => {
+    const config = data?.result;
+    const protocolVersion = finiteNumber(config?.protocol_version);
+    if (!Number.isSafeInteger(protocolVersion) || protocolVersion !== Number(block.protocolVersion)) {
+      throw new Error('Protocol-config version did not match the observed finalized block');
+    }
+    const ratio = config?.runtime_config?.transaction_costs?.burnt_gas_reward;
+    const numerator = Array.isArray(ratio) ? finiteNumber(ratio[0]) : null;
+    const denominator = Array.isArray(ratio) ? finiteNumber(ratio[1]) : null;
+    const validRatio = Number.isSafeInteger(numerator) && Number.isSafeInteger(denominator)
+      && numerator >= 0 && denominator > 0 && numerator <= denominator;
+    return {
+      blockHeight: block.height, blockHash: block.hash ?? null, protocolVersion,
+      burntGasReward: validRatio ? { numerator, denominator, contractRebatePct: numerator / denominator * 100, eligibleGasBurnPct: (denominator - numerator) / denominator * 100 } : null,
+      gasLimit: finiteNumber(config?.gas_limit),
+      minGasPriceYocto: /^\d+$/.test(String(config?.min_gas_price ?? '')) ? String(config.min_gas_price) : null,
+      fetchedAt: checkedAt,
+    };
+  });
+  if (result.value) result.status.providerAt = block.timestamp ?? null;
   return result;
 }
 
@@ -264,6 +324,69 @@ export async function fetchTvlHistory() {
   return result;
 }
 
+function parseOverviewChart(points, label) {
+  const rows = (Array.isArray(points) ? points : []).map((point) => ({
+    date: Array.isArray(point) ? toUtcDate(point[0], 's') : null,
+    timestamp: Array.isArray(point) ? finiteNumber(point[0]) : null,
+    valueUsd: Array.isArray(point) ? finiteNumber(point[1]) : null,
+  })).filter((row) => row.date && row.timestamp !== null && row.timestamp > 0 && row.valueUsd !== null && row.valueUsd >= 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.timestamp - b.timestamp);
+  if (rows.length < 2) throw new Error(`DefiLlama returned fewer than two valid dated ${label} points`);
+  return rows;
+}
+
+export async function fetchNearDexVolumeHistory() {
+  const result = await sourceCall('defillama-near-dex-volume', () => getJson(LLAMA_DEX_OVERVIEW_URL), (data, fetchedAt) => {
+    const rows = parseOverviewChart(data?.totalDataChart, 'NEAR DEX volume');
+    const latestFullDay = rows.filter((row) => row.date < new Date().toISOString().slice(0, 10)).at(-1) ?? null;
+    const breakdownRow = (Array.isArray(data?.totalDataChartBreakdown) ? data.totalDataChartBreakdown : [])
+      .filter((point) => Array.isArray(point) && toUtcDate(point[0], 's') === latestFullDay?.date).at(-1);
+    const latestFullDayBreakdown = breakdownRow?.[1] && typeof breakdownRow[1] === 'object' && !Array.isArray(breakdownRow[1])
+      ? Object.entries(breakdownRow[1]).map(([protocol, valueUsd]) => ({ protocol, valueUsd: finiteNumber(valueUsd) }))
+        .filter((item) => item.protocol && item.valueUsd !== null && item.valueUsd >= 0).sort((a, b) => b.valueUsd - a.valueUsd)
+      : [];
+    return { rows, latestFullDay: latestFullDay?.date ?? null, latestFullDayBreakdown, total24hUsd: finiteNumber(data?.total24h), fetchedAt };
+  });
+  const timestamps = result.value?.rows?.map((row) => row.timestamp) ?? [];
+  if (timestamps.length) result.status.providerAt = parseProviderTimestamp(Math.max(...timestamps));
+  return result;
+}
+
+export async function fetchNearFeesHistory() {
+  const result = await sourceCall('defillama-near-fees', () => getJson(LLAMA_FEES_OVERVIEW_URL), (data, fetchedAt) => ({
+    rows: parseOverviewChart(data?.totalDataChart, 'NEAR indexed fee'), fetchedAt,
+  }));
+  const timestamps = result.value?.rows?.map((row) => row.timestamp) ?? [];
+  if (timestamps.length) result.status.providerAt = parseProviderTimestamp(Math.max(...timestamps));
+  return result;
+}
+
+export async function fetchNearPoolSnapshot() {
+  const result = await sourceCall('geckoterminal-near-pools', () => getJson(GECKOTERMINAL_POOLS_URL, {
+    headers: { Accept: 'application/json;version=20230203' },
+  }), (data, fetchedAt) => {
+    if (!Array.isArray(data?.data) || !data.data.length) throw new Error('GeckoTerminal returned no NEAR pool records on page 1');
+    const pools = data.data.map((item) => {
+      const attributes = item?.attributes ?? {};
+      const transactions = attributes.transactions?.h24 ?? {};
+      return {
+        id: String(item?.id ?? ''), address: String(attributes.address ?? ''), name: String(attributes.name ?? ''),
+        dexId: String(item?.relationships?.dex?.data?.id ?? ''), createdAt: parseProviderTimestamp(attributes.pool_created_at),
+        reserveUsd: finiteNumber(attributes.reserve_in_usd), volume24hUsd: finiteNumber(attributes.volume_usd?.h24),
+        priceChange24hPct: finiteNumber(attributes.price_change_percentage?.h24),
+        buys24h: finiteNumber(transactions.buys), sells24h: finiteNumber(transactions.sells),
+        buyerAccounts24h: finiteNumber(transactions.buyers), sellerAccounts24h: finiteNumber(transactions.sellers),
+        baseTokenPriceUsd: finiteNumber(attributes.base_token_price_usd), quoteTokenPriceUsd: finiteNumber(attributes.quote_token_price_usd),
+      };
+    }).filter((pool) => pool.id && pool.address && pool.name)
+      .sort((a, b) => (b.reserveUsd ?? -1) - (a.reserveUsd ?? -1) || a.name.localeCompare(b.name));
+    if (!pools.length) throw new Error('GeckoTerminal pool page had no complete address/name records');
+    return { pools, page: 1, returnedCount: pools.length, fetchedAt };
+  });
+  if (result.value) result.status.providerAt = result.value.fetchedAt;
+  return result;
+}
+
 export async function fetchNearProtocolTvls() {
   const sourceId = 'defillama-near-protocol-tvls';
   const checkedAt = new Date().toISOString();
@@ -271,12 +394,13 @@ export async function fetchNearProtocolTvls() {
   try {
     const index = await getJson(LLAMA_PROTOCOLS_URL);
     if (!Array.isArray(index.data)) throw new Error('DefiLlama protocol index was not an array');
-    const candidates = index.data
+    const indexProtocols = index.data
       .filter((item) => typeof item?.slug === 'string' && item.slug && item.category !== 'CEX'
         && Array.isArray(item.chains) && item.chains.some((chain) => String(chain).toLowerCase() === 'near')
         && finiteNumber(item.chainTvls?.Near) >= 100_000)
       .sort((a, b) => finiteNumber(b.chainTvls?.Near) - finiteNumber(a.chainTvls?.Near))
-      .slice(0, 8);
+      .map((item) => ({ slug: item.slug, name: String(item.name || item.slug), category: String(item.category || 'Unclassified'), nearTvlUsd: finiteNumber(item.chainTvls?.Near) }));
+    const candidates = indexProtocols.slice(0, 8);
     if (!candidates.length) throw new Error('No material non-CEX NEAR protocol rows were returned');
 
     const settled = await Promise.allSettled(candidates.map(async (item) => {
@@ -303,7 +427,7 @@ export async function fetchNearProtocolTvls() {
     const latest = Math.max(...protocols.flatMap((item) => item.points.map((point) => point.date)));
     const latencyMs = Math.round(performance.now() - started);
     return {
-      value: { protocols, fetchedAt: checkedAt, requestedCount: candidates.length, returnedCount: protocols.length },
+      value: { protocols, indexProtocols, fetchedAt: checkedAt, requestedCount: candidates.length, returnedCount: protocols.length, indexCount: indexProtocols.length },
       status: {
         sourceId, ok: true, partial: failedCount > 0, checkedAt, providerAt: new Date(latest * 1000).toISOString(), latencyMs,
         detail: failedCount ? `${protocols.length}/${candidates.length} selected histories returned; ${failedCount} history request(s) failed.` : '',

@@ -100,6 +100,16 @@ export function summarizeBlock(block, nowMs = Date.now()) {
     gasPriceNearPerTgas: gasPrice * 1e12 / YOCTO_PER_NEAR,
     gasFeeYocto: feeYocto.toString(),
     estimatedGasFeeNear: Number(feeYocto) / YOCTO_PER_NEAR,
+    chunkGas: block.chunks.map((chunk, index) => {
+      const chunkFeeYocto = gasUsedParts[index] * gasPriceRaw;
+      const gasUsedValue = Number(gasUsedParts[index]), gasLimitValue = Number(gasLimitParts[index]);
+      return {
+        shardId: numeric(chunk?.shard_id), gasUsed: gasUsedValue, gasLimit: gasLimitValue,
+        gasUsedTgas: gasUsedValue / 1e12,
+        gasUtilizationPct: gasLimitValue > 0 ? gasUsedValue / gasLimitValue * 100 : null,
+        gasFeeYocto: chunkFeeYocto.toString(), gasFeeNear: Number(chunkFeeYocto) / YOCTO_PER_NEAR,
+      };
+    }),
   };
 }
 
@@ -218,12 +228,13 @@ export function summarizeNeardataBlockTransactions(requestedBlock, payload) {
 export function summarizeValidators(validatorResult) {
   const validators = validatorResult?.current_validators;
   if (!Array.isArray(validators) || validators.length === 0) return null;
-  let totalStake = 0n;
+  const counter = (value) => {
+    const parsed = numeric(value);
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+  };
+  const ratePct = (produced, expected) => produced !== null && expected !== null && expected > 0 ? produced / expected * 100 : null;
+  let totalStake = 0n, slashedValidatorCount = 0;
   const rows = [];
-  let producedBlocks = 0;
-  let expectedBlocks = 0;
-  let allProductionCountersValid = true;
-  let slashedValidatorCount = 0;
   for (const validator of validators) {
     if (typeof validator?.account_id !== 'string' || !validator.account_id || validator.stake === null || validator.stake === undefined || validator.stake === '') return null;
     let stake;
@@ -234,15 +245,61 @@ export function summarizeValidators(validatorResult) {
     } catch { return null; }
     if (stake < 0n) return null;
     totalStake += stake;
-    rows.push({ accountId: validator.account_id, stake });
     if (validator.is_slashed === true) slashedValidatorCount += 1;
-    const produced = numeric(validator.num_produced_blocks), expected = numeric(validator.num_expected_blocks);
-    if (produced === null || expected === null || !Number.isSafeInteger(produced) || !Number.isSafeInteger(expected) || produced < 0 || expected < 0) allProductionCountersValid = false;
-    else { producedBlocks += produced; expectedBlocks += expected; }
+    rows.push({
+      accountId: validator.account_id, stake,
+      producedBlocks: counter(validator.num_produced_blocks), expectedBlocks: counter(validator.num_expected_blocks),
+      producedChunks: counter(validator.num_produced_chunks), expectedChunks: counter(validator.num_expected_chunks),
+      producedEndorsements: counter(validator.num_produced_endorsements), expectedEndorsements: counter(validator.num_expected_endorsements),
+      isSlashed: validator.is_slashed === true,
+    });
   }
   if (!rows.length || totalStake === 0n) return null;
   const ratioScale = 1_000_000_000_000n;
-  const shares = rows.map((row) => Number(row.stake * ratioScale / totalStake) / Number(ratioScale)).sort((a, b) => b - a);
+  const weightedRows = rows.map((row) => ({ ...row, share: Number(row.stake * ratioScale / totalStake) / Number(ratioScale) }));
+  const shares = weightedRows.map((row) => row.share).sort((a, b) => b - a);
+  const currentValidators = weightedRows.map((row) => ({
+    accountId: row.accountId, stakeYocto: row.stake.toString(), stakeNear: Number(row.stake) / YOCTO_PER_NEAR,
+    stakeSharePct: row.share * 100,
+    producedBlocks: row.producedBlocks, expectedBlocks: row.expectedBlocks,
+    blockProductionPct: ratePct(row.producedBlocks, row.expectedBlocks),
+    producedChunks: row.producedChunks, expectedChunks: row.expectedChunks,
+    chunkProductionPct: ratePct(row.producedChunks, row.expectedChunks),
+    producedEndorsements: row.producedEndorsements, expectedEndorsements: row.expectedEndorsements,
+    endorsementProductionPct: ratePct(row.producedEndorsements, row.expectedEndorsements), isSlashed: row.isSlashed,
+  })).sort((a, b) => b.stakeNear - a.stakeNear || a.accountId.localeCompare(b.accountId));
+  const aggregate = (producedKey, expectedKey) => {
+    if (weightedRows.some((row) => row[producedKey] === null || row[expectedKey] === null)) return { produced: null, expected: null, productionPct: null };
+    const produced = weightedRows.reduce((sum, row) => sum + row[producedKey], 0);
+    const expected = weightedRows.reduce((sum, row) => sum + row[expectedKey], 0);
+    return { produced, expected, productionPct: expected > 0 ? produced / expected * 100 : null };
+  };
+  const blockCounters = aggregate('producedBlocks', 'expectedBlocks');
+  const chunkCounters = aggregate('producedChunks', 'expectedChunks');
+  const endorsementCounters = aggregate('producedEndorsements', 'expectedEndorsements');
+  const nextValidators = (Array.isArray(validatorResult.next_validators) ? validatorResult.next_validators : [])
+    .filter((validator) => typeof validator?.account_id === 'string' && validator.account_id)
+    .map((validator) => {
+      const stakeRaw = validator.stake;
+      let stakeYocto = null;
+      if (typeof stakeRaw === 'string' && /^\d+$/.test(stakeRaw)) stakeYocto = stakeRaw;
+      else if (typeof stakeRaw === 'number' && Number.isSafeInteger(stakeRaw) && stakeRaw >= 0) stakeYocto = String(stakeRaw);
+      return { accountId: validator.account_id, stakeYocto, stakeNear: stakeYocto === null ? null : Number(BigInt(stakeYocto)) / YOCTO_PER_NEAR, shardCount: Array.isArray(validator.shards) ? validator.shards.length : null };
+    }).sort((a, b) => (b.stakeNear ?? -1) - (a.stakeNear ?? -1) || a.accountId.localeCompare(b.accountId));
+  const currentIds = new Set(currentValidators.map((validator) => validator.accountId));
+  const nextIds = new Set(nextValidators.map((validator) => validator.accountId));
+  const nextSetAddedAccountIds = nextValidators.filter((validator) => !currentIds.has(validator.accountId)).map(({ accountId }) => accountId);
+  const nextSetRemovedAccountIds = currentValidators.filter((validator) => !nextIds.has(validator.accountId)).map(({ accountId }) => accountId);
+  let validatorRewardPaidPrevEpochYocto = null, validatorRewardRecipientCount = null;
+  const rewardMap = validatorResult.validator_reward_paid_prev_epoch;
+  if (rewardMap && typeof rewardMap === 'object' && !Array.isArray(rewardMap)) {
+    let total = 0n, valid = true, count = 0;
+    for (const value of Object.values(rewardMap)) {
+      if (typeof value !== 'string' || !/^\d+$/.test(value)) { valid = false; break; }
+      total += BigInt(value); count += 1;
+    }
+    if (valid) { validatorRewardPaidPrevEpochYocto = total.toString(); validatorRewardRecipientCount = count; }
+  }
   const prevEpochKickouts = Array.isArray(validatorResult.prev_epoch_kickout)
     ? validatorResult.prev_epoch_kickout.filter((item) => typeof item?.account_id === 'string' && item.account_id).map((item) => {
       const reasonValue = item.reason;
@@ -251,26 +308,30 @@ export function summarizeValidators(validatorResult) {
       return {
         accountId: item.account_id,
         reason: reasonEntry?.[0] ?? (typeof reasonValue === 'string' ? reasonValue : 'Unspecified kickout reason'),
-        expected: numeric(reasonDetail.expected),
-        produced: numeric(reasonDetail.produced),
+        expected: numeric(reasonDetail.expected), produced: numeric(reasonDetail.produced),
       };
-    })
-    : [];
+    }) : [];
   return {
-    epochHeight: numeric(validatorResult.epoch_height),
-    epochStartHeight: numeric(validatorResult.epoch_start_height),
-    validatorCount: rows.length,
+    epochHeight: numeric(validatorResult.epoch_height), epochStartHeight: numeric(validatorResult.epoch_start_height),
+    validatorCount: currentValidators.length,
     nextValidatorCount: Array.isArray(validatorResult.next_validators) ? validatorResult.next_validators.length : null,
+    currentValidators, nextValidators,
+    nextSetContinuedCount: [...currentIds].filter((accountId) => nextIds.has(accountId)).length,
+    nextSetAddedCount: nextSetAddedAccountIds.length, nextSetRemovedCount: nextSetRemovedAccountIds.length,
+    nextSetAddedAccountIds, nextSetRemovedAccountIds,
+    proposalCount: Array.isArray(validatorResult.current_proposals) ? validatorResult.current_proposals.length : null,
+    currentFishermenCount: Array.isArray(validatorResult.current_fishermen) ? validatorResult.current_fishermen.length : null,
     totalStakeNear: Number(totalStake) / YOCTO_PER_NEAR,
     top1SharePct: shares.length ? shares[0] * 100 : null,
     top10SharePct: shares.length ? shares.slice(0, 10).reduce((sum, value) => sum + value, 0) * 100 : null,
     hhi: shares.reduce((sum, share) => sum + share ** 2 * 10_000, 0),
-    producedBlocks: allProductionCountersValid ? producedBlocks : null,
-    expectedBlocks: allProductionCountersValid ? expectedBlocks : null,
-    blockProductionPct: allProductionCountersValid && expectedBlocks > 0 ? producedBlocks / expectedBlocks * 100 : null,
-    prevEpochKickouts,
-    slashedValidatorCount,
-    asOf: new Date().toISOString(),
+    producedBlocks: blockCounters.produced, expectedBlocks: blockCounters.expected, blockProductionPct: blockCounters.productionPct,
+    producedChunks: chunkCounters.produced, expectedChunks: chunkCounters.expected, chunkProductionPct: chunkCounters.productionPct,
+    producedEndorsements: endorsementCounters.produced, expectedEndorsements: endorsementCounters.expected, endorsementProductionPct: endorsementCounters.productionPct,
+    validatorRewardPaidPrevEpochYocto,
+    validatorRewardPaidPrevEpochNear: validatorRewardPaidPrevEpochYocto === null ? null : Number(BigInt(validatorRewardPaidPrevEpochYocto)) / YOCTO_PER_NEAR,
+    validatorRewardRecipientCount,
+    prevEpochKickouts, slashedValidatorCount, asOf: new Date().toISOString(),
   };
 }
 
@@ -292,6 +353,25 @@ export function windowChange(rows, key, days) {
   const elapsed = (Date.parse(`${last.date}T00:00:00Z`) - Date.parse(`${first.date}T00:00:00Z`)) / 86_400_000;
   if (elapsed !== days) return null;
   return { days, startDate: first.date, endDate: last.date, startValue: Number(first[key]), endValue: Number(last[key]), changePct: (Number(last[key]) - Number(first[key])) / Math.abs(Number(first[key])) * 100 };
+}
+
+export function completeWindowSum(rows, key, days, offset = 0) {
+  if (!Array.isArray(rows) || !Number.isSafeInteger(days) || days <= 0 || !Number.isSafeInteger(offset) || offset < 0) return null;
+  const end = rows.length - offset, start = end - days;
+  if (start < 0 || end > rows.length) return null;
+  const windowRows = rows.slice(start, end);
+  if (windowRows.length !== days || !consecutiveDates(windowRows)) return null;
+  const values = windowRows.map((row) => numeric(row?.[key]));
+  if (values.some((value) => value === null || value < 0)) return null;
+  return { days, startDate: windowRows[0].date, endDate: windowRows.at(-1).date, sum: values.reduce((sum, value) => sum + value, 0) };
+}
+
+export function completeWindowSumChange(rows, key, days) {
+  if (!Array.isArray(rows) || rows.length < days * 2 || !consecutiveDates(rows.slice(-days * 2))) return null;
+  const current = completeWindowSum(rows, key, days, 0);
+  const previous = completeWindowSum(rows, key, days, days);
+  if (!current || !previous || previous.sum === 0) return null;
+  return { days, previous, current, changePct: (current.sum - previous.sum) / Math.abs(previous.sum) * 100 };
 }
 
 export function dailyChangeRows(rows, key) {

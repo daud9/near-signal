@@ -8,12 +8,16 @@ const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../src/workspace.js', import.meta.url), 'utf8');
 
 test('each dashboard chart exposes its query, rebuild rule and plain-language meaning', () => {
-  for (const chartId of ['overviewChart', 'gasChart', 'blockTxChart', 'capitalChart']) {
+  for (const chartId of ['overviewChart', 'gasChart', 'blockTxChart', 'capitalChart', 'dexVolumeChart', 'feeHistoryChart']) {
     const recipe = CHART_QUERY_RECIPES[chartId];
     assert.ok(recipe?.source && recipe?.query && recipe?.plainLanguage, `Missing recipe for ${chartId}`);
     assert.ok(html.includes(`id="${chartId}"`));
     assert.ok(app.includes('chartQueryDisclosure(container.id)'));
   }
+  assert.ok(CHART_QUERY_RECIPES.dexVolumeChart.query.includes('/overview/dexs/Near'));
+  assert.ok(CHART_QUERY_RECIPES.feeHistoryChart.query.includes('/overview/fees/Near'));
+  assert.ok(CHART_QUERY_RECIPES.capitalChart.query.includes('/v2/historicalChainTvl/near'));
+  assert.ok(!CHART_QUERY_RECIPES.capitalChart.query.includes('coingecko.com'));
   for (const label of ['Network Activity &amp; Validators', 'Liquidity &amp; TVL Context']) assert.ok(html.includes(label));
   assert.ok(!html.includes('id="methodology"'));
 });

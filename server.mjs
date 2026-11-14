@@ -47,7 +47,7 @@ async function handleStatic(request, response, url, root) {
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://free.rpc.fastnear.com https://mainnet.neardata.xyz https://*.mainnet.neardata.xyz https://api.coingecko.com https://coins.llama.fi https://api.llama.fi https://stablecoins.llama.fi; base-uri 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://free.rpc.fastnear.com https://mainnet.neardata.xyz https://*.mainnet.neardata.xyz https://api.coingecko.com https://coins.llama.fi https://api.llama.fi https://stablecoins.llama.fi https://api.geckoterminal.com; base-uri 'self'; frame-ancestors 'none'",
     });
     if (request.method === 'HEAD') response.end();
     else createReadStream(filePath).pipe(response);

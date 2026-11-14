@@ -19,9 +19,21 @@ export const CHART_QUERY_RECIPES = {
   },
   capitalChart: {
     title: 'NEAR DeFi total value locked',
-    plainLanguage: 'This is a provider-reported USD asset stock matched to a market-history date; it is not deposits, bridge flow, net investment, or retained capital.',
-    source: 'DefiLlama historical NEAR TVL and CoinGecko date matching',
-    query: 'GET https://api.llama.fi/v2/historicalChainTvl/near\nGET https://api.coingecko.com/api/v3/coins/near/market_chart?vs_currency=usd&days=32&interval=daily\n\nKeep DefiLlama rows whose UTC date also appears in CoinGecko daily prices. Exclude the current UTC date and do not fill gaps.',
+    plainLanguage: 'This is the full available dated provider-reported USD asset stock from DefiLlama, shown without requiring CoinGecko history; the current partial UTC date is excluded. It is not deposits, bridge flow, net investment, or retained capital.',
+    source: 'DefiLlama historical NEAR TVL',
+    query: 'GET https://api.llama.fi/v2/historicalChainTvl/near\n\nConvert each row date from Unix seconds to a UTC date, retain valid nonnegative TVL observations, exclude the current UTC calendar date, and keep gaps visible. Window changes require consecutive daily observations.',
+  },
+  dexVolumeChart: {
+    title: 'NEAR chain DEX volume',
+    plainLanguage: 'Each point is a DefiLlama-reported dated USD DEX-volume observation for NEAR. Turnover can include arbitrage and routed trades and is not deposits, net capital flow, pool depth or investment.',
+    source: 'DefiLlama NEAR DEX overview endpoint',
+    query: 'GET https://api.llama.fi/overview/dexs/Near\n\nRead totalDataChart as [Unix-seconds, USD-volume] observations. Validate finite nonnegative values, convert to UTC dates, sort by date, exclude the current partial UTC day from full-day summaries, and do not interpolate gaps. A 7-day sum requires 7 consecutive daily points; its comparison to the previous 7 days requires 14 consecutive points.',
+  },
+  feeHistoryChart: {
+    title: 'DefiLlama-indexed NEAR chain fees',
+    plainLanguage: 'Daily USD fee observations reported by DefiLlama for NEAR. These provider-indexed values are not a reconciled transaction/receipt fee ledger, realized protocol revenue, validator income or APY.',
+    source: 'DefiLlama NEAR fees overview endpoint',
+    query: 'GET https://api.llama.fi/overview/fees/Near\n\nRead totalDataChart as [Unix-seconds, USD-fee] observations. Validate finite nonnegative values, convert to UTC dates, sort by date, exclude the current partial UTC day from full-day summaries, and do not interpolate gaps. A 7-day sum requires 7 consecutive daily points; its comparison to the previous 7 days requires 14 consecutive points.',
   },
 };
 

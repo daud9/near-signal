@@ -47,20 +47,31 @@ test('chart replay is deterministic, uses original UTC cutoff, and needs no netw
       defillamaTvlRows: [{ date: 1704067200, tvl: 10 }, { date: 1704153600, tvl: 20 }],
       coinGeckoMarketChart: { prices: [[1704067200000, 2], [1704153600000, 3]] },
     },
+    rawNearDexVolumeRows: [{ date: '2024-01-01', valueUsd: 3 }, { date: '2024-01-02', valueUsd: 4 }, { date: '2024-01-03', valueUsd: 5 }],
+    rawNearFeeRows: [{ date: '2024-01-01', valueUsd: 1 }, { date: '2024-01-02', valueUsd: 2 }],
     rawRpcObservationHistory: [observation],
   };
   const result = replayChartInputs(bundle);
   assert.deepEqual(result, replayChartInputs(JSON.parse(JSON.stringify(bundle))));
   assert.deepEqual(result.overviewChart.map((row) => row.date), ['2024-01-01']);
   assert.equal(result.capitalChart[0].tvlUsd, 10);
+  assert.deepEqual(result.dexVolumeChart, [{ date: '2024-01-01', valueUsd: 3 }]);
+  assert.deepEqual(result.feeHistoryChart, [{ date: '2024-01-01', valueUsd: 1 }]);
   assert.equal(result.gasChart[0].gasTgas, 1);
   assert.equal(result.blockTxChart[0].transactionCount, 1);
 });
 
 test('browser export shape replays and missing series remain empty', () => {
-  const bundle = { exportedAt: observation.observedAt, rawTvlRows: [], rawCoinGeckoMarketChart: {}, localRpcObservationHistory: [observation], chartSelections: { days: 7, metric: 'tvlUsd' } };
+  const bundle = { exportedAt: observation.observedAt, rawTvlRows: [], rawCoinGeckoMarketChart: {}, rawNearDexVolumeRows: [{ date: '2024-01-01', valueUsd: null }, { date: '2024-01-02', valueUsd: 3 }], localRpcObservationHistory: [observation], chartSelections: { days: 7, metric: 'tvlUsd' } };
   assert.equal(replayChartInputs(bundle).selections.metric, 'tvlUsd');
   assert.deepEqual(replayChartInputs(bundle).overviewChart, []);
+  assert.deepEqual(replayChartInputs(bundle).dexVolumeChart, []);
+  const rebuilt = { generatedAt: '2024-01-03T00:00:00.000Z', rawReturnedData: {
+    nearDexVolumeHistory: { rows: [{ date: '2024-01-01', valueUsd: 4 }, { date: '2024-01-02', valueUsd: 5 }] },
+    nearFeeHistory: { rows: [{ date: '2024-01-01', valueUsd: 1 }, { date: '2024-01-02', valueUsd: 2 }] },
+  } };
+  assert.equal(replayChartInputs(rebuilt).dexVolumeChart.length, 2);
+  assert.equal(replayChartInputs(rebuilt).feeHistoryChart.length, 2);
   assert.throws(() => replayChartInputs({}), /dated evidence/);
 });
 

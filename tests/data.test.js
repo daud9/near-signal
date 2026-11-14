@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DATA_SOURCES, fetchCoinGeckoHistory, fetchTvlHistory, fetchNearProtocolTvls, fetchNearStablecoins, parseProviderTimestamp } from '../src/data.js';
+import { DATA_SOURCES, fetchCoinGeckoHistory, fetchTvlHistory, fetchNearProtocolTvls, fetchNearStablecoins, fetchNearDexVolumeHistory, fetchNearFeesHistory, fetchNearPoolSnapshot, fetchProtocolConfig, parseProviderTimestamp } from '../src/data.js';
 
 async function withJsonResponse(payload, callback) {
   const originalFetch = globalThis.fetch;
@@ -27,7 +27,7 @@ test('invalid provider timestamps remain unavailable', () => {
 });
 
 test('all live NEAR RPC sources use the documented FastNear free mainnet endpoint', () => {
-  const ids = new Set(['near-rpc-finalized', 'near-rpc-status', 'near-rpc-validators']);
+  const ids = new Set(['near-rpc-finalized', 'near-rpc-status', 'near-rpc-validators', 'near-rpc-protocol-config']);
   const sources = DATA_SOURCES.filter((source) => ids.has(source.id));
   assert.equal(sources.length, ids.size);
   for (const source of sources) assert.equal(source.url, 'https://free.rpc.fastnear.com');
@@ -38,13 +38,17 @@ test('all live NEAR RPC sources use the documented FastNear free mainnet endpoin
 });
 
 test('runtime source registry contains only connected feeds and gives daily history a freshness limit', () => {
-  assert.equal(DATA_SOURCES.length, 10);
+  assert.equal(DATA_SOURCES.length, 14);
   assert.ok(DATA_SOURCES.every((source) => source.connected));
   for (const sourceId of ['coingecko-history', 'defillama-tvl']) {
     assert.equal(DATA_SOURCES.find((source) => source.id === sourceId)?.staleAfterSeconds, 172800);
   }
   assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-protocol-tvls')?.url, /api\.llama\.fi\/protocols/);
   assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-stablecoins')?.url, /stablecoins\.llama\.fi\/stablecoins\?includePrices=true/);
+  assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-dex-volume')?.url, /api\.llama\.fi\/overview\/dexs\/Near/);
+  assert.match(DATA_SOURCES.find((source) => source.id === 'defillama-near-fees')?.url, /api\.llama\.fi\/overview\/fees\/Near/);
+  assert.match(DATA_SOURCES.find((source) => source.id === 'geckoterminal-near-pools')?.caveat, /page 1 is bounded coverage/i);
+  assert.equal(DATA_SOURCES.find((source) => source.id === 'near-rpc-protocol-config')?.url, 'https://free.rpc.fastnear.com');
 });
 
 test('CoinGecko history rejects malformed arrays even when they contain two entries', async () => {
@@ -144,5 +148,62 @@ test('NEAR protocol adapter exposes partial history coverage when a selected req
     assert.equal(result.value.requestedCount, 2);
     assert.equal(result.value.returnedCount, 1);
     assert.deepEqual(result.value.protocols.map((item) => item.slug), ['working-near-app']);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('DefiLlama DEX and fee adapters preserve dated nonnegative observations and optional latest DEX breakdown', async () => {
+  const day1 = Math.floor(Date.parse('2026-11-12T00:00:00Z') / 1000), day2 = Math.floor(Date.parse('2026-11-13T00:00:00Z') / 1000);
+  const fixture = { totalDataChart: [[day1, 10], ['bad', 99], [day2, 20], [day2 + 1, -5]], totalDataChartBreakdown: [[day2, { Rhea: 15, Ref: 5 }]], total24h: 30 };
+  const [dex, fees] = await withJsonResponse(fixture, async () => Promise.all([fetchNearDexVolumeHistory(), fetchNearFeesHistory()]));
+  assert.equal(dex.status.ok, true);
+  assert.equal(dex.value.rows.length, 2);
+  assert.equal(dex.value.latestFullDay, '2026-11-13');
+  assert.deepEqual(dex.value.latestFullDayBreakdown, [{ protocol: 'Rhea', valueUsd: 15 }, { protocol: 'Ref', valueUsd: 5 }]);
+  assert.equal(dex.value.total24hUsd, 30);
+  assert.equal(fees.status.ok, true);
+  assert.equal(fees.value.rows[1].valueUsd, 20);
+  assert.ok(Number.isFinite(Date.parse(dex.status.providerAt)));
+});
+
+test('GeckoTerminal adapter captures page-bounded pool fields and sends the documented version header', async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url: String(url), options };
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'near_0xpool', attributes: {
+      address: '0xpool', name: 'wNEAR / USDC', pool_created_at: '2024-01-01T00:00:00Z', reserve_in_usd: '123.4',
+      volume_usd: { h24: '23.5' }, price_change_percentage: { h24: '-2.1' },
+      transactions: { h24: { buys: 4, sells: 5, buyers: 3, sellers: 4 } },
+    }, relationships: { dex: { data: { id: 'rhea-finance' } } } }] }) };
+  };
+  try {
+    const result = await fetchNearPoolSnapshot();
+    assert.equal(result.status.ok, true);
+    assert.equal(result.value.returnedCount, 1);
+    assert.equal(result.value.pools[0].reserveUsd, 123.4);
+    assert.equal(result.value.pools[0].buys24h, 4);
+    assert.equal(result.value.pools[0].dexId, 'rhea-finance');
+    assert.equal(request.options.headers.Accept, 'application/json;version=20230203');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('protocol-config adapter queries the observed height and rejects protocol-version mismatch', async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (_url, options) => {
+    request = JSON.parse(options.body);
+    return { ok: true, status: 200, json: async () => ({ result: { protocol_version: 88, gas_limit: '1000000', min_gas_price: '100', runtime_config: { transaction_costs: { burnt_gas_reward: [0, 1] } } } }) };
+  };
+  const block = { height: 123, hash: 'block-hash', timestamp: '2026-11-14T00:00:00Z', protocolVersion: 88 };
+  try {
+    const result = await fetchProtocolConfig(block);
+    assert.equal(result.status.ok, true);
+    assert.equal(request.method, 'EXPERIMENTAL_protocol_config');
+    assert.equal(request.params.block_id, 123);
+    assert.deepEqual(result.value.burntGasReward, { numerator: 0, denominator: 1, contractRebatePct: 0, eligibleGasBurnPct: 100 });
+    assert.equal(result.value.gasLimit, 1_000_000);
+    const mismatch = await fetchProtocolConfig({ ...block, protocolVersion: 87 });
+    assert.equal(mismatch.status.ok, false);
+    assert.match(mismatch.status.detail, /version did not match/);
   } finally { globalThis.fetch = originalFetch; }
 });

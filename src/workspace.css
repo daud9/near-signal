@@ -305,6 +305,7 @@ body.workspace-app .shell { padding: 0; }
 .assessment b { color: var(--text); font-size: 12px; }
 .assessment p { margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .split-two, .capital-grid, .hypothesis-layout, .method-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.split-two > *, .capital-grid > *, .hypothesis-layout > *, .method-grid > * { min-width: 0; }
 .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .metric-mini { padding: 14px; background: var(--surface-3); border: 1px solid var(--line); border-radius: 6px; }
 .metric-mini span { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; }
@@ -346,6 +347,7 @@ body.workspace-app .shell { padding: 0; }
 code { color: #236b5c; font-size: .92em; }
 .query-content code { color: inherit; }
 .chart { min-height: 200px; }
+.chart svg { display: block; width: 100%; height: auto; }
 .chart-empty, .empty-state { min-height: 150px; padding: 24px; color: var(--muted); background: var(--surface-3); border: 1px dashed #b7c9c4; border-radius: 6px; font-size: 12px; }
 .chart-data { color: var(--muted); font-size: 12px; }
 .chart-table-wrap { background: var(--surface-2); border-color: var(--line); }
@@ -401,7 +403,7 @@ code { color: #236b5c; font-size: .92em; }
   .block-head { flex-direction: column; gap: 11px; margin-bottom: 14px; }
   .block-title, .block h2 { font-size: 22px; }
   .block-sub { font-size: 13px; }
-  .kpis, .risk-grid, .assessment-row, .split-two, .capital-grid, .hypothesis-layout, .method-grid { grid-template-columns: 1fr; }
+  .kpis, .risk-grid, .assessment-row, .split-two, .capital-grid, .hypothesis-layout, .method-grid { grid-template-columns: minmax(0, 1fr); }
   .metric-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .panel, .score-panel { padding: 16px; }
   .risk-card { min-height: 0; }
@@ -450,3 +452,14 @@ code { color: #236b5c; font-size: .92em; }
 @media (max-width: 1250px) { .overview-layout { grid-template-columns: 1fr; } }
 @media (max-width: 899px) { body.menu-open { overflow: hidden; } }
 @media (max-width: 700px) { .topbar { flex-wrap: wrap; } .workspace-heading { flex: 1 1 100%; } .top-actions { margin-left: 56px; } .workspace-heading p { max-width: 65vw; } .field-group { width: 100%; } .nav a { font-size: 13px; } }
+
+/* Data-rich evidence tables for long validator and pool snapshots. */
+.table-scroll { width: 100%; max-height: 430px; overflow: auto; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); }
+.data-table { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+.data-table th, .data-table td { padding: 8px 9px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.data-table th:first-child, .data-table td:first-child { text-align: left; }
+.data-table th { position: sticky; top: 0; z-index: 1; color: var(--text); background: var(--surface-3); font-weight: 700; }
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table td:nth-child(2) { text-align: left; }
+.table-heading { margin: 17px 0 7px; color: var(--text); font-size: 12px; font-weight: 700; }
+@media (max-width: 700px) { .table-scroll { max-height: 360px; } .data-table { font-size: 10px; } .data-table th, .data-table td { padding: 7px; } }

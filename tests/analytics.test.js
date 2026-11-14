@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   alignMarketAndTvl,
   assessLiveRisks,
+  completeWindowSum,
+  completeWindowSumChange,
   dailyChangeRows,
   formatSignedPercent,
   pearsonCorrelation,
@@ -185,6 +187,22 @@ test('a 7-day change needs eight consecutive complete daily snapshots', () => {
   assert.equal(result.endValue, 170);
   assert.equal(result.changePct, 70);
   assert.equal(windowChange(rows.slice(1), 'tvlUsd', 7), null);
+});
+
+test('fee and DEX rolling sums require exact consecutive days and compare adjacent full windows', () => {
+  const rows = Array.from({ length: 14 }, (_, index) => ({ date: new Date(Date.parse('2026-01-01T00:00:00Z') + index * 86_400_000).toISOString().slice(0, 10), valueUsd: index + 1 }));
+  const recent = completeWindowSum(rows, 'valueUsd', 7);
+  assert.equal(recent.sum, 77);
+  assert.equal(recent.startDate, '2026-01-08');
+  const change = completeWindowSumChange(rows, 'valueUsd', 7);
+  assert.equal(change.previous.sum, 28);
+  assert.equal(change.current.sum, 77);
+  assert.equal(change.changePct, 175);
+  rows.splice(8, 1);
+  assert.equal(completeWindowSum(rows, 'valueUsd', 7), null);
+  assert.equal(completeWindowSumChange(rows, 'valueUsd', 7), null);
+  const zeroBase = Array.from({ length: 14 }, (_, index) => ({ date: new Date(Date.parse('2026-02-01T00:00:00Z') + index * 86_400_000).toISOString().slice(0, 10), valueUsd: 0 }));
+  assert.equal(completeWindowSumChange(zeroBase, 'valueUsd', 7), null);
 });
 
 test('daily window calculation rejects a gap even when the first and last dates span the requested length', () => {

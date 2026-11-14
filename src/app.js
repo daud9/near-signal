@@ -1,5 +1,5 @@
-import { alignMarketAndTvl, assessLiveRisks, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
-import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchNearProtocolTvls, fetchNearStablecoins, fetchAccountSnapshot } from './data.js';
+import { alignMarketAndTvl, assessLiveRisks, completeWindowSum, completeWindowSumChange, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
+import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchProtocolConfig, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchNearProtocolTvls, fetchNearStablecoins, fetchNearDexVolumeHistory, fetchNearFeesHistory, fetchNearPoolSnapshot, fetchAccountSnapshot } from './data.js';
 import { CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from './query-registry.js';
 
 import { replayChartInputs, replayRpcObservations } from './replay.js';
@@ -14,7 +14,8 @@ const STABLECOIN_HISTORY_KEY = 'near-signal.stablecoin-observations.v1';
 const MAX_LOCAL_OBSERVATIONS = 60;
 const $ = (selector) => document.querySelector(selector);
 const state = {
-  market: null, marketChart: null, llamaPrice: null, tvlHistory: null, nearProtocolTvls: null, nearStablecoins: null, blockActivity: null,
+  market: null, marketChart: null, llamaPrice: null, tvlHistory: null, nearProtocolTvls: null, nearStablecoins: null,
+  dexVolumeHistory: null, feeHistory: null, nearPoolSnapshot: null, protocolConfig: null, blockActivity: null,
   block: null, rpcStatus: null, validators: null, sourceStatuses: new Map(), observations: readObservations(),
   stablecoinObservations: readStablecoinObservations(),
   chartMetric: 'priceUsd', days: 14, declineThreshold: 20, isRefreshing: false, rpcBusy: false, lastMarketRefresh: 0, lastChunkRequestAt: 0,
@@ -30,9 +31,12 @@ const BLOCK_TRANSACTION_INTERVAL_MS = 300_000;
 const DEFI_PRICE_INTERVAL_MS = 120_000;
 const SLOW_RPC_INTERVAL_MS = 300_000;
 const TVL_INTERVAL_MS = 1_800_000;
+const POOL_SNAPSHOT_INTERVAL_MS = 300_000;
+const FEE_HISTORY_INTERVAL_MS = 1_800_000;
+const PROTOCOL_CONFIG_INTERVAL_MS = 1_800_000;
 const RISK_FEED_INTERVAL_MS = 1_800_000;
 const MARKET_MANUAL_COOLDOWN_MS = 60_000;
-const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl', nearProtocolTvls: 'defillama-near-protocol-tvls', nearStablecoins: 'defillama-near-stablecoins' };
+const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', protocolConfig: 'near-rpc-protocol-config', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl', nearProtocolTvls: 'defillama-near-protocol-tvls', nearStablecoins: 'defillama-near-stablecoins', dexVolumeHistory: 'defillama-near-dex-volume', feeHistory: 'defillama-near-fees', nearPoolSnapshot: 'geckoterminal-near-pools' };
 const RISK_SOURCE_IDS = {
   concentration: ['near-rpc-validators'], activity: ['fastnear-neardata-block-transactions'],
   capital: ['defillama-tvl', 'coingecko-history'], infrastructure: ['near-rpc-finalized', 'near-rpc-status'],
@@ -122,6 +126,30 @@ function shortUsd(value) {
   if (Math.abs(number) >= 1e6) return `$${(number / 1e6).toFixed(1)}M`;
   if (Math.abs(number) >= 1e3) return `$${(number / 1e3).toFixed(0)}K`;
   return usd(number, number < 1 ? 4 : 2);
+}
+function fullDayUsdRows(rows, valueKey = 'valueUsd', dateKey = 'date', timestampUnit = 'date') {
+  const today = new Date().toISOString().slice(0, 10);
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    date: timestampUnit === 'date' ? String(row?.[dateKey] ?? '').slice(0, 10) : toUtcDate(row?.[dateKey], timestampUnit),
+    valueUsd: Number(row?.[valueKey]),
+  })).filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && row.date < today && Number.isFinite(row.valueUsd) && row.valueUsd >= 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+function renderSimpleTable(selector, caption, headers, rows, emptyText) {
+  const container = typeof selector === 'string' ? $(selector) : selector;
+  if (!container) return;
+  if (!Array.isArray(rows) || rows.length === 0) { container.innerHTML = `<div class="chart-empty">${escapeHtml(emptyText)}</div>`; return; }
+  const head = headers.map((value) => `<th scope="col">${escapeHtml(value)}</th>`).join('');
+  const body = rows.map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join('')}</tr>`).join('');
+  container.innerHTML = `<table class="data-table"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+function feedStateLabel(sourceId, hasData) {
+  const status = state.sourceStatuses.get(sourceId);
+  if (!status) return hasData ? 'Prior observation retained' : 'Checking source';
+  if (status.ok === false) return hasData ? 'Latest read failed · prior data retained' : 'Unavailable';
+  if (sourceIsStale(status)) return 'Stale provider observation';
+  if (status.partial) return status.detail || 'Partial response';
+  return status.ok ? 'Live source responding' : 'Checking source';
 }
 function utcDateTime(value) {
   if (!value || !Number.isFinite(Date.parse(value))) return 'Time unavailable';
@@ -308,7 +336,37 @@ function renderValueCapture() {
   renderLineChart($('#gasChart'), observations, 'gasTgas', { label: 'Gas used per sampled finalized block', color: '#197e78', format: 'tgas', dateKey: 'observedAt', emptyText: 'Collecting real finalized-block observations. No historical values are fabricated.' });
   $('#blockHistoryStatus').textContent = observations.length ? `${observations.length} live block sample${observations.length === 1 ? '' : 's'}` : 'Collecting observations';
   $('#blockHistorySpan').textContent = observations.length > 1 ? `${utcDateTime(observations[0].observedAt)} to ${utcDateTime(observations.at(-1).observedAt)}` : 'A local time series appears after multiple polls.';
+
+  const feeRows = fullDayUsdRows(state.feeHistory?.rows);
+  const feeLatest = feeRows.at(-1), fee7d = completeWindowSum(feeRows, 'valueUsd', 7), fee7dChange = completeWindowSumChange(feeRows, 'valueUsd', 7);
+  $('#latestFeeDaily').textContent = feeLatest ? shortUsd(feeLatest.valueUsd) : unavailableOrWaiting('defillama-near-fees', 'Waiting for dated fee observation');
+  $('#feeDailyAsOf').textContent = feeLatest ? `${feeLatest.date} UTC · DefiLlama-indexed` : sourceFailureText('defillama-near-fees') || 'No complete daily point';
+  $('#fees7d').textContent = fee7d ? shortUsd(fee7d.sum) : unavailableOrWaiting('defillama-near-fees', 'Waiting for 7 consecutive dates');
+  $('#fees7dFoot').textContent = fee7d ? `${fee7d.startDate} to ${fee7d.endDate} · exact 7-day sum` : 'Requires 7 consecutive dated observations';
+  $('#fees7dChange').textContent = fee7dChange ? formatSignedPercent(fee7dChange.changePct) : unavailableOrWaiting('defillama-near-fees', 'Waiting for 14 consecutive dates');
+  $('#fees7dChangeFoot').textContent = fee7dChange ? `${shortUsd(fee7dChange.previous.sum)} prior · ${shortUsd(fee7dChange.current.sum)} current` : 'Requires 14 consecutive dated observations';
+  renderLineChart($('#feeHistoryChart'), feeRows.slice(-365), 'valueUsd', { label: 'DefiLlama-indexed NEAR daily chain fees, USD', color: '#c1783a', format: 'usd', emptyText: sourceFailureText('defillama-near-fees') ? `Unavailable: ${sourceFailureText('defillama-near-fees')}` : 'Waiting for a dated fee history.' });
+  $('#feeHistorySpan').textContent = feeRows.length ? `${feeRows.length} complete UTC dates · ${feeRows[0].date} to ${feeRows.at(-1).date} · chart shows the latest 365` : 'Waiting for dated fee observations';
+  $('#feeHistoryFreshness').textContent = state.feeHistory?.fetchedAt ? `Fetched ${ago(state.feeHistory.fetchedAt)}` : 'No successful fetch';
+  const feeStatus = state.sourceStatuses.get('defillama-near-fees'), feeStatusEl = $('#feeHistoryStatus');
+  feeStatusEl.textContent = feedStateLabel('defillama-near-fees', Boolean(state.feeHistory?.rows?.length));
+  feeStatusEl.className = `status-pill ${feeStatus?.ok && !sourceIsStale(feeStatus) ? 'good' : 'warn'}`;
+
+  const config = state.protocolConfig, ratio = config?.burntGasReward;
+  $('#contractRebateShare').textContent = ratio ? `${ratio.contractRebatePct.toFixed(1)}%` : unavailableOrWaiting('near-rpc-protocol-config', 'Waiting for matching protocol rule');
+  $('#eligibleGasBurnShare').textContent = ratio ? `${ratio.eligibleGasBurnPct.toFixed(1)}%` : unavailableOrWaiting('near-rpc-protocol-config', 'Not inferred without config');
+  $('#feeRuleVersion').textContent = config ? `Protocol ${config.protocolVersion} · block ${compact(config.blockHeight, 0)}` : sourceFailureText('near-rpc-protocol-config') || 'Waiting for block-matched config';
+  $('#feeRuleAsOf').textContent = config ? `Rule fetched ${utcDateTime(config.fetchedAt)} · ${config.burntGasReward ? `${ratio.numerator}/${ratio.denominator} gas-reward ratio` : 'ratio not reported'}` : sourceFailureText('near-rpc-protocol-config') || 'Not inferred without config';
+  const configStatus = state.sourceStatuses.get('near-rpc-protocol-config');
+  $('#feeRuleStatus').textContent = feedStateLabel('near-rpc-protocol-config', Boolean(config));
+  $('#feeRuleStatus').className = `status-pill ${config && config.burntGasReward && configStatus?.ok !== false && !sourceIsStale(configStatus) ? 'good' : 'warn'}`;
+  const reward = state.validators?.validatorRewardPaidPrevEpochNear;
+  $('#validatorRewardPaid').textContent = Number.isFinite(reward) ? `${compact(reward, 3)} Ⓝ` : unavailableOrWaiting('near-rpc-validators', 'Unavailable');
+  $('#validatorRewardFoot').textContent = state.validators?.validatorRewardPaidPrevEpochYocto ? `${state.validators.validatorRewardRecipientCount ?? '—'} recipients · prior epoch · inflationary budget, not tx-fee revenue` : sourceFailureText('near-rpc-validators') || 'Prior-epoch reward map not returned';
+  const shards = (block?.chunkGas ?? []).slice().sort((a, b) => (a.shardId ?? -1) - (b.shardId ?? -1));
+  renderSimpleTable('#shardGasTable', 'Per-shard gas in the latest finalized block', ['Shard', 'Gas used · Tgas', 'Reported limit · Tgas', 'Utilization', 'Estimated gas value · NEAR'], shards.map((row) => [row.shardId ?? '—', Number.isFinite(row.gasUsedTgas) ? row.gasUsedTgas.toFixed(2) : '—', Number.isFinite(row.gasLimit) ? (row.gasLimit / 1e12).toFixed(2) : '—', Number.isFinite(row.gasUtilizationPct) ? `${row.gasUtilizationPct.toFixed(2)}%` : 'Unavailable', Number.isFinite(row.gasFeeNear) ? row.gasFeeNear.toFixed(6) : '—']), block ? 'No per-shard gas values were returned.' : 'Waiting for finalized per-shard block data.');
 }
+
 function renderParticipation() {
   const validators = state.validators;
   const validatorFailure = sourceFailureText('near-rpc-validators');
@@ -316,9 +374,19 @@ function renderParticipation() {
   $('#validatorCount').textContent = validators ? compact(validators.validatorCount, 0) : validatorPlaceholder;
   $('#validatorEpoch').textContent = validators?.epochHeight === null || validators?.epochHeight === undefined ? validatorFailure || 'Waiting for current epoch' : `Epoch height ${compact(validators.epochHeight, 0)} · ${validators.nextValidatorCount ?? '—'} next-set records`;
   $('#validatorTop10').textContent = validators ? `${validators.top10SharePct.toFixed(1)}%` : validatorPlaceholder;
-  $('#validatorHhi').textContent = validators ? `Current-set stake HHI: ${validators.hhi.toFixed(0)}` : `${validatorPlaceholder} · no concentration estimate`;
+  $('#validatorHhi').textContent = validators ? `Current-set stake HHI: ${validators.hhi.toFixed(0)} · top one ${Number.isFinite(validators.top1SharePct) ? `${validators.top1SharePct.toFixed(1)}%` : 'unavailable'}` : `${validatorPlaceholder} · no concentration estimate`;
   $('#validatorProduction').textContent = validators?.blockProductionPct === null || !validators ? validatorPlaceholder : `${validators.blockProductionPct.toFixed(1)}%`;
   $('#validatorProductionFoot').textContent = validators ? `${compact(validators.producedBlocks, 0)} produced / ${compact(validators.expectedBlocks, 0)} expected blocks in returned epoch counters${validatorFailure ? ` · latest read failed: ${validatorFailure}` : ''}` : validatorFailure || 'Waiting for current epoch counters';
+  $('#validatorSetSummary').textContent = validators ? `Epoch ${compact(validators.epochHeight, 0)} · ${compact(validators.validatorCount, 0)} current / ${compact(validators.nextValidatorCount, 0)} next · ${compact(validators.totalStakeNear, 2)} Ⓝ current-set stake · snapshot ${utcDateTime(validators.asOf)}` : validatorFailure || 'Waiting for validator snapshot';
+  $('#validatorProposalCount').textContent = Number.isFinite(validators?.proposalCount) ? compact(validators.proposalCount, 0) : validatorPlaceholder;
+  $('#validatorSlashedCount').textContent = Number.isFinite(validators?.slashedValidatorCount) ? compact(validators.slashedValidatorCount, 0) : validatorPlaceholder;
+  $('#validatorKickoutSummary').textContent = validators ? `${validators.prevEpochKickouts?.length ?? 0} previous-epoch kickout records` : validatorFailure || 'Prior-epoch kickouts unavailable';
+  $('#validatorSetTransition').textContent = validators ? `${validators.nextSetAddedCount} added · ${validators.nextSetRemovedCount} removed` : validatorPlaceholder;
+  $('#validatorSetTransitionFoot').textContent = validators ? `${validators.nextSetContinuedCount} account IDs continued into the next set · proposal list separate` : validatorFailure || 'Set changes unavailable';
+  const current = validators?.currentValidators ?? [], next = validators?.nextValidators ?? [];
+  renderSimpleTable('#validatorCurrentTable', 'Twenty highest-stake current validators', ['#', 'Validator account', 'Stake · Ⓝ', 'Stake share', 'Blocks', 'Chunks', 'Endorsements', 'Slashed'], current.slice(0, 20).map((row, index) => [index + 1, row.accountId, compact(row.stakeNear, 2), Number.isFinite(row.stakeSharePct) ? `${row.stakeSharePct.toFixed(3)}%` : '—', Number.isFinite(row.blockProductionPct) ? `${row.blockProductionPct.toFixed(1)}%` : '—', Number.isFinite(row.chunkProductionPct) ? `${row.chunkProductionPct.toFixed(1)}%` : '—', Number.isFinite(row.endorsementProductionPct) ? `${row.endorsementProductionPct.toFixed(1)}%` : '—', row.isSlashed ? 'Yes' : 'No']), validatorFailure || 'Current validator rows unavailable');
+  const currentIds = new Set(current.map((row) => row.accountId));
+  renderSimpleTable('#validatorNextTable', 'Twenty highest-stake next validators', ['#', 'Validator account', 'Stake · Ⓝ', 'Assigned shards', 'Set status'], next.slice(0, 20).map((row, index) => [index + 1, row.accountId, Number.isFinite(row.stakeNear) ? compact(row.stakeNear, 2) : 'Unavailable', Number.isFinite(row.shardCount) ? row.shardCount : 'Unavailable', currentIds.has(row.accountId) ? 'Continued' : 'New to next set']), validatorFailure || 'Next validator rows unavailable');
   const activity = state.blockActivity;
   const sourceStatus = state.sourceStatuses.get('fastnear-neardata-block-transactions');
   const activityFailure = sourceFailureText('fastnear-neardata-block-transactions');
@@ -334,7 +402,20 @@ function renderParticipation() {
   const samples = observations.filter((row) => Number.isSafeInteger(row.transactionCount));
   $('#blockTxHistoryStatus').textContent = `${samples.length} complete local samples`;
   $('#blockTxHistorySpan').textContent = samples.length > 1 ? `${utcDateTime(samples[0].transactionFetchedAt)} to ${utcDateTime(samples.at(-1).transactionFetchedAt)}` : 'A local sample history appears after more five-minute polls.';
+
+  const block = state.block, gasByShard = new Map((block?.chunkGas ?? []).map((row) => [row.shardId, row]));
+  const txByShard = new Map((activity?.chunks ?? []).map((row) => [row.shardId, row]));
+  const refs = new Map((block?.chunkRefs ?? []).map((row) => [row.shardId, row]));
+  const shardIds = [...new Set([...gasByShard.keys(), ...txByShard.keys()])].sort((a, b) => a - b);
+  const shardRows = shardIds.map((shardId) => {
+    const gas = gasByShard.get(shardId), tx = txByShard.get(shardId), ref = refs.get(shardId);
+    const included = Number.isFinite(ref?.heightIncluded) && Number.isFinite(block?.height) ? (ref.heightIncluded === block.height ? 'Newly included' : 'Prior-height reference') : 'Unavailable';
+    return [shardId, included, gas && Number.isFinite(gas.gasUsedTgas) ? gas.gasUsedTgas.toFixed(2) : 'Unavailable', gas && Number.isFinite(gas.gasUtilizationPct) ? `${gas.gasUtilizationPct.toFixed(1)}%` : 'Unavailable', tx ? compact(tx.transactionCount, 0) : activity ? 'No matched record' : 'Waiting'];
+  });
+  renderSimpleTable('#shardActivityTable', 'Gas and exact-height transaction sample by shard', ['Shard', 'Block reference', 'Gas used · Tgas', 'Gas utilization', 'Transactions in sample'], shardRows, 'Waiting for complete block and shard sample.');
+  $('#shardActivitySummary').textContent = block && activity ? `Block ${compact(block.height, 0)} · ${activity.transactionCount} transactions · ${activity.chunkCount} newly included chunks` : block ? `Block ${compact(block.height, 0)} gas loaded · waiting for exact-height transaction sample` : activityFailure || 'Waiting for exact-height sample';
 }
+
 function riskPillClass(tone) { return tone === 'high' || tone === 'critical' ? 'bad' : tone === 'positive' ? 'good' : tone === 'caution' ? 'warn' : ''; }
 function renderRiskSources(risk) {
   return (risk.sourceIds || RISK_SOURCE_IDS[risk.id] || []).map((sourceId) => {
@@ -374,26 +455,65 @@ function renderRisks() {
   $('#riskThresholdOutput').textContent = `${state.declineThreshold}%`;
 }
 function renderCapital() {
-  const daily = allDailyRows(), latest = daily.at(-1);
-  const change7 = windowChange(daily, 'tvlUsd', 7), change30 = windowChange(daily, 'tvlUsd', 30);
-  const alignmentFailure = sourceFailureText(['defillama-tvl', 'coingecko-history']);
-  const missingData = alignmentFailure ? 'Unavailable' : 'Waiting for daily observation';
+  const tvlRows = fullDayUsdRows(state.tvlHistory?.rows, 'tvl', 'date', 's').map((row) => ({ ...row, tvlUsd: row.valueUsd }));
+  const latest = tvlRows.at(-1), change7 = windowChange(tvlRows, 'tvlUsd', 7), change30 = windowChange(tvlRows, 'tvlUsd', 30);
+  const tvlFailure = sourceFailureText('defillama-tvl'), missingData = tvlFailure ? 'Unavailable' : 'Waiting for daily TVL';
   $('#latestTvl').textContent = latest ? shortUsd(latest.tvlUsd) : missingData;
-  $('#tvlAsOf').textContent = latest ? `DefiLlama daily snapshot · ${latest.date} UTC` : alignmentFailure || 'Waiting for a matched source date';
-  $('#tvlChange7d').textContent = change7 ? formatSignedPercent(change7.changePct) : alignmentFailure ? 'Unavailable' : 'Waiting for a complete window';
-  $('#tvlSpan7d').textContent = change7 ? `${change7.startDate} to ${change7.endDate} · USD TVL stock` : 'Requires 8 consecutive matched daily dates';
-  $('#tvlChange30d').textContent = change30 ? formatSignedPercent(change30.changePct) : alignmentFailure ? 'Unavailable' : 'Waiting for a complete window';
-  $('#tvlSpan30d').textContent = change30 ? `${change30.startDate} to ${change30.endDate} · USD TVL stock` : 'Requires 31 consecutive matched daily dates';
-  const chartDays = Number($('#capitalWindowSelect')?.value || 30), capitalRows = daily.slice(-(chartDays + 1));
-  renderLineChart($('#capitalChart'), capitalRows, 'tvlUsd', { label: 'NEAR DeFi total value locked, daily USD snapshot', color: '#197e78', format: 'usd', emptyText: alignmentFailure ? `Unavailable: ${alignmentFailure}` : 'Waiting for aligned daily NEAR DeFi TVL and market dates.' });
-  $('#tvlDateSpan').textContent = capitalRows.length ? `${capitalRows.length} complete matched dates · ${capitalRows[0].date} to ${capitalRows.at(-1).date}` : alignmentFailure || 'No aligned daily series';
-  $('#capitalFreshness').textContent = state.tvlHistory?.fetchedAt ? `Fetched ${ago(state.tvlHistory.fetchedAt)}` : alignmentFailure || 'Source not yet fetched';
+  $('#tvlAsOf').textContent = latest ? `DefiLlama daily asset stock · ${latest.date} UTC` : tvlFailure || 'Waiting for a dated source observation';
+  $('#tvlChange7d').textContent = change7 ? formatSignedPercent(change7.changePct) : tvlFailure ? 'Unavailable' : 'Waiting for a complete window';
+  $('#tvlSpan7d').textContent = change7 ? `${change7.startDate} to ${change7.endDate} · seven-day endpoint change` : 'Requires 8 consecutive daily observations';
+  $('#tvlChange30d').textContent = change30 ? formatSignedPercent(change30.changePct) : tvlFailure ? 'Unavailable' : 'Waiting for a complete window';
+  $('#tvlSpan30d').textContent = change30 ? `${change30.startDate} to ${change30.endDate} · thirty-day endpoint change` : 'Requires 31 consecutive daily observations';
+  const chartDays = Number($('#capitalWindowSelect')?.value || 365), capitalRows = tvlRows.slice(-(chartDays + 1));
+  renderLineChart($('#capitalChart'), capitalRows, 'tvlUsd', { label: 'NEAR DeFi total value locked, daily USD snapshot', color: '#197e78', format: 'usd', emptyText: tvlFailure ? `Unavailable: ${tvlFailure}` : 'Waiting for dated NEAR DeFi TVL observations.' });
+  $('#tvlDateSpan').textContent = capitalRows.length ? `${capitalRows.length} complete daily observations · ${capitalRows[0].date} to ${capitalRows.at(-1).date}` : tvlFailure || 'No dated TVL series';
+  $('#capitalFreshness').textContent = state.tvlHistory?.fetchedAt ? `Fetched ${ago(state.tvlHistory.fetchedAt)}` : tvlFailure || 'Source not yet fetched';
   const tvlStatus = state.sourceStatuses.get('defillama-tvl'), tvlStale = sourceIsStale(tvlStatus);
-  $('#capitalStatus').textContent = !latest ? alignmentFailure ? 'TVL unavailable' : 'Checking daily TVL' : tvlStale ? 'Stale TVL snapshot' : tvlStatus?.ok === false ? 'Retained TVL snapshot' : 'Matched daily TVL';
+  $('#capitalStatus').textContent = !latest ? tvlFailure ? 'TVL unavailable' : 'Checking daily TVL' : tvlStale ? 'Stale TVL snapshot' : tvlStatus?.ok === false ? 'Retained TVL snapshot' : 'Live daily TVL';
   $('#capitalStatus').className = `status-pill ${latest && !tvlStale && tvlStatus?.ok !== false ? 'good' : 'warn'}`;
   const tvlReadState = tvlStale ? 'provider observation is stale' : tvlStatus?.ok === false ? dataAvailableFor('defillama-tvl') ? 'latest read failed; prior observation retained' : 'latest read failed; no TVL observation is available' : 'source responding';
-  $('#capitalLastChecked').textContent = state.tvlHistory?.fetchedAt ? `TVL source fetched ${utcDateTime(state.tvlHistory.fetchedAt)} · ${tvlReadState}; dates are matched to CoinGecko market history.` : alignmentFailure || 'Waiting for live TVL snapshots.';
+  $('#capitalLastChecked').textContent = state.tvlHistory?.fetchedAt ? `Fetched ${utcDateTime(state.tvlHistory.fetchedAt)} · ${tvlReadState}; TVL chart uses its own dated history and does not require CoinGecko date matches.` : tvlFailure || 'Waiting for live TVL snapshots.';
+
+  const dexRows = fullDayUsdRows(state.dexVolumeHistory?.rows), dexLatest = dexRows.at(-1), dex7d = completeWindowSum(dexRows, 'valueUsd', 7), dex7dChange = completeWindowSumChange(dexRows, 'valueUsd', 7);
+  $('#latestDexDaily').textContent = dexLatest ? shortUsd(dexLatest.valueUsd) : unavailableOrWaiting('defillama-near-dex-volume', 'Waiting for dated DEX observation');
+  $('#dexDailyAsOf').textContent = dexLatest ? `${dexLatest.date} UTC · provider-indexed` : sourceFailureText('defillama-near-dex-volume') || 'No complete daily point';
+  $('#dex7d').textContent = dex7d ? shortUsd(dex7d.sum) : unavailableOrWaiting('defillama-near-dex-volume', 'Waiting for 7 consecutive dates');
+  $('#dex7dFoot').textContent = dex7d ? `${dex7d.startDate} to ${dex7d.endDate} · exact 7-day sum` : 'Requires 7 consecutive dated observations';
+  $('#dex7dChange').textContent = dex7dChange ? formatSignedPercent(dex7dChange.changePct) : unavailableOrWaiting('defillama-near-dex-volume', 'Waiting for 14 consecutive dates');
+  $('#dex7dChangeFoot').textContent = dex7dChange ? `${shortUsd(dex7dChange.previous.sum)} prior · ${shortUsd(dex7dChange.current.sum)}` : 'Requires 14 consecutive dated observations';
+  renderLineChart($('#dexVolumeChart'), dexRows.slice(-365), 'valueUsd', { label: 'NEAR chain DEX daily volume, USD notional', color: '#426da9', format: 'usd', emptyText: sourceFailureText('defillama-near-dex-volume') ? `Unavailable: ${sourceFailureText('defillama-near-dex-volume')}` : 'Waiting for a dated DEX history.' });
+  $('#dexHistorySpan').textContent = dexRows.length ? `${dexRows.length} complete UTC dates · ${dexRows[0].date} to ${dexRows.at(-1).date} · chart shows the latest 365` : 'Waiting for dated DEX observations';
+  const dexBreakdown = state.dexVolumeHistory?.latestFullDayBreakdown ?? [];
+  $('#dexBreakdownDate').textContent = state.dexVolumeHistory?.latestFullDay ? `${state.dexVolumeHistory.latestFullDay} UTC · source-reported daily breakdown` : 'No dated protocol breakdown returned';
+  renderSimpleTable('#dexBreakdownTable', 'Source-reported latest daily NEAR DEX volume by protocol', ['Protocol', 'Reported daily volume (USD)'], dexBreakdown.map((row) => [row.protocol, shortUsd(row.valueUsd)]), 'The provider returned no protocol breakdown for the latest complete daily point.');
+  $('#dexHistoryFreshness').textContent = state.dexVolumeHistory?.fetchedAt ? `Fetched ${ago(state.dexVolumeHistory.fetchedAt)}` : 'No successful fetch';
+  const dexStatus = state.sourceStatuses.get('defillama-near-dex-volume'), dexStatusEl = $('#dexVolumeStatus');
+  dexStatusEl.textContent = feedStateLabel('defillama-near-dex-volume', Boolean(state.dexVolumeHistory?.rows?.length));
+  dexStatusEl.className = `status-pill ${dexStatus?.ok && !sourceIsStale(dexStatus) ? 'good' : 'warn'}`;
+
+  const snapshot = state.nearPoolSnapshot, pools = snapshot?.pools ?? [], poolStatus = state.sourceStatuses.get('geckoterminal-near-pools');
+  $('#poolCount').textContent = snapshot ? compact(snapshot.returnedCount, 0) : unavailableOrWaiting('geckoterminal-near-pools', 'Waiting for pool page');
+  $('#poolSnapshotAsOf').textContent = snapshot ? `Page ${snapshot.page} · fetched ${ago(snapshot.fetchedAt)}` : sourceFailureText('geckoterminal-near-pools') || 'No successful snapshot';
+  const reserveRows = pools.filter((pool) => Number.isFinite(pool.reserveUsd) && pool.reserveUsd >= 0), volumeRows = pools.filter((pool) => Number.isFinite(pool.volume24hUsd) && pool.volume24hUsd >= 0);
+  $('#poolPageReserves').textContent = reserveRows.length ? shortUsd(reserveRows.reduce((sum, pool) => sum + pool.reserveUsd, 0)) : unavailableOrWaiting('geckoterminal-near-pools', 'No reserve values returned');
+  $('#poolPageVolume').textContent = volumeRows.length ? shortUsd(volumeRows.reduce((sum, pool) => sum + pool.volume24hUsd, 0)) : unavailableOrWaiting('geckoterminal-near-pools', 'No volume values returned');
+  const poolStatusEl = $('#poolSnapshotStatus');
+  poolStatusEl.textContent = feedStateLabel('geckoterminal-near-pools', Boolean(pools.length));
+  poolStatusEl.className = `status-pill ${snapshot && poolStatus?.ok && !sourceIsStale(poolStatus) ? 'good' : 'warn'}`;
+  renderSimpleTable('#nearPoolTable', 'NEAR GeckoTerminal page-one pools ordered by reserve', ['Pool', 'DEX', 'Pool address', 'Reserve · USD', '24h volume · USD', 'Buys / sells', '24h price change'], pools.map((pool) => [pool.name, pool.dexId || '—', pool.address, Number.isFinite(pool.reserveUsd) ? shortUsd(pool.reserveUsd) : 'Unavailable', Number.isFinite(pool.volume24hUsd) ? shortUsd(pool.volume24hUsd) : 'Unavailable', Number.isFinite(pool.buys24h) && Number.isFinite(pool.sells24h) ? `${compact(pool.buys24h, 0)} / ${compact(pool.sells24h, 0)}` : 'Unavailable', Number.isFinite(pool.priceChange24hPct) ? formatSignedPercent(pool.priceChange24hPct) : 'Unavailable']), sourceFailureText('geckoterminal-near-pools') || 'No pool rows were returned.');
+
+  const protocols = state.nearProtocolTvls?.indexProtocols ?? [];
+  $('#protocolIndexSummary').textContent = state.nearProtocolTvls ? `${compact(state.nearProtocolTvls.indexCount, 0)} indexed rows ≥ $100k · index fetched ${ago(state.nearProtocolTvls.fetchedAt)}` : sourceFailureText('defillama-near-protocol-tvls') || 'Waiting for index';
+  renderSimpleTable('#protocolIndexTable', 'DefiLlama indexed eligible NEAR protocol rows', ['Protocol', 'Category', 'Reported NEAR-chain TVL · USD'], protocols.map((item) => [item.name, item.category, Number.isFinite(item.nearTvlUsd) ? shortUsd(item.nearTvlUsd) : 'Unavailable']), sourceFailureText('defillama-near-protocol-tvls') || 'No eligible protocol rows returned.');
+  const histories = state.nearProtocolTvls?.protocols ?? [];
+  $('#protocolHistorySummary').textContent = state.nearProtocolTvls ? `${histories.length}/${state.nearProtocolTvls.requestedCount} selected dated histories · ${state.nearProtocolTvls.returnedCount} returned` : sourceFailureText('defillama-near-protocol-tvls') || 'Waiting for selected history reads';
+  renderSimpleTable('#protocolHistoryTable', 'Selected protocols with dated NEAR-chain TVL histories', ['Protocol', 'Category', 'Latest dated NEAR TVL', 'Observation date', '7-day change', '30-day change'], histories.map((item) => {
+    const rows = (item.points ?? []).map((point) => ({ date: toUtcDate(point.date, 's'), totalLiquidityUsd: Number(point.totalLiquidityUsd) })).filter((point) => point.date && Number.isFinite(point.totalLiquidityUsd) && point.totalLiquidityUsd >= 0).sort((a, b) => a.date.localeCompare(b.date));
+    const latestPoint = rows.at(-1), change7 = windowChange(rows, 'totalLiquidityUsd', 7), change30 = windowChange(rows, 'totalLiquidityUsd', 30);
+    return [item.name, item.category, latestPoint ? shortUsd(latestPoint.totalLiquidityUsd) : 'Unavailable', latestPoint?.date ?? 'Unavailable', change7 ? formatSignedPercent(change7.changePct) : 'Insufficient consecutive dates', change30 ? formatSignedPercent(change30.changePct) : 'Insufficient consecutive dates'];
+  }), sourceFailureText('defillama-near-protocol-tvls') || 'No selected dated history rows returned.');
 }
+
 function renderHypothesis() {
   renderThesisProvenance();
   const daily = hypothesisRows(), metricA = $('#metricA')?.value || 'priceUsd', metricB = $('#metricB')?.value || 'tvlUsd';
@@ -431,7 +551,7 @@ function renderThesisProvenance() {
   $('#thesisLimitations').innerHTML = THESIS_TEST_RECIPE.limitations.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
 }
 function dataAvailableFor(sourceId) {
-  return ({ 'near-rpc-finalized': Boolean(state.block), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length), 'defillama-near-protocol-tvls': Boolean(state.nearProtocolTvls?.protocols?.length), 'defillama-near-stablecoins': Boolean(state.nearStablecoins?.assets?.length) })[sourceId] ?? false;
+  return ({ 'near-rpc-finalized': Boolean(state.block), 'near-rpc-protocol-config': Boolean(state.protocolConfig), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length), 'defillama-near-protocol-tvls': Boolean(state.nearProtocolTvls?.protocols?.length || state.nearProtocolTvls?.indexProtocols?.length), 'defillama-near-stablecoins': Boolean(state.nearStablecoins?.assets?.length), 'defillama-near-dex-volume': Boolean(state.dexVolumeHistory?.rows?.length), 'defillama-near-fees': Boolean(state.feeHistory?.rows?.length), 'geckoterminal-near-pools': Boolean(state.nearPoolSnapshot?.pools?.length) })[sourceId] ?? false;
 }
 function renderAll() {
   const renderers = {
@@ -486,6 +606,10 @@ async function refreshBlock() {
     const result = await fetchAndApply('block', fetchFinalizedBlock);
     const block = result?.value ?? state.block;
     if (block) appendBlockObservation(block);
+    const configFetchedAt = Date.parse(state.protocolConfig?.fetchedAt ?? '');
+    if (block && (state.protocolConfig?.protocolVersion !== block.protocolVersion || !Number.isFinite(configFetchedAt) || Date.now() - configFetchedAt >= PROTOCOL_CONFIG_INTERVAL_MS)) {
+      await fetchAndApply('protocolConfig', () => fetchProtocolConfig(block));
+    }
     renderAll();
     const blockIsRecent = Number.isFinite(block?.timestampMs) && Date.now() - block.timestampMs <= 30_000;
     const sampleIsDue = Date.now() - state.lastChunkRequestAt >= BLOCK_TRANSACTION_INTERVAL_MS;
@@ -507,6 +631,15 @@ async function refreshSlowRpc() {
 }
 async function refreshDefiPrice() { const result = await fetchAndApply('llamaPrice', fetchDefiLlamaPrice); renderAll(); return result; }
 async function refreshTvl() { const result = await fetchAndApply('tvlHistory', fetchTvlHistory); renderAll(); return result; }
+async function refreshDatedAnalytics() {
+  const [dexResult, feeResult] = await Promise.all([
+    fetchAndApply('dexVolumeHistory', fetchNearDexVolumeHistory),
+    fetchAndApply('feeHistory', fetchNearFeesHistory),
+  ]);
+  renderAll();
+  return Boolean(dexResult?.status?.ok && feeResult?.status?.ok);
+}
+async function refreshPoolSnapshot() { const result = await fetchAndApply('nearPoolSnapshot', fetchNearPoolSnapshot); renderAll(); return result; }
 async function refreshRiskFeeds() {
   const [protocolResult, stablecoinResult] = await Promise.all([
     fetchAndApply('nearProtocolTvls', fetchNearProtocolTvls),
@@ -541,6 +674,8 @@ async function initialLoad() {
       fetchThenRender('tvlHistory', fetchTvlHistory), fetchThenRender('market', fetchCoinGeckoMarket),
       fetchThenRender('marketChart', fetchCoinGeckoHistory),
       fetchThenRender('nearProtocolTvls', fetchNearProtocolTvls), fetchThenRender('nearStablecoins', fetchNearStablecoins),
+      fetchThenRender('dexVolumeHistory', fetchNearDexVolumeHistory), fetchThenRender('feeHistory', fetchNearFeesHistory),
+      fetchThenRender('nearPoolSnapshot', fetchNearPoolSnapshot),
     ]);
     renderAll();
     await refreshSlowRpc();
@@ -552,19 +687,21 @@ async function refreshEverything() {
   const button = $('#refreshButton'); button.disabled = true; button.innerHTML = '↻ <span>Refreshing…</span>';
   try {
     await refreshBlock();
-    await Promise.all([refreshDefiPrice(), refreshTvl(), refreshRiskFeeds()]);
+    await Promise.all([refreshDefiPrice(), refreshTvl(), refreshRiskFeeds(), refreshDatedAnalytics(), refreshPoolSnapshot()]);
     await refreshSlowRpc();
     if (Date.now() - state.lastMarketRefresh >= MARKET_MANUAL_COOLDOWN_MS) await refreshCoinGecko();
     else $('#marketPriceFoot').textContent = `CoinGecko manual refresh cooldown; current snapshot from ${state.market?.timestamp ? utcDateTime(state.market.timestamp) : 'unavailable'}.`;
-  } finally { state.isRefreshing = false; button.disabled = false; button.innerHTML = '↻ <span>Refresh</span>'; renderAll(); announce('Available signals refreshed. Transaction samples respect a five-minute cadence and CoinGecko a one-minute cooldown. See source status for failed reads.'); }
+  } finally { state.isRefreshing = false; button.disabled = false; button.innerHTML = '↻ <span>Refresh</span>'; renderAll(); announce('Available signals refreshed. Transaction samples respect a five-minute cadence, GeckoTerminal a five-minute cadence, and CoinGecko a one-minute cooldown. See source status for failed reads.'); }
 }
 function exportEvidence() {
   const bundle = {
     project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), status: 'public read-only Vercel dashboard; hackathon submission not made',
-    live: { market: state.market, independentSpotPrice: state.llamaPrice, finalizedBlock: state.block, sampledFinalizedBlockTransactions: state.blockActivity,
+    live: { market: state.market, independentSpotPrice: state.llamaPrice, finalizedBlock: state.block, blockMatchedProtocolConfig: state.protocolConfig, sampledFinalizedBlockTransactions: state.blockActivity,
       rpcStatus: state.rpcStatus ? { chainId: state.rpcStatus.chain_id, syncing: state.rpcStatus.syncing, latestBlockHeight: state.rpcStatus.sync_info?.latest_block_height, latestBlockTime: state.rpcStatus.sync_info?.latest_block_time } : null,
-      currentValidatorSet: state.validators, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins },
+      currentValidatorSet: state.validators, nearProtocolTvls: state.nearProtocolTvls, nearStablecoins: state.nearStablecoins,
+      nearDexVolumeHistory: state.dexVolumeHistory, nearFeeHistory: state.feeHistory, nearPoolSnapshot: state.nearPoolSnapshot },
     dailyAlignedMarketAndTvl: allDailyRows(), dailyHypothesisSeries: hypothesisRows(), rawTvlRows: state.tvlHistory?.rows ?? null, rawCoinGeckoMarketChart: state.marketChart,
+    rawNearDexVolumeRows: state.dexVolumeHistory?.rows ?? null, rawNearFeeRows: state.feeHistory?.rows ?? null, rawNearPoolSnapshot: state.nearPoolSnapshot ?? null,
     localRpcObservationHistory: state.observations, localStablecoinPriceObservations: state.stablecoinObservations,
     chartSelections: { days: state.days, metric: state.chartMetric, capitalDays: Number($('#capitalWindowSelect').value) },
     onDemandAccountInspection: accountInspection,
@@ -572,7 +709,7 @@ function exportEvidence() {
     chartQueryRecipes: CHART_QUERY_RECIPES,
     thesisTestRecipe: THESIS_TEST_RECIPE,
     sourceRegistry: DATA_SOURCES.map((source) => ({ ...source, status: state.sourceStatuses.get(source.id) ?? null })),
-    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction trends and contract activity are unavailable; no such metrics are inferred from a block sample.', 'No canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
+    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction trends and contract activity are unavailable; no such metrics are inferred from a block sample.', 'No canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'DEX volume is turnover, not net flow; GeckoTerminal page 1 is a bounded pool snapshot, not every NEAR pool or chain-wide liquidity.', 'DefiLlama indexed fee data is not a reconciled receipt-level fee ledger, realized protocol revenue, validator income or APY.', 'Block gas multiplied by gas price is an execution-value proxy, not exact signer debit, total fees burned or revenue; the protocol rule is shown separately.', 'The protocol-index universe is provider coverage with a $100,000 threshold; detailed history reads cover at most eight selected records.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
   };
   bundle.replayedChartInputs = replayChartInputs(bundle);
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
@@ -703,5 +840,7 @@ setInterval(() => { void refreshDefiPrice(); }, DEFI_PRICE_INTERVAL_MS);
 setInterval(() => { void refreshSlowRpc(); }, SLOW_RPC_INTERVAL_MS);
 setInterval(() => { void refreshTvl(); }, TVL_INTERVAL_MS);
 setInterval(() => { void refreshRiskFeeds(); }, RISK_FEED_INTERVAL_MS);
+setInterval(() => { void refreshDatedAnalytics(); }, FEE_HISTORY_INTERVAL_MS);
+setInterval(() => { void refreshPoolSnapshot(); }, POOL_SNAPSHOT_INTERVAL_MS);
 setInterval(() => { if (document.body.dataset.route === 'overview') renderBlockAge(); }, 1000);
 setInterval(() => { if (document.body.dataset.route === 'risk-radar') renderRisks(); }, 10_000);

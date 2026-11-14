@@ -2,9 +2,9 @@ export const WORKSPACES = {
   overview: { title: 'Market overview', description: 'NEAR mainnet, market and liquidity signals in one workspace.' },
   'thesis-challenge': { title: 'Thesis Challenge Engine', description: 'Test a declared relationship against complete, matched daily observations.' },
   'risk-radar': { title: 'Ecosystem Risk Radar', description: 'Screen current live signals with transparent thresholds and source status.' },
-  'value-capture': { title: 'Value Capture Lab', description: 'Inspect execution costs and model fees against the live gas price.' },
-  adoption: { title: 'Network Activity & Validators', description: 'Inspect live account state, current validators and verified finalized-block activity.' },
-  'capital-flows': { title: 'Liquidity & TVL Context', description: 'Track matched daily NEAR DeFi TVL snapshots and their market context.' },
+  'value-capture': { title: 'Value Capture Lab', description: 'Compare indexed fee history, block-level gas estimates and the version-matched protocol fee rule.' },
+  adoption: { title: 'Network Activity & Validators', description: 'Inspect account state, validator-set composition, epoch counters and exact-height activity by shard.' },
+  'capital-flows': { title: 'Liquidity & TVL Context', description: 'Explore long-run TVL, DEX turnover, top-pool snapshots and selected protocol-chain balances.' },
 };
 
 export function resolveWorkspace(hash) {
