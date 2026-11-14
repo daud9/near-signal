@@ -13,7 +13,7 @@ NEAR SIGNAL currently uses eight read-only feeds and lists five disconnected can
 | DefiLlama spot price | Independently timestamped price check | About every two minutes while the page is open | Cross-check only; not an executable quote or on-chain oracle. |
 | DefiLlama NEAR TVL | Dated daily USD TVL stock | About every 30 minutes while the page is open | Asset stock, not deposits, net inflow, retention or protocol revenue. |
 
-The latest per-feed status and timestamps are in the dashboard and evidence snapshot. These public services may change access, caches, limits or terms.
+The current header summarizes connected-feed responses. Source state and provider/request times are shown on the relevant Risk Radar and Thesis Challenge cards and exports. These public services may change access, caches, limits or terms.
 
 ## BigQuery: documented, not connected
 
@@ -50,7 +50,7 @@ No JWT is configured and the app makes no Explorer request. A static browser bun
 
 ## On-demand account lookup
 
-The Organic Adoption workspace also offers a user-initiated, read-only `view_account` query at `https://free.rpc.fastnear.com`. It returns the selected account’s current finalized balance, locked amount, storage usage, code hash and block identity. The inspector shows the raw request/response and fetch timestamp and includes them in a user-requested evidence export. It is not a scheduled feed or a historical adoption source, so it is separate from the eight automatically checked feeds.
+The Network Activity & Validators workspace also offers a user-initiated, read-only `view_account` query at `https://free.rpc.fastnear.com`. It returns the selected account’s current finalized balance, locked amount, storage usage, code hash and block identity. The inspector shows the raw request/response and fetch timestamp and includes them in a user-requested evidence export. It is not a scheduled feed or a historical adoption source, so it is separate from the eight automatically checked feeds.
 
 
 ## Separate alternative-ingestion track

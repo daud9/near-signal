@@ -2,12 +2,11 @@ import { BIGQUERY_ACTIVITY_QUERY } from './query-registry.js';
 
 export const WORKSPACES = {
   overview: { title: 'Market overview', description: 'NEAR mainnet, market and liquidity signals in one workspace.' },
-  'value-capture': { title: 'Value Capture Lab', description: 'Inspect execution costs and model fees against the live gas price.' },
-  adoption: { title: 'Organic Adoption Intelligence', description: 'Inspect live accounts, verified block samples and daily activity query recipes.' },
-  'risk-radar': { title: 'Ecosystem Risk Radar', description: 'Screen current evidence with transparent thresholds and source-level coverage.' },
-  'capital-flows': { title: 'Capital Flow Intelligence', description: 'Analyze liquidity stock changes; reconciled cross-chain flows remain unavailable.' },
   'thesis-challenge': { title: 'Thesis Challenge Engine', description: 'Test a declared relationship against complete, matched daily observations.' },
-  methodology: { title: 'Sources & methodology', description: 'Inspect source availability, raw queries, definitions and evidence exports.' },
+  'risk-radar': { title: 'Ecosystem Risk Radar', description: 'Screen current live signals with transparent thresholds and source status.' },
+  'value-capture': { title: 'Value Capture Lab', description: 'Inspect execution costs and model fees against the live gas price.' },
+  adoption: { title: 'Network Activity & Validators', description: 'Inspect live account state, current validators and verified finalized-block activity.' },
+  'capital-flows': { title: 'Liquidity & TVL Context', description: 'Track matched daily NEAR DeFi TVL snapshots and their market context.' },
 };
 
 export function resolveWorkspace(hash) {

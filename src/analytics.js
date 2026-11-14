@@ -343,71 +343,66 @@ export function assessLiveRisks({ market, tvl7d, tvl30d, validators, block, rpcS
   const blockTxReusedShardCount = numeric(blockActivity?.reusedShardCount) ?? 0;
   const blockTxScope = blockTxCount === null ? '' : `${Math.round(blockTxCount).toLocaleString()} transactions across ${blockTxShardCount} shards (${blockTxChunkCount} newly included chunks${blockTxReusedShardCount > 0 ? `; ${blockTxReusedShardCount} prior-height references counted as zero` : ''})`;
   const blockAge = numeric(block?.ageSeconds);
-  const rpcAvailable = Boolean(block && rpcStatus?.chain_id === 'mainnet');
-  return [
+  const rpcAvailable = Boolean(block && blockAge !== null && rpcStatus?.chain_id === 'mainnet' && typeof rpcStatus.syncing === 'boolean');
+  const marketPrice = numeric(market?.priceUsd);
+  const marketAsOf = market?.timestamp ? ` as of ${market.timestamp}` : '';
+  const marketEvidence = priceMove === null ? '' : `CoinGecko reported NEAR ${marketPrice === null ? '' : `at $${marketPrice.toFixed(4)} `}${priceMove > 0 ? '+' : ''}${priceMove.toFixed(2)}% over 24 hours${marketAsOf}.`;
+  const risks = [
     {
       id: 'concentration', title: 'Validator stake concentration',
-      state: validators ? 'Current set observed' : 'Data unavailable',
-      tone: 'neutral', severity: 'Unrated — no validated risk threshold',
+      observed: Boolean(validators), state: 'Current set observed',
+      tone: 'neutral', severity: 'Context only — no historical risk threshold is configured',
       trend: 'One current-epoch validator set; prior epochs are not yet collected.',
-      confidence: validators ? 'High for RPC-reported active-set stakes; does not represent all stakers or ecosystem apps' : 'Insufficient evidence',
-      evidence: validators ? `${validators.validatorCount} current validators; top 10 hold ${validators.top10SharePct.toFixed(1)}% of stake in the reported set (HHI ${validators.hhi.toFixed(0)}).` : 'The current validator set was not returned.',
+      confidence: 'High for RPC-reported active-set stakes; does not represent all stakers or ecosystem apps',
+      evidence: `${validators?.validatorCount ?? 0} current validators; top 10 hold ${validators?.top10SharePct?.toFixed(1) ?? '—'}% of stake in the reported set (HHI ${validators?.hhi?.toFixed(0) ?? '—'}).`,
       impact: 'Validator stake concentration is a governance and production-dependency indicator, not proof of collusion or a security failure.',
       next: 'Compare multiple epochs and add independently sourced application/contract concentration before broadening this risk.',
     },
     {
-      id: 'adoption', title: 'Network activity / adoption quality',
-      state: blockTxCount !== null ? 'Block transactions observed · adoption unmeasured' : 'Not measured', tone: 'caution',
-      severity: blockTxCount !== null ? 'Unrated — one finalized-block count cannot establish user adoption' : 'Unrated — no sampled finalized-block transaction count; daily account history is unavailable',
-      trend: blockTxCount !== null ? `One finalized block sample: ${blockTxScope}; no daily or unique-user trend.` : 'Unavailable — no complete sampled finalized-block transaction count or daily account series is connected.',
-      confidence: blockTxCount !== null ? 'High for the returned transaction arrays in this block; insufficient for adoption, retention or a trend' : 'Insufficient evidence',
-      evidence: blockTxCount !== null ? `${blockTxScope} in finalized block ${blockTxHeight?.toLocaleString() ?? '—'} (${blockActivity.blockTimestamp ?? 'time unavailable'}). Transaction identities are not retained.` : 'No complete sampled per-block transaction count or daily account history is available.',
-      impact: 'A block-local transaction count indicates activity in one sample; it does not identify users, returning behaviour, application diversity or adoption quality.',
-      next: 'Collect a permitted consecutive block series, then add independently authorized account cohorts, retention and application-diversity evidence.',
+      id: 'activity', title: 'Finalized-block activity sample',
+      observed: blockTxCount !== null, state: 'One finalized block observed', tone: 'neutral',
+      severity: 'Context only — one block is not an adoption-risk score',
+      trend: `One block sample: ${blockTxScope}; no daily or unique-user trend.`,
+      confidence: 'High for the returned transaction arrays in this block; it does not measure users, retention or a trend',
+      evidence: `${blockTxScope} in finalized block ${blockTxHeight?.toLocaleString() ?? '—'} (${blockActivity?.blockTimestamp ?? 'time unavailable'}). Transaction identities are not retained.`,
+      impact: 'A block-local count describes activity in one sample; it does not identify users, returning behaviour or application diversity.',
+      next: 'Compare successive complete samples before making a trend claim.',
     },
     {
       id: 'capital', title: 'Liquidity stock (TVL)',
-      state: tvlDecline === null ? 'Daily TVL unavailable' : tvlDecline <= -threshold ? 'Drawdown watch' : 'Daily TVL observed',
+      observed: tvlDecline !== null, state: tvlDecline === null ? '' : tvlDecline <= -threshold ? 'Drawdown watch' : 'Daily TVL observed',
       tone: tvlDecline !== null && tvlDecline <= -threshold ? 'high' : 'neutral',
-      severity: tvlDecline === null ? 'Unrated — no current TVL window' : tvlDecline <= -threshold ? `Configured signal — ${threshold}% 30-day decline threshold crossed` : 'No configured 30-day TVL decline threshold crossed',
-      trend: tvlDecline === null ? 'Unavailable — TVL history did not produce a complete 30-day comparison.' : `DefiLlama-reported NEAR DeFi TVL changed ${tvlDecline > 0 ? '+' : ''}${tvlDecline.toFixed(1)}% over ${tvl30d.days} days.`,
-      confidence: tvlDecline === null ? 'Insufficient evidence' : 'Moderate for provider-reported USD TVL; low for net flows or capital retention',
-      evidence: tvlDecline === null ? 'No complete daily TVL comparison is available.' : 'TVL is an indexed asset stock and is affected by token prices. It is not a bridge flow, net inflow or retained investment.',
+      severity: tvlDecline === null ? '' : tvlDecline <= -threshold ? `Configured signal — ${threshold}% 30-day decline threshold crossed` : 'No configured 30-day TVL decline threshold crossed',
+      trend: tvlDecline === null ? '' : `DefiLlama-reported NEAR DeFi TVL changed ${tvlDecline > 0 ? '+' : ''}${tvlDecline.toFixed(1)}% over ${tvl30d.days} days.`,
+      confidence: 'Moderate for provider-reported USD TVL; low for net flows or capital retention',
+      evidence: tvlDecline === null ? '' : `DefiLlama daily USD TVL changed ${tvlDecline > 0 ? '+' : ''}${tvlDecline.toFixed(1)}% over ${tvl30d.days} complete matched dates. TVL is an asset stock, not a net flow.`,
       impact: 'A sustained fall in TVL can indicate lower reported DeFi balances, but price changes and coverage changes may explain part of it.',
       next: 'Check underlying assets, protocol coverage and price-adjusted changes before calling a TVL move an ecosystem capital flow.',
     },
     {
       id: 'infrastructure', title: 'Infrastructure freshness',
-      state: !rpcAvailable ? 'RPC observation unavailable' : rpcStatus.syncing ? 'Node reports syncing' : blockAge > staleBlockSeconds ? 'Finalized block is stale' : 'Finalized block observed',
+      observed: rpcAvailable, state: !rpcAvailable ? '' : rpcStatus.syncing ? 'Node reports syncing' : blockAge > staleBlockSeconds ? 'Finalized block is stale' : 'Finalized block observed',
       tone: !rpcAvailable || rpcStatus?.syncing || blockAge > staleBlockSeconds ? 'caution' : 'positive',
-      severity: !rpcAvailable ? 'Unrated — no current RPC result' : rpcStatus?.syncing || blockAge > staleBlockSeconds ? 'Operational warning on this endpoint only' : 'No single-check warning observed',
+      severity: !rpcAvailable ? '' : rpcStatus.syncing || blockAge > staleBlockSeconds ? 'Operational warning on this endpoint only' : 'No single-check warning observed',
       trend: 'A live point-in-time RPC view; local history only accumulates while this browser remains open.',
-      confidence: rpcAvailable ? 'High for the returned block/status; low for global network health or uptime' : 'Insufficient evidence',
-      evidence: rpcAvailable ? `Finalized block ${Number(block.height).toLocaleString()} is ${blockAge.toFixed(1)} seconds old; queried node syncing=${Boolean(rpcStatus.syncing)}.` : 'The mainnet RPC did not return both status and a finalized block.',
+      confidence: 'High for the returned block/status; low for global network health or uptime',
+      evidence: !rpcAvailable ? '' : `Finalized block ${Number(block.height).toLocaleString()} is ${blockAge.toFixed(1)} seconds old; queried node syncing=${Boolean(rpcStatus.syncing)}.`,
       impact: 'This can reveal an old block or syncing node view, but one provider cannot establish a network-wide outage or consensus fault.',
       next: 'Compare multiple independent RPC providers and keep a persistent observation history before making availability claims.',
     },
     {
-      id: 'economics', title: 'Economic signal',
-      state: priceMove === null ? 'Market change unavailable' : priceMove <= -threshold ? 'Price decline watch' : 'Market snapshot observed',
+      id: 'economics', title: '24-hour NEAR market change',
+      observed: priceMove !== null, state: priceMove === null ? '' : priceMove <= -threshold ? 'Price decline watch' : 'Market snapshot observed',
       tone: priceMove !== null && priceMove <= -threshold ? 'high' : 'neutral',
-      severity: priceMove === null ? 'Unrated — no current market change' : priceMove <= -threshold ? `Configured signal — ${threshold}% 24-hour market decline threshold crossed` : 'No configured 24-hour market decline threshold crossed',
-      trend: priceMove === null ? 'Unavailable — provider did not return a fresh 24-hour percentage change.' : `CoinGecko aggregated NEAR price changed ${priceMove > 0 ? '+' : ''}${priceMove.toFixed(2)}% over 24 hours.`,
-      confidence: priceMove === null ? 'Insufficient evidence' : 'Moderate for aggregated market data; not protocol value capture',
-      evidence: block && block.estimatedGasFeeNear !== null ? `Latest finalized block used ${(block.gasUsed / 1e12).toFixed(2)} Tgas; estimated gas cost ${block.estimatedGasFeeNear.toFixed(6)} Ⓝ. This is not protocol revenue.` : 'No latest finalized-block gas estimate is available.',
+      severity: priceMove === null ? '' : priceMove <= -threshold ? `Configured signal — ${threshold}% 24-hour market decline threshold crossed` : 'No configured 24-hour market decline threshold crossed',
+      trend: priceMove === null ? '' : `CoinGecko aggregated NEAR market price changed ${priceMove > 0 ? '+' : ''}${priceMove.toFixed(2)}% over 24 hours${marketAsOf}.`,
+      confidence: 'Moderate for aggregated market data; not protocol value capture',
+      evidence: priceMove === null ? '' : `${marketEvidence}${block && block.estimatedGasFeeNear !== null ? ` Latest finalized-block gas cost was ${block.estimatedGasFeeNear.toFixed(6)} Ⓝ, shown as separate execution-cost context.` : ''}`,
       impact: 'Market repricing and per-block execution cost are separate observations; neither establishes sustainable token value capture.',
       next: 'Add a permitted historical fee series and protocol-level token-economic context before assessing long-run value capture.',
     },
-    {
-      id: 'dependencies', title: 'Ecosystem dependencies',
-      state: 'Not assessed', tone: 'caution', severity: 'Unrated — no dependency inventory',
-      trend: 'Not available — no verified protocol, bridge or critical-service dependency history is connected.',
-      confidence: 'Insufficient evidence',
-      evidence: 'No sourced inventory of major applications, liquidity providers, bridges or infrastructure operators is integrated.',
-      impact: 'Critical external-service or protocol concentration could create risk that this live-feed MVP does not map.',
-      next: 'Build a cited dependency register and connect it to an authorized incident and liquidity dataset.',
-    },
   ];
+  return risks.filter((risk) => risk.observed).map(({ observed, ...risk }) => risk);
 }
 
 export function formatSignedPercent(value, digits = 1) {

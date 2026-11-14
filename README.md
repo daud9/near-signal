@@ -2,7 +2,7 @@
 
 **A read-only NEAR research dashboard that shows its evidence—and its gaps.**
 
-NEAR SIGNAL separates finalized-block observations, current validator data, market context, DeFi TVL, and unavailable account/flow evidence. It does not connect wallets, sign transactions, or provide investment advice.
+NEAR SIGNAL separates finalized-block observations, current validator data, market context and DeFi TVL. It does not present unobserved measurements as live data, connect wallets, sign transactions, or provide investment advice.
 
 The project is served from the existing public [Vercel deployment](https://near-signal-one.vercel.app). The requested update is confined to the existing application, repository and deployment. No new personal profile, hackathon submission, or public post has been created.
 
@@ -21,29 +21,30 @@ Then open `http://127.0.0.1:8000`.
 
 - To see live, source-timestamped NEAR RPC, Neardata per-block activity, and market/TVL observations, open the dashboard and wait for the source indicator.
 - To inspect how a chart is made, expand **View source query and interpretation** below it.
-- To inspect the daily account/transaction/contract SQL, open **Organic Adoption Intelligence** and expand its sample query. The live schema has been checked, but no BigQuery result is shown because no query was intentionally run.
-- To inspect Intents requirements, open **Capital Flow Intelligence**. Its Explorer connection remains unavailable until a partner JWT and safe server-side path are configured.
-- To reproduce the written thesis and data caveats, read [`THESIS.md`](THESIS.md) and [track alignment](docs/track-alignment.md).
+- To reproduce the Thesis Challenge calculation, expand **View sources, query and calculation** in its result panel, or export the test JSON with its raw inputs, source statuses, timestamps and limitations.
+- The **Network Activity & Validators** workspace includes an on-demand account/contract inspector, current validator snapshot, exact finalized-block sample and a local BigQuery SQL generator. SQL generation never submits a job.
+- To review the full investment thesis and data caveats, read [`THESIS.md`](THESIS.md) and [track alignment](docs/track-alignment.md).
 
 ## Sidebar workspace tools
 
 The desktop sidebar and mobile menu open one module at a time, with direct hash links and browser-back support. Available tools work against live source responses:
 
 - **Value Capture Lab:** execution-budget calculator using the latest finalized gas price; USD equivalent uses a separately sourced market price. Input Tgas is a hypothetical budget, not observed usage.
-- **Organic Adoption Intelligence:** on-demand mainnet account/contract inspection, with raw request/response and fetch time; local date/contract SQL builder and download. SQL generation never runs a BigQuery job.
-- **Risk Radar:** live decline threshold and filters for triggered watches or missing evidence.
-- **Capital Flow Intelligence:** selectable 7/14/30-day TVL chart windows. The data remains liquidity stock, not net flow.
-- **Thesis Challenge Engine:** selectable sourced series, self-correlation guard and test-result export with raw inputs.
+- **Thesis Challenge Engine:** selectable sourced series, self-correlation guard, direct source/query/method disclosures, and test-result export with raw inputs and limitations.
+- **Ecosystem Risk Radar:** source-backed live observations, a live threshold for market/TVL watches, and per-source status and timestamp. Unobserved indicators are omitted rather than shown as blank risk cards.
+- **Value Capture Lab:** execution-budget calculator using the latest finalized gas price; USD equivalent uses a separately sourced market price. Input Tgas is a hypothetical budget, not observed usage.
+- **Network Activity & Validators:** on-demand mainnet account/contract inspection, current validator participation, exact finalized-block sampling, and a local date/contract SQL builder. SQL generation never runs a BigQuery job.
+- **Liquidity & TVL Context:** selectable 7/14/30-day TVL chart windows. The data remains liquidity stock, not net flow.
 
 Every chart has a source recipe, a data table, exact-value CSV download and a copy-query action. Evidence exports preserve selected chart windows, account inspection and calculator inputs. One valid live sample is shown as one point; no prior history or trend is fabricated.
 
 ## What is connected
 
 - **Value Capture Lab:** latest finalized-block gas and gas-price estimate, reported chunk utilization, plus separately labeled external market context. The gas estimate is not a reconciled fee ledger or protocol revenue.
-- **Ecosystem Risk Radar:** source-backed, scoped risk cards. Severity and confidence are shown separately; one RPC view is not network-wide health.
-- **Organic Adoption Intelligence:** one complete all-shard transaction sample from FastNEAR Neardata for the exact latest finalized RPC block, plus the current validator-set snapshot from NEAR RPC. The Neardata read is keyless and limited to one request every five minutes. A single block does not measure daily adoption. BigQuery daily signer, transaction and contract metrics are displayed as unavailable, with the unexecuted SQL visible.
-- **Capital Flow Intelligence:** daily NEAR DeFi TVL stock and source notes. NEAR Intents Explorer is shown as not connected; no net-flow proxy is invented.
-- **Thesis Challenge Engine:** a selectable descriptive price/TVL/market-volume correlation test. Its result is not a test of Intents volume versus daily on-chain usage because those two data series are not connected.
+- **Ecosystem Risk Radar:** source-backed live observations. Market and TVL threshold watches are shown separately from contextual indicators, with source status and timestamp on each card; missing source data does not create an alert card.
+- **Network Activity & Validators:** a complete all-shard transaction sample from FastNEAR Neardata for the exact latest finalized RPC block, plus the current validator-set snapshot and on-demand account state. A single block does not measure daily adoption. The local BigQuery tool only generates a query; it does not display or fabricate results.
+- **Liquidity & TVL Context:** daily NEAR DeFi TVL stock. It is not a bridge/Intents net-flow measure.
+- **Thesis Challenge Engine:** a selectable descriptive price/TVL/market-volume correlation test. Its source requests, method, source timestamps and limitations are shown with the test and preserved in its export.
 
 ## What `npm run rebuild` does
 
@@ -69,7 +70,7 @@ The official Explorer is read-only and covers historical 1Click Swap records, no
 
 ## Verification
 
-`npm test` runs 35 deterministic checks, including Neardata chunk-validation, `block_date` filters, chart query disclosures, source handling and calculation tests. `npm run check` validates JavaScript syntax. The live desktop/mobile suite can be run with `npm install`, `npx playwright install chromium` and `npm run test:e2e`. It uses real read-only providers, tests the account lookup, chart/SQL/test/evidence downloads, route visibility and mobile drawer, and asserts that no BigQuery or Intents API request is made. Live providers can fail, impose shared limits or change their terms; current source status and timestamps are shown in the [source inventory](docs/data-sources.md). No synthetic fallback values are used.
+`npm test` runs 43 deterministic checks, including Neardata chunk-validation, risk evidence, thesis provenance exports, chart query disclosures and source handling. `npm run check` validates JavaScript syntax. The live desktop/mobile suite can be run with `npm install`, `npx playwright install chromium` and `npm run test:e2e`. It uses real read-only providers, tests account lookup, chart/SQL/test/evidence downloads, route visibility and mobile navigation, and asserts that no BigQuery or Intents API request is made. Live providers can fail, impose shared limits or change their terms; the research report and [data-source inventory](docs/data-sources.md) preserve the relevant scope limitations. No synthetic fallback values are used.
 
 ## Project notes
 

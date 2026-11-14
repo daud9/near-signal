@@ -20,7 +20,7 @@ import {
   statusFromMissingSource,
 } from '../src/data.js';
 import { replayChartInputs, replayRpcObservations } from '../src/replay.js';
-import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, CHART_QUERY_RECIPES } from '../src/query-registry.js';
+import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from '../src/query-registry.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -70,7 +70,7 @@ export async function rebuildSnapshot() {
   }]));
   const hypothesis = testHypothesis(daily, 'priceUsd', 'tvlUsd', 'positive', 14);
   const risks = assessLiveRisks({
-    market: market.value ? { priceChange24h: market.value.priceChange24hPct } : null,
+    market: market.value ? { priceChange24h: market.value.priceChange24hPct, priceUsd: market.value.priceUsd, timestamp: market.value.timestamp } : null,
     tvl7d: matchedWindows[7].tvlUsd,
     tvl30d: matchedWindows[30].tvlUsd,
     validators: validators.value ?? null,
@@ -109,12 +109,18 @@ export async function rebuildSnapshot() {
       localGasAndBlockSampleHistory: 'Raw-response-backed observations are saved in this bundle and replayable offline. They are samples, not a historical chain archive.',
     },
     chartQueryRecipes: CHART_QUERY_RECIPES,
+    thesisTestRecipe: THESIS_TEST_RECIPE,
     unexecutedBigQuery: { dataset: BIGQUERY_DATASET, sql: BIGQUERY_ACTIVITY_QUERY, status: 'Not connected; no query was submitted.' },
     matchedWindows,
     selectedDescriptiveTest: {
       claimLabel: 'NEAR price and TVL daily changes move in the same direction',
       calculation: hypothesis,
       rule: 'Pearson r threshold ±0.30; requires the full selected consecutive sample; no p-value or causal interpretation',
+      recipe: THESIS_TEST_RECIPE,
+      sourceObservations: {
+        'coingecko-history': { fetchedAt: marketChart.value?.fetchedAt ?? null, providerAt: marketChart.status?.providerAt ?? null },
+        'defillama-tvl': { fetchedAt: tvl.value?.fetchedAt ?? null, providerAt: tvl.status?.providerAt ?? null },
+      },
     },
     riskStates: risks,
     rawReturnedData: {
@@ -129,7 +135,6 @@ export async function rebuildSnapshot() {
       'The validator summary covers the RPC-reported current active set, not all stakers or historical validator performance.',
       'One public RPC node status and browser-local observations do not establish network-wide uptime or security.',
       'Market capitalization and volume are aggregated exchange-market measures. TVL is a daily USD asset stock. Neither is net investment or protocol revenue.',
-      'The NEAR Ecosystem Health Score is withheld because important evidence dimensions are unavailable.',
       'The selected correlation is descriptive only. It does not establish causation, statistical significance, independence or a forecast.',
       'Provider access, freshness, shared limits and endpoint availability can change. Successful access does not establish public/commercial permission or an SLA.',
     ],

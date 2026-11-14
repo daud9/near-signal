@@ -4,24 +4,24 @@ Updated **14 November 2026** during the NEAR AI Investment Thesis track alignmen
 
 ## Implemented
 
-- Five dashboard modules: **Value Capture Lab**, **Ecosystem Risk Radar**, **Organic Adoption Intelligence**, **Capital Flow Intelligence**, and **Thesis Challenge Engine**.
+- Six routed workspaces: **Overview**, **Thesis Challenge Engine**, **Ecosystem Risk Radar**, **Value Capture Lab**, **Network Activity & Validators**, and **Liquidity & TVL Context**. Thesis and Risk are promoted directly after Overview.
 - Live read-only sources include FastNEAR public mainnet RPC, FastNEAR Neardata, CoinGecko and DefiLlama. The browser requests Neardata's exact-height block/shard bundle at most every five minutes for a finalized-block transaction sample; it needs no API key or new server/database. The existing Vercel project is the deployment target; changes are scoped to its current app/repository.
-- Each current chart exposes its source request or SQL, derivation/validation rule, and a plain-language sentence. Query disclosures remain visible when there are no plotted points and preserve their open state during refresh.
+- Each current chart exposes its source request or SQL, derivation/validation rule, and a plain-language sentence. The Thesis Challenge result additionally exposes its two live API queries, provider/fetch times, exact full-window calculation, and limitations; the JSON test export preserves these with its inputs.
 - The authenticated Google Cloud console displayed the complete 16-object BigQuery inventory, including `receipt_origin_transaction` and no `receipt_origin` or `receipts` object. The inspected `transactions`, `receipt_actions`, and `receipt_origin_transaction` tables are partitioned on `block_date` DATE. The daily signer/transaction/contract-use SQL template is visible in the dashboard and checked in as `sql/near-signal.sql`; every scanned relation has a `block_date` range filter.
-- Intents Explorer requirements are visible in the dashboard: 1Click-only scope, JWT as a Bearer token, cursor pagination, and one request every five seconds per partner. No token is embedded or request made.
+- Standalone Evidence/Methodology navigation and disconnected Intents Explorer/BigQuery metric placeholders are removed. The useful local BigQuery SQL generator remains, and detailed data-access constraints are retained in the thesis and source documentation; no Intents request is made.
 - `npm run rebuild` regenerates SQL from the shared query registry and writes a dated evidence snapshot including raw connected-source inputs, aligned chart inputs, chart query recipes and disconnected-source status.
 - `THESIS.md` now contains the working hypothesis, timestamped evidence for/against it, what would change the view, and the data and access limitations.
 
 - Desktop sidebar and mobile drawer route to focused module workspaces, preserving deep links and browser history.
-- Working tools include a live read-only account/contract inspector, execution-budget calculator, local date/contract SQL builder, chart-window selection, risk filters, chart CSV/copy-query controls, and sourced thesis-result export. All require actual inputs; unsourced analytical metrics remain unavailable.
+- Working tools include a live read-only account/contract inspector, execution-budget calculator, local date/contract SQL builder, chart-window selection, live-source risk filters, chart CSV/copy-query controls, and a sourced thesis-result export. Risk indicators appear only when their source observation exists; no empty risk placeholder or synthetic metric is emitted.
 
 ## Verification performed
 
 - `npm run check` passed JavaScript syntax validation.
-- `npm test` passed **37** deterministic tests, including Neardata current-height chunk validation, prior-height zero-contribution references, offline replay, query disclosure requirements, calculations and local-server security.
-- `npm run test:ingestion` passed **30** Python tests (one opt-in live RPC test is skipped by default). The desktop/mobile Playwright suite passed **2/2** against the local app and verified the responding Neardata feed and rendered new-chunk count; production-origin CORS and the deployed module were checked.
+- `npm test` passed **43** deterministic tests, including Neardata current-height chunk validation, prior-height zero-contribution references, source-backed Radar evidence, thesis export provenance, offline replay, query disclosures, calculations and local-server security.
+- `npm run test:ingestion` passed **30** Python tests (one opt-in live RPC test is skipped by default). The desktop/mobile Playwright suite passed **2/2** against the local app, including route visibility, feature interactions, downloads and responsive navigation.
 - The SQL artifact was generated from the same query definition used by the dashboard. No BigQuery query or dry run was submitted. One unauthenticated Intents Explorer reachability check returned HTTP 400; no authorized data request or token was made.
-- The previous track-aligned commit was verified byte-for-byte at the existing production URL. The sidebar follow-up passed live desktop/mobile browser tests: all seven routes, account inspection, fee calculation, risk filters, chart/SQL/test/evidence downloads and selected-window replay. Those tests made no BigQuery query or authorized Intents data request.
+- The previous track-aligned commit was verified byte-for-byte at the existing production URL. This update is prepared for the same authorized repository/deployment; it makes no BigQuery query or authorized Intents data request.
 
 ## Unavailable and intentionally not claimed
 

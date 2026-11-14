@@ -8,7 +8,7 @@ NEAR's long-term investment case depends on sustained, broad on-chain activity a
 
 ## Evidence that cuts against a bullish growth reading
 
-The dated evidence snapshot generated **14 November 2026 at 08:51 UTC** contains 31 matched daily market/TVL dates from **14 October to 13 November**. Across those dates, the NEAR price endpoint fell **32.11%** (about $5.04 to $3.42), NEAR DeFi TVL fell **34.53%** (about $243.1 million to $159.2 million), and gross market-volume endpoint fell **63.62%** (about $1.12 billion to $408.4 million). These are provider-reported USD observations; they are not net investment, on-chain activity, protocol revenue, or user counts.
+The dated evidence snapshot generated **14 November 2026 at 18:00 UTC** contains 31 matched daily market/TVL dates from **14 October to 13 November**. Across those dates, the NEAR price endpoint fell **32.11%** (about $5.04 to $3.42), NEAR DeFi TVL fell **34.53%** (about $243.1 million to $159.2 million), and gross market-volume endpoint fell **63.62%** (about $1.12 billion to $408.4 million). These are provider-reported USD observations; they are not net investment, on-chain activity, protocol revenue, or user counts.
 
 From 30 October to 13 November, price was down **15.61%**, TVL **14.41%**, and gross market volume **57.34%**. Over the seven-day span, price was down **6.54%**, TVL **7.98%**, and gross market volume **33.61%**. These endpoint changes describe that sample only; they do not predict future performance.
 
@@ -16,11 +16,11 @@ The default selectable test found Pearson **r ≈ 0.98** between 14 matched dail
 
 ## What the live chain sample does—and does not—show
 
-The refreshed snapshot recorded finalized block **224,491,125** at **08:51:22 UTC**, protocol version **88**. All **10** referenced shard chunks were available and the sampled block contained **4 transactions**. This is one block, not a daily trend or user count.
+The refreshed snapshot recorded finalized block **224,548,963** at **18:00:52 UTC**, protocol version **88**. All **10** referenced shard chunks were verified and the sampled block contained **15 transactions**. This is one block, not a daily trend or user count.
 
-The RPC-reported current validator set contained **345 records**. The top ten held **35.92%** of stake in that returned set; the reported stake HHI was **216.55**, and returned epoch counters showed **100%** block production. The current block-level gas estimate was **0.005322 Ⓝ**. These are current provider observations, not a historical validator series, full delegation map, protocol-wide fee ledger, or security guarantee.
+The RPC-reported current validator set contained **355 records**. The top ten held **35.91%** of stake in that returned set; the reported stake HHI was **216.31**, and returned epoch counters showed **99.99%** block production (**24,631/24,633**). The current block-level gas estimate was **0.012119 Ⓝ**. These are current provider observations, not a historical validator series, full delegation map, protocol-wide fee ledger, or security guarantee.
 
-At the same refresh window, CoinGecko reported NEAR at **$3.32**, down **6.18%** over 24 hours. DefiLlama reported **$3.3167**; provider timestamps were **3 seconds** apart. They are timestamped market observations, not on-chain price or value-capture measures.
+At the same refresh window, CoinGecko reported NEAR at **$3.12**, down **10.63%** over 24 hours at **18:00:51 UTC**. DefiLlama reported **$3.1375** at **18:00:42 UTC**, nine seconds earlier. They are timestamped market observations, not on-chain price or value-capture measures.
 
 ## Evidence that could support the thesis, but has not yet been measured
 
@@ -44,9 +44,9 @@ I would move against the thesis if those validated series showed persistent acti
 
 ## Methodology and connected data sources
 
-The app reads [FastNear's public mainnet RPC](https://free.rpc.fastnear.com) for finalized blocks/chunks, node status and the current validator response; CoinGecko for price, market capitalization, gross market volume and daily history; and DefiLlama for an independent spot price and [daily NEAR TVL](https://api.llama.fi/v2/historicalChainTvl/NEAR). Each observation retains its provider/fetch timestamps and status. The [source inventory](docs/data-sources.md) lists cadence and scope.
+The app reads [FastNEAR's public mainnet RPC](https://free.rpc.fastnear.com) for finalized blocks/chunks, node status and the current validator response; CoinGecko for price, market capitalization, gross market volume and daily history; and DefiLlama for an independent spot price and [daily NEAR TVL](https://api.llama.fi/v2/historicalChainTvl/near). Each observation retains its provider/fetch timestamps and status. The [source inventory](docs/data-sources.md) lists cadence and scope. Inside the Thesis Challenge Engine, the exact CoinGecko and DefiLlama requests, observation times, calculation steps and limitations appear alongside the result and are preserved in its JSON export.
 
-Daily market and TVL series are matched on exact UTC dates, exclude the partial current day and never fill missing dates. A 30-day endpoint change requires 31 consecutive dates. Each finalized-block transaction sample requires all referenced shard chunks to match their documented hash, shard ID and inclusion height. The descriptive test uses percentage changes and Pearson correlation on the full selected consecutive sample; its ±0.30 threshold is a declared product rule. Risk severity and evidence confidence are separate, and the configurable decline threshold applies only to price/TVL signals. Calculations are deterministic and tested; no unavailable source receives a synthetic value. The [full definitions](docs/methodology.md) record the remaining limitations.
+Daily market and TVL series are matched on exact UTC dates, exclude the partial current day and never fill missing dates. A 30-day endpoint change requires 31 consecutive dates. The descriptive test first calculates percentage changes between exactly consecutive daily observations, then pairs changes on their UTC end date and requires the complete selected window of 7, 14 or 30 consecutive matched changes. Pearson r describes co-movement only; ±0.30 is a product rule, not a significance threshold, and no p-value or causal estimate is calculated. Each finalized-block transaction sample requires every newly included shard chunk to match the finalized block's hash, shard ID and inclusion height; earlier-height references contribute zero. Risk severity and evidence confidence are separate, and the configurable decline threshold applies only to market/TVL signals. Calculations are deterministic and tested; no source gaps are filled. The [full definitions](docs/methodology.md) record the remaining limitations.
 
 ## BigQuery tables, fields and sample SQL
 

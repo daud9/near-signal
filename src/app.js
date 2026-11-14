@@ -1,9 +1,10 @@
 import { alignMarketAndTvl, assessLiveRisks, formatSignedPercent, testHypothesis, toUtcDate, windowChange } from './analytics.js';
 import { DATA_SOURCES, fetchNeardataBlockTransactionCount, fetchCoinGeckoHistory, fetchCoinGeckoMarket, fetchDefiLlamaPrice, fetchFinalizedBlock, fetchRpcStatus, fetchTvlHistory, fetchValidatorSet, fetchAccountSnapshot } from './data.js';
-import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, BIGQUERY_REBUILD_NOTE, CHART_QUERY_RECIPES } from './query-registry.js';
+import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, BIGQUERY_REBUILD_NOTE, CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from './query-registry.js';
 
 import { replayChartInputs, replayRpcObservations } from './replay.js';
 import { WORKSPACES, resolveWorkspace, isNearAccountId, buildActivitySql, estimateExecutionCost, toCsv } from './workspace.js';
+import { createThesisTestEvidence } from './thesis.js';
 const chartExportData = new Map();
 let generatedSql = '';
 let accountInspection = null;
@@ -31,9 +32,9 @@ const TVL_INTERVAL_MS = 1_800_000;
 const MARKET_MANUAL_COOLDOWN_MS = 60_000;
 const FIELD_SOURCE_IDS = { block: 'near-rpc-finalized', blockActivity: 'fastnear-neardata-block-transactions', rpcStatus: 'near-rpc-status', validators: 'near-rpc-validators', market: 'coingecko-market', marketChart: 'coingecko-history', llamaPrice: 'defillama-price', tvlHistory: 'defillama-tvl' };
 const RISK_SOURCE_IDS = {
-  concentration: ['near-rpc-validators'], adoption: ['fastnear-neardata-block-transactions'],
+  concentration: ['near-rpc-validators'], activity: ['fastnear-neardata-block-transactions'],
   capital: ['defillama-tvl', 'coingecko-history'], infrastructure: ['near-rpc-finalized', 'near-rpc-status'],
-  economics: ['coingecko-market', 'near-rpc-finalized'], dependencies: [],
+  economics: ['coingecko-market', 'near-rpc-finalized'],
 };
 
 function readObservations() {
@@ -170,7 +171,7 @@ function updateHeader() {
   if (pending > 0) {
     const parts = [];
     if (successes) parts.push(`${successes}/${connected.length} connected feeds responding`);
-    if (failures) parts.push(`${failures} unavailable`);
+    if (failures) parts.push(`${failures} source checks failed`);
     parts.push(`${pending} checking`);
     $('#feedStatus').textContent = statuses.length ? parts.join(' · ') : 'Connecting to live sources';
     dot?.classList.remove('ok', 'bad');
@@ -182,13 +183,12 @@ function updateHeader() {
     $('#feedStatus').textContent = `${successes}/${connected.length} responded · ${warnings} stale/error warning${warnings === 1 ? '' : 's'}`;
     dot?.classList.remove('ok'); dot?.classList.add('bad');
   } else {
-    $('#feedStatus').textContent = 'Connected feeds unavailable';
+    $('#feedStatus').textContent = 'Latest source checks failed';
     dot?.classList.add('bad'); dot?.classList.remove('ok');
   }
   const times = statuses.filter((status) => status.ok).map((status) => Date.parse(status.checkedAt)).filter(Number.isFinite);
   if (times.length) {
     const latest = new Date(Math.max(...times)).toISOString();
-    $('#refreshTimestamp').textContent = `Latest request: ${utcDateTime(latest)}`;
     $('#sourceFreshness').textContent = `Most recent successful source check: ${ago(latest)} · ${utcDateTime(latest)}`;
     $('#footerFreshness').textContent = `Most recent successful source check: ${utcDateTime(latest)}`;
   }
@@ -196,12 +196,12 @@ function updateHeader() {
 function renderOverview() {
   const daily = allDailyRows(), marketFallback = !state.market && state.llamaPrice;
   const currentPrice = state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null;
-  $('#marketPrice').textContent = currentPrice === null ? 'Unavailable' : usd(currentPrice, currentPrice < 1 ? 4 : 2);
-  $('#marketPriceFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · fetched ${ago(state.market.fetchedAt)}` : marketFallback ? `DefiLlama fallback price · provider time ${utcDateTime(state.llamaPrice.timestamp)}` : 'CoinGecko market snapshot not available';
-  $('#marketChange').textContent = state.market?.priceChange24hPct === null || state.market?.priceChange24hPct === undefined ? 'Unavailable' : formatSignedPercent(state.market.priceChange24hPct, 2);
-  $('#marketChangeFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · exchange-aggregated` : 'No current 24-hour change signal';
-  $('#finalizedBlock').textContent = state.block ? compact(state.block.height, 0) : 'Unavailable';
-  $('#finalizedBlockFoot').textContent = state.block ? `Finalized · block time ${utcDateTime(state.block.timestamp)} · fetched ${ago(state.block.fetchedAt)}` : 'No finalized block observation';
+  $('#marketPrice').textContent = currentPrice === null ? 'Waiting for market feed' : usd(currentPrice, currentPrice < 1 ? 4 : 2);
+  $('#marketPriceFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · fetched ${ago(state.market.fetchedAt)}` : marketFallback ? `DefiLlama fallback price · provider time ${utcDateTime(state.llamaPrice.timestamp)}` : 'Waiting for a timestamped market snapshot';
+  $('#marketChange').textContent = state.market?.priceChange24hPct === null || state.market?.priceChange24hPct === undefined ? 'Waiting for live 24-hour change' : formatSignedPercent(state.market.priceChange24hPct, 2);
+  $('#marketChangeFoot').textContent = state.market?.timestamp ? `CoinGecko provider time: ${utcDateTime(state.market.timestamp)} · exchange-aggregated` : 'Awaiting a timestamped CoinGecko observation';
+  $('#finalizedBlock').textContent = state.block ? compact(state.block.height, 0) : 'Waiting for finalized block';
+  $('#finalizedBlockFoot').textContent = state.block ? `Finalized · block time ${utcDateTime(state.block.timestamp)} · fetched ${ago(state.block.fetchedAt)}` : 'Waiting for NEAR mainnet RPC';
   renderBlockAge();
   const chartRows = daily.slice(-(state.days + 1)), metric = state.chartMetric, meta = METRICS[metric] || METRICS.priceUsd;
   renderLineChart($('#overviewChart'), chartRows, metric, { label: meta.label, color: meta.color, format: meta.format, emptyText: 'No matched dated series yet. Current live spot data is shown above; the chart requires matching daily price and TVL dates.' });
@@ -210,24 +210,21 @@ function renderOverview() {
   $('#overviewChartSubtitle').textContent = `${meta.label}; matched UTC dates only, current partial UTC day excluded.`;
   const tvl7d = windowChange(daily, 'tvlUsd', 7), tvl30d = windowChange(daily, 'tvlUsd', 30);
   const dims = [
-    ['Network execution', state.block ? 'Live block + gas observed' : 'Unavailable'],
-    ['Per-block transactions', state.blockActivity ? 'All shards accounted for; new chunks verified' : 'Waiting for complete chunk sample'],
-    ['Validator participation', state.validators ? 'Current active set observed' : 'Unavailable'],
-    ['Market / TVL context', state.market && state.tvlHistory ? 'Live snapshot + daily history' : 'Partial / unavailable'],
-    ['Daily accounts / retention', 'Not measured'],
-    ['Net capital flows', 'Not measured'],
-    ['Dependency / app concentration', 'Not measured'],
+    ['Finalized NEAR block', state.block ? `Block ${compact(state.block.height, 0)} observed` : 'Waiting for live block'],
+    ['Verified block activity', state.blockActivity ? `${compact(state.blockActivity.transactionCount, 0)} transactions in one block` : 'Waiting for complete shard match'],
+    ['Current validator snapshot', state.validators ? `${compact(state.validators.validatorCount, 0)} active-set records` : 'Waiting for live validator set'],
+    ['Market and TVL context', state.market && state.tvlHistory ? 'Market snapshot and daily TVL loaded' : 'Checking connected market feeds'],
   ];
   $('#dimensionList').innerHTML = dims.map(([name, status]) => `<div class="dimension-row"><span>${escapeHtml(name)}</span><span class="dim-status">${escapeHtml(status)}</span></div>`).join('');
   const nodeSync = typeof state.rpcStatus?.syncing === 'boolean' ? (state.rpcStatus.syncing ? 'syncing' : 'not syncing') : 'not reported';
   const nodeHeight = state.rpcStatus?.sync_info?.latest_block_height ? ` · RPC node latest height ${compact(state.rpcStatus.sync_info.latest_block_height, 0)}` : '';
-  const activityText = state.blockActivity ? ` Most recent sampled block ${compact(state.blockActivity.blockHeight, 0)} contains ${compact(state.blockActivity.transactionCount, 0)} transactions across ${state.blockActivity.shardCount ?? state.blockActivity.chunkCount} shards; ${state.blockActivity.chunkCount} newly included chunks were verified${state.blockActivity.reusedShardCount ? ` and ${state.blockActivity.reusedShardCount} prior-height reference${state.blockActivity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''}.` : ' No complete per-block transaction sample is available.';
-  $('#liveSummary').textContent = state.block ? `Finalized block ${compact(state.block.height, 0)} · ${state.block.activeChunks}/${state.block.chunkCount} chunks used gas · ${state.block.gasUtilizationPct?.toFixed(2) ?? '—'}% of reported chunk gas limits.${activityText} RPC node reports ${nodeSync}${nodeHeight}.` : `No live finalized block returned. RPC node reports ${nodeSync}${nodeHeight}.`;
-  $('#contextSummary').textContent = daily.length ? `${daily.length} complete matched daily dates; current UTC date excluded. TVL change: 7-day ${tvl7d ? formatSignedPercent(tvl7d.changePct) : 'unavailable'}, 30-day ${tvl30d ? formatSignedPercent(tvl30d.changePct) : 'unavailable'}.` : 'Historical market/TVL context is not yet matched to complete UTC dates.';
-  $('#gapSummary').textContent = 'The sampled transaction count is block-local, not a daily series or user count. Account cohorts/retention, app diversity, net bridge/Intents flows, historical fees and dependency maps remain unavailable.';
+  const activityText = state.blockActivity ? ` Most recent sampled block ${compact(state.blockActivity.blockHeight, 0)} contains ${compact(state.blockActivity.transactionCount, 0)} transactions across ${state.blockActivity.shardCount ?? state.blockActivity.chunkCount} shards; ${state.blockActivity.chunkCount} newly included chunks were verified${state.blockActivity.reusedShardCount ? ` and ${state.blockActivity.reusedShardCount} prior-height reference${state.blockActivity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''}.` : ' Waiting for a complete per-block transaction sample.';
+  $('#liveSummary').textContent = state.block ? `Finalized block ${compact(state.block.height, 0)} · ${state.block.activeChunks}/${state.block.chunkCount} chunks used gas · ${state.block.gasUtilizationPct?.toFixed(2) ?? '—'}% of reported chunk gas limits.${activityText} RPC node reports ${nodeSync}${nodeHeight}.` : `Waiting for live finalized block. RPC node reports ${nodeSync}${nodeHeight}.`;
+  $('#contextSummary').textContent = daily.length ? `${daily.length} complete matched daily dates; current UTC date excluded. TVL change: 7-day ${tvl7d ? formatSignedPercent(tvl7d.changePct) : 'waiting for 8 consecutive dates'}, 30-day ${tvl30d ? formatSignedPercent(tvl30d.changePct) : 'waiting for 31 consecutive dates'}.` : 'Waiting for complete matched UTC-date history from market and TVL feeds.';
+  $('#gapSummary').textContent = 'A block-local transaction count describes one sample, not a daily or unique-user adoption measure. Market volume and TVL are context signals, not directional net flows.';
 }
 function renderBlockAge() {
-  if (!state.block) { $('#blockAge').textContent = 'Unavailable'; $('#blockAgeFoot').textContent = 'Waiting for NEAR mainnet RPC'; return; }
+  if (!state.block) { $('#blockAge').textContent = 'Waiting'; $('#blockAgeFoot').textContent = 'Waiting for NEAR mainnet RPC'; return; }
   const age = Math.max(0, (Date.now() - state.block.timestampMs) / 1000);
   $('#blockAge').textContent = `${age.toFixed(1)} sec`;
   $('#blockAgeFoot').textContent = `Finalized block time ${utcDateTime(state.block.timestamp)} · last fetched ${ago(state.block.fetchedAt)}`;
@@ -236,102 +233,108 @@ function renderValueCapture() {
   const block = state.block;
   $('#valueStatus').textContent = block ? 'Live block estimate' : 'Waiting for finalized block';
   $('#valueStatus').className = `status-pill ${block ? 'good' : 'warn'}`;
-  $('#blockGasCost').textContent = block ? `${block.estimatedGasFeeNear.toFixed(6)} Ⓝ` : 'Unavailable';
-  $('#blockGasUsed').textContent = block ? `${(block.gasUsed / 1e12).toFixed(2)} Tgas` : 'Unavailable';
-  $('#blockGasUsedFoot').textContent = block ? `${block.activeChunks}/${block.chunkCount} returned chunks have non-zero gas used` : 'No finalized chunk data';
-  $('#blockGasUtil').textContent = block?.gasUtilizationPct === null || !block ? 'Unavailable' : `${block.gasUtilizationPct.toFixed(2)}%`;
-  $('#blockGasUtilFoot').textContent = block ? `Block ${compact(block.height, 0)} · ${utcDateTime(block.timestamp)}` : 'No finalized chunk data';
-  $('#gasPrice').textContent = block ? `${block.gasPriceNearPerTgas.toFixed(6)} Ⓝ` : 'Unavailable';
-  $('#marketCap').textContent = state.market?.marketCapUsd === null || state.market?.marketCapUsd === undefined ? 'Unavailable' : shortUsd(state.market.marketCapUsd);
-  $('#grossVolume').textContent = state.market?.grossVolume24hUsd === null || state.market?.grossVolume24hUsd === undefined ? 'Unavailable' : shortUsd(state.market.grossVolume24hUsd);
+  $('#blockGasCost').textContent = block ? `${block.estimatedGasFeeNear.toFixed(6)} Ⓝ` : 'Waiting for block';
+  $('#blockGasUsed').textContent = block ? `${(block.gasUsed / 1e12).toFixed(2)} Tgas` : 'Waiting for block';
+  $('#blockGasUsedFoot').textContent = block ? `${block.activeChunks}/${block.chunkCount} returned chunks have non-zero gas used` : 'Waiting for finalized chunk data';
+  $('#blockGasUtil').textContent = block?.gasUtilizationPct === null || !block ? 'Waiting for block' : `${block.gasUtilizationPct.toFixed(2)}%`;
+  $('#blockGasUtilFoot').textContent = block ? `Block ${compact(block.height, 0)} · ${utcDateTime(block.timestamp)}` : 'Waiting for finalized chunk data';
+  $('#gasPrice').textContent = block ? `${block.gasPriceNearPerTgas.toFixed(6)} Ⓝ` : 'Waiting for block';
+  $('#marketCap').textContent = state.market?.marketCapUsd === null || state.market?.marketCapUsd === undefined ? 'Waiting for market feed' : shortUsd(state.market.marketCapUsd);
+  $('#grossVolume').textContent = state.market?.grossVolume24hUsd === null || state.market?.grossVolume24hUsd === undefined ? 'Waiting for market feed' : shortUsd(state.market.grossVolume24hUsd);
   const coinGeckoTime = Date.parse(state.market?.timestamp ?? ''), llamaTime = Date.parse(state.llamaPrice?.timestamp ?? '');
   const bothSpotPrices = Number.isFinite(state.market?.priceUsd) && state.market.priceUsd > 0 && Number.isFinite(state.llamaPrice?.priceUsd) && state.llamaPrice.priceUsd > 0;
   const timestampsValid = Number.isFinite(coinGeckoTime) && Number.isFinite(llamaTime);
   const timestampGapMs = timestampsValid ? Math.abs(coinGeckoTime - llamaTime) : null;
   const spotGap = bothSpotPrices && timestampsValid && timestampGapMs <= 300_000 ? Math.abs(state.market.priceUsd - state.llamaPrice.priceUsd) / state.market.priceUsd * 100 : null;
-  $('#spotDifference').textContent = spotGap === null ? (bothSpotPrices && timestampsValid ? 'Not time-matched' : 'Unavailable') : `${spotGap.toFixed(2)}%`;
-  $('#marketCapTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'No timestamped observation';
-  $('#grossVolumeTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'No timestamped observation';
-  $('#spotDifferenceFoot').textContent = timestampsValid ? timestampGapMs <= 300_000 ? `CoinGecko ${utcDateTime(state.market.timestamp)} · DefiLlama ${utcDateTime(state.llamaPrice.timestamp)}` : `Not compared: provider timestamps differ by ${(timestampGapMs / 60_000).toFixed(1)} minutes` : 'Both timestamped spot feeds are required';
+  $('#spotDifference').textContent = spotGap === null ? (bothSpotPrices && timestampsValid ? 'Not time-matched' : 'Waiting for two spot feeds') : `${spotGap.toFixed(2)}%`;
+  $('#marketCapTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'Waiting for provider timestamp';
+  $('#grossVolumeTime').textContent = state.market?.timestamp ? `CoinGecko ${utcDateTime(state.market.timestamp)}` : 'Waiting for provider timestamp';
+  $('#spotDifferenceFoot').textContent = timestampsValid ? timestampGapMs <= 300_000 ? `CoinGecko ${utcDateTime(state.market.timestamp)} · DefiLlama ${utcDateTime(state.llamaPrice.timestamp)}` : `Not compared: provider timestamps differ by ${(timestampGapMs / 60_000).toFixed(1)} minutes` : 'Waiting for both timestamped spot feeds';
   renderFeeEstimate();
   const observations = state.observations.map((row) => ({ ...row, gasTgas: Number(row.gasUsed) / 1e12 }));
   renderLineChart($('#gasChart'), observations, 'gasTgas', { label: 'Gas used per sampled finalized block', color: '#197e78', format: 'tgas', dateKey: 'observedAt', emptyText: 'Collecting real finalized-block observations. No historical values are fabricated.' });
   $('#blockHistoryStatus').textContent = observations.length ? `${observations.length} live block sample${observations.length === 1 ? '' : 's'}` : 'Collecting observations';
   $('#blockHistorySpan').textContent = observations.length > 1 ? `${utcDateTime(observations[0].observedAt)} to ${utcDateTime(observations.at(-1).observedAt)}` : 'A local time series appears after multiple polls.';
 }
-function renderBigQueryEvidence() {
-  const target = $('#bigqueryActivityQuery');
-  if (!target) return;
-  const queryWasOpen = target.querySelector('.chart-query')?.open ?? false;
-  const tables = BIGQUERY_INSPECTED_TABLES.join(', ');
-  const fields = BIGQUERY_INSPECTED_FIELDS.join(', ');
-  target.innerHTML = `<p><strong>Live-inspected dataset:</strong> <code>${escapeHtml(BIGQUERY_DATASET)}</code></p><p><strong>All 16 live dataset objects:</strong> ${escapeHtml(tables)}</p><p><strong>Inspected query fields and types:</strong> ${escapeHtml(fields)}</p><p><strong>Connection status:</strong> Not connected. No BigQuery job has been run. The live inventory and three query-table schemas were inspected on 14 Nov 2026. The actual origin relation is receipt_origin_transaction. Each scanned table is partitioned on block_date (DATE). Browser sign-in does not configure application credentials or authorize query spending.</p><details class="chart-query"><summary>View sample SQL for daily activity and contract usage</summary><div class="query-content"><p><strong>What it shows:</strong> Daily distinct transaction signers and transaction hashes, plus calls and signers for one contract. Signer accounts are an on-chain activity proxy, not people or proof of organic adoption.</p><pre><code>${escapeHtml(BIGQUERY_ACTIVITY_QUERY)}</code></pre><p class="timestamp">${escapeHtml(BIGQUERY_REBUILD_NOTE)}</p><p class="timestamp">The query filters each scanned relation by <code>block_date</code>; inspect estimated bytes processed in BigQuery before running.</p></div></details>`;
-  const disclosure = target.querySelector('.chart-query');
-  if (disclosure) disclosure.open = queryWasOpen;
-}
 function renderParticipation() {
   const validators = state.validators;
   const validatorStatus = state.sourceStatuses.get('near-rpc-validators');
-  const validatorPlaceholder = validatorStatus ? 'Unavailable' : 'Checking';
+  const validatorPlaceholder = validatorStatus?.ok === false ? 'Retrying live feed' : 'Waiting for live feed';
   $('#validatorCount').textContent = validators ? compact(validators.validatorCount, 0) : validatorPlaceholder;
-  $('#validatorEpoch').textContent = validators?.epochHeight === null || validators?.epochHeight === undefined ? validatorStatus ? 'Epoch unavailable' : 'Checking current epoch' : `Epoch height ${compact(validators.epochHeight, 0)} · ${validators.nextValidatorCount ?? '—'} next-set records`;
+  $('#validatorEpoch').textContent = validators?.epochHeight === null || validators?.epochHeight === undefined ? validatorStatus?.ok === false ? 'Retrying current epoch read' : 'Waiting for current epoch' : `Epoch height ${compact(validators.epochHeight, 0)} · ${validators.nextValidatorCount ?? '—'} next-set records`;
   $('#validatorTop10').textContent = validators ? `${validators.top10SharePct.toFixed(1)}%` : validatorPlaceholder;
   $('#validatorHhi').textContent = validators ? `Current-set stake HHI: ${validators.hhi.toFixed(0)}` : `${validatorPlaceholder} · no concentration estimate`;
   $('#validatorProduction').textContent = validators?.blockProductionPct === null || !validators ? validatorPlaceholder : `${validators.blockProductionPct.toFixed(1)}%`;
-  $('#validatorProductionFoot').textContent = validators ? `${compact(validators.producedBlocks, 0)} produced / ${compact(validators.expectedBlocks, 0)} expected blocks in returned epoch counters` : validatorStatus ? 'Current epoch counters unavailable' : 'Checking current epoch counters';
+  $('#validatorProductionFoot').textContent = validators ? `${compact(validators.producedBlocks, 0)} produced / ${compact(validators.expectedBlocks, 0)} expected blocks in returned epoch counters` : validatorStatus?.ok === false ? 'Retrying current epoch counters' : 'Waiting for current epoch counters';
   const activity = state.blockActivity;
   const sourceStatus = state.sourceStatuses.get('fastnear-neardata-block-transactions');
-  const activityPlaceholder = sourceStatus ? 'Unavailable' : 'Checking';
+  const activityPlaceholder = sourceStatus?.ok === false ? 'Retrying sample' : 'Waiting for sample';
   $('#blockTxLatest').textContent = activity ? compact(activity.transactionCount, 0) : activityPlaceholder;
-  $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} new chunks / ${activity.shardCount ?? activity.chunkCount} shards${activity.reusedShardCount ? ` · ${activity.reusedShardCount} prior-height reference${activity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''} · ${utcDateTime(activity.blockTimestamp)}` : sourceStatus ? 'No complete all-shard count available' : 'Waiting for complete all-shard count';
+  $('#blockTxAsOf').textContent = activity ? `Finalized block ${compact(activity.blockHeight, 0)} · ${activity.chunkCount} new chunks / ${activity.shardCount ?? activity.chunkCount} shards${activity.reusedShardCount ? ` · ${activity.reusedShardCount} prior-height reference${activity.reusedShardCount === 1 ? '' : 's'} counted as zero` : ''} · ${utcDateTime(activity.blockTimestamp)}` : sourceStatus?.ok === false ? 'Retrying for a complete all-shard count' : 'Waiting for complete all-shard count';
   $('#blockTxChunks').textContent = activity ? compact(activity.chunkCount, 0) : activityPlaceholder;
-  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · current-height chunk matches, prior-height references and transaction hashes are retained for offline replay; full transaction bodies and receipts are discarded.` : sourceStatus ? 'A complete finalized-block sample is unavailable.' : 'Requesting a complete finalized-block sample.';
-  $('#activityStatus').textContent = activity ? (sourceStatus?.ok === false ? 'Last sample retained · latest read failed' : 'Live block count observed') : (sourceStatus?.ok === false ? 'Complete chunk sample unavailable' : 'Sampling finalized chunks');
+  $('#blockTxFreshness').textContent = activity?.fetchedAt ? `Sampled ${ago(activity.fetchedAt)} · current-height chunk matches, prior-height references and transaction hashes are retained for offline replay; full transaction bodies and receipts are discarded.` : sourceStatus?.ok === false ? 'Latest read failed; retrying for a complete finalized-block sample.' : 'Requesting a complete finalized-block sample.';
+  $('#activityStatus').textContent = activity ? (sourceStatus?.ok === false ? 'Last sample retained · retrying' : 'Live block count observed') : (sourceStatus?.ok === false ? 'Retrying complete chunk sample' : 'Sampling finalized chunks');
   $('#activityStatus').className = `status-pill ${activity && sourceStatus?.ok !== false ? 'good' : 'warn'}`;
   const observations = state.observations;
   renderLineChart($('#blockTxChart'), observations, 'transactionCount', { label: 'Transactions per sampled finalized block', color: '#7f61a6', format: 'count', dateKey: 'observedAt', emptyText: 'Waiting for at least two complete live samples. No historical transaction values are fabricated.' });
   const samples = observations.filter((row) => Number.isSafeInteger(row.transactionCount));
   $('#blockTxHistoryStatus').textContent = `${samples.length} complete local samples`;
   $('#blockTxHistorySpan').textContent = samples.length > 1 ? `${utcDateTime(samples[0].transactionFetchedAt)} to ${utcDateTime(samples.at(-1).transactionFetchedAt)}` : 'A local sample history appears after more five-minute polls.';
-  renderBigQueryEvidence();
 }
-function riskPillClass(tone) { return tone === 'high' ? 'bad' : tone === 'positive' ? 'good' : 'warn'; }
+function riskPillClass(tone) { return tone === 'high' ? 'bad' : tone === 'positive' ? 'good' : tone === 'caution' ? 'warn' : ''; }
+function renderRiskSources(risk) {
+  return (RISK_SOURCE_IDS[risk.id] || []).map((sourceId) => {
+    const source = DATA_SOURCES.find((item) => item.id === sourceId);
+    if (!source) return '';
+    const status = state.sourceStatuses.get(sourceId);
+    let label = 'Checking first live read';
+    if (status?.ok && sourceIsStale(status)) label = 'Observation is stale';
+    else if (status?.ok) label = 'Responding';
+    else if (status?.ok === false && dataAvailableFor(sourceId)) label = 'Latest read failed; prior observation retained';
+    else if (status?.ok === false) label = 'Not responding';
+    const providerAt = status?.providerAt ?? status?.lastProviderAt;
+    const freshnessTime = providerAt ?? status?.checkedAt;
+    const freshness = freshnessTime ? ` · ${providerAt ? 'provider ' : 'checked '}${utcDateTime(freshnessTime)}` : '';
+    return `<span class="risk-source-item"><a href="${escapeHtml(source.docUrl || source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.name)}</a> <small>${escapeHtml(label + freshness)}</small></span>`;
+  }).filter(Boolean).join(' · ');
+}
 function renderRisks() {
   const daily = allDailyRows(), tvl7d = windowChange(daily, 'tvlUsd', 7), tvl30d = windowChange(daily, 'tvlUsd', 30);
-  const market = state.market ? { priceChange24h: state.market.priceChange24hPct } : null;
+  const market = state.market ? { priceChange24h: state.market.priceChange24hPct, priceUsd: state.market.priceUsd, timestamp: state.market.timestamp } : null;
   const rpcStatus = state.rpcStatus?.chain_id === 'mainnet' ? state.rpcStatus : null;
   const block = state.block ? { ...state.block, ageSeconds: (Date.now() - state.block.timestampMs) / 1000 } : null;
   const risks = assessLiveRisks({ market, tvl7d, tvl30d, validators: state.validators, block, rpcStatus, blockActivity: state.blockActivity, declineThreshold: state.declineThreshold });
   const filter = $('#riskFilter')?.value || 'all';
-  const visibleRisks = risks.filter((risk) => filter === 'all' || (filter === 'alerts' ? risk.tone === 'high' || (risk.id === 'infrastructure' && risk.tone === 'caution') : ['adoption', 'dependencies'].includes(risk.id) || /unavailable|not measured|not assessed/i.test(risk.state)));
-  $('#riskFilterStatus').textContent = `${visibleRisks.length} of ${risks.length} indicators · threshold ${state.declineThreshold}%`;
+  const visibleRisks = risks.filter((risk) => filter === 'all' || risk.tone === 'high' || (risk.id === 'infrastructure' && risk.tone === 'caution'));
+  const alerts = risks.filter((risk) => risk.tone === 'high' || (risk.id === 'infrastructure' && risk.tone === 'caution')).length;
+  $('#riskFilterStatus').textContent = `${visibleRisks.length} live signals · ${alerts} active watch${alerts === 1 ? '' : 'es'} · decline threshold ${state.declineThreshold}%`;
   $('#riskGrid').innerHTML = visibleRisks.map((risk) => {
-    const sources = (RISK_SOURCE_IDS[risk.id] || []).map((sourceId) => DATA_SOURCES.find((source) => source.id === sourceId)).filter(Boolean);
-    const sourceLinks = sources.length ? sources.map((source) => `<a href="${escapeHtml(source.docUrl || source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.name)}</a>`).join(' · ') : 'No connected source';
-    return `<article class="card risk-card"><div class="risk-top"><h3>${escapeHtml(risk.title)}</h3><span class="status-pill ${riskPillClass(risk.tone)}">${escapeHtml(risk.state)}</span></div><p><strong>Severity:</strong> ${escapeHtml(risk.severity)}</p><p><strong>Trend:</strong> ${escapeHtml(risk.trend)}</p><p><strong>Evidence:</strong> ${escapeHtml(risk.evidence)}</p><p class="risk-source"><strong>Sources:</strong> ${sourceLinks}</p><p><strong>Confidence:</strong> ${escapeHtml(risk.confidence)}</p><p class="risk-impact"><strong>Potential impact:</strong> ${escapeHtml(risk.impact)}</p><p class="risk-next"><strong>Next check:</strong> ${escapeHtml(risk.next)}</p></article>`;
+    const sourceLinks = renderRiskSources(risk);
+    return `<article class="card risk-card"><div class="risk-top"><h3>${escapeHtml(risk.title)}</h3><span class="status-pill ${riskPillClass(risk.tone)}">${escapeHtml(risk.state)}</span></div><p><strong>Severity:</strong> ${escapeHtml(risk.severity)}</p><p><strong>Trend:</strong> ${escapeHtml(risk.trend)}</p><p><strong>Evidence:</strong> ${escapeHtml(risk.evidence)}</p><p class="risk-source"><strong>Sources:</strong> ${sourceLinks || 'No source attribution available'}</p><p><strong>Confidence:</strong> ${escapeHtml(risk.confidence)}</p><p class="risk-impact"><strong>Potential impact:</strong> ${escapeHtml(risk.impact)}</p><p class="risk-next"><strong>Next check:</strong> ${escapeHtml(risk.next)}</p></article>`;
   }).join('');
-  if (!visibleRisks.length) $('#riskGrid').innerHTML = '<div class="empty-state">No watched signal currently crosses the selected threshold. This does not establish absence of ecosystem risk.</div>';
+  if (!visibleRisks.length) $('#riskGrid').innerHTML = risks.length ? '<div class="empty-state">No monitored signal crosses this threshold. A no-alert result is not proof that no risk exists.</div>' : '<div class="empty-state">Live risk cards appear when their source observations are loaded. No risk is inferred from missing data.</div>';
   $('#riskThresholdOutput').value = `${state.declineThreshold}%`;
   $('#riskThresholdOutput').textContent = `${state.declineThreshold}%`;
 }
 function renderCapital() {
   const daily = allDailyRows(), latest = daily.at(-1);
   const change7 = windowChange(daily, 'tvlUsd', 7), change30 = windowChange(daily, 'tvlUsd', 30);
-  $('#latestTvl').textContent = latest ? shortUsd(latest.tvlUsd) : 'Unavailable';
-  $('#tvlAsOf').textContent = latest ? `DefiLlama daily snapshot · ${latest.date} UTC` : 'No matched daily TVL point';
-  $('#tvlChange7d').textContent = change7 ? formatSignedPercent(change7.changePct) : 'Unavailable';
-  $('#tvlSpan7d').textContent = change7 ? `${change7.startDate} to ${change7.endDate} · USD TVL stock` : 'Needs at least 8 matched daily dates';
-  $('#tvlChange30d').textContent = change30 ? formatSignedPercent(change30.changePct) : 'Unavailable';
-  $('#tvlSpan30d').textContent = change30 ? `${change30.startDate} to ${change30.endDate} · USD TVL stock` : 'Needs at least 31 matched daily dates';
+  $('#latestTvl').textContent = latest ? shortUsd(latest.tvlUsd) : 'Waiting for daily observation';
+  $('#tvlAsOf').textContent = latest ? `DefiLlama daily snapshot · ${latest.date} UTC` : 'Waiting for a matched source date';
+  $('#tvlChange7d').textContent = change7 ? formatSignedPercent(change7.changePct) : 'Waiting for a complete window';
+  $('#tvlSpan7d').textContent = change7 ? `${change7.startDate} to ${change7.endDate} · USD TVL stock` : 'Requires 8 consecutive matched daily dates';
+  $('#tvlChange30d').textContent = change30 ? formatSignedPercent(change30.changePct) : 'Waiting for a complete window';
+  $('#tvlSpan30d').textContent = change30 ? `${change30.startDate} to ${change30.endDate} · USD TVL stock` : 'Requires 31 consecutive matched daily dates';
   const chartDays = Number($('#capitalWindowSelect')?.value || 30), capitalRows = daily.slice(-(chartDays + 1));
   renderLineChart($('#capitalChart'), capitalRows, 'tvlUsd', { label: 'NEAR DeFi total value locked, daily USD snapshot', color: '#197e78', format: 'usd', emptyText: 'Waiting for aligned daily NEAR DeFi TVL and market dates.' });
   $('#tvlDateSpan').textContent = capitalRows.length ? `${capitalRows.length} complete matched dates · ${capitalRows[0].date} to ${capitalRows.at(-1).date}` : 'No aligned daily series';
   $('#capitalFreshness').textContent = state.tvlHistory?.fetchedAt ? `Fetched ${ago(state.tvlHistory.fetchedAt)}` : 'Source not yet fetched';
-  $('#capitalStatus').textContent = latest ? 'TVL stock only · no net flows' : 'TVL unavailable';
-  $('#capitalStatus').className = `status-pill ${latest ? 'warn' : 'bad'}`;
-  $('#capitalLastChecked').textContent = state.tvlHistory?.fetchedAt ? `TVL response checked ${utcDateTime(state.tvlHistory.fetchedAt)}. No bridge or Intents flow feed is queried.` : 'No flow feed is queried.';
+  $('#capitalStatus').textContent = latest ? 'Matched daily TVL' : 'Checking daily TVL';
+  $('#capitalStatus').className = `status-pill ${latest ? 'good' : 'warn'}`;
+  $('#capitalLastChecked').textContent = state.tvlHistory?.fetchedAt ? `TVL source fetched ${utcDateTime(state.tvlHistory.fetchedAt)}; dates are matched to CoinGecko market history.` : 'Waiting for live TVL snapshots.';
 }
 function renderHypothesis() {
+  renderThesisProvenance();
   const daily = hypothesisRows(), metricA = $('#metricA')?.value || 'priceUsd', metricB = $('#metricB')?.value || 'tvlUsd';
   const direction = $('#hypothesisDirection')?.value || 'positive', days = Number($('#hypothesisDays')?.value || 14);
   if (metricA === metricB) { $('#hypothesisVerdict').textContent = 'Choose distinct series'; $('#hypothesisSummary').textContent = 'Comparing a series with itself always gives a trivial relationship. Select two different sourced series.'; $('#hypothesisDetails').innerHTML = '<li>No test result has been inferred.</li>'; return; }
@@ -339,7 +342,7 @@ function renderHypothesis() {
   const verdict = $('#hypothesisVerdict');
   verdict.textContent = result.verdict;
   verdict.className = `result-verdict ${result.verdict === 'Not supported' ? 'negative' : ['Partially supported', 'Insufficient evidence'].includes(result.verdict) ? 'partial' : ''}`;
-  const rText = result.r === null ? 'Correlation unavailable' : `Pearson r = ${result.r.toFixed(2)}`;
+  const rText = result.r === null ? 'Correlation not calculated' : `Pearson r = ${result.r.toFixed(2)}`;
   $('#hypothesisSummary').textContent = `${title}. The selected test asks whether daily changes in ${METRICS[metricA]?.label.toLowerCase()} and ${METRICS[metricB]?.label.toLowerCase()} show ${titleCaseDirection(direction)} across ${days} matched daily changes. ${rText}.`;
   const details = [`${result.n} matched daily changes${result.startDate && result.endDate ? ` · ${result.startDate} to ${result.endDate}` : ''}.`];
   if (result.r === null && result.n < days) details.push(`Correlation withheld: the selected test requires exactly ${days} consecutive matched daily changes; ${result.n} were available.`);
@@ -350,30 +353,37 @@ function renderHypothesis() {
   details.push('No p-value, causal attribution or forecast is calculated. Daily observations can be autocorrelated; address counts are not verified people or retention, and market/TVL values are not independent evidence of user adoption.');
   $('#hypothesisDetails').innerHTML = details.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
 }
+function renderThesisProvenance() {
+  const sourceIds = ['coingecko-history', 'defillama-tvl'];
+  const observations = sourceIds.map((sourceId) => {
+    const source = DATA_SOURCES.find((item) => item.id === sourceId);
+    const status = state.sourceStatuses.get(sourceId);
+    const fetchedAt = sourceId === 'coingecko-history' ? state.marketChart?.fetchedAt : state.tvlHistory?.fetchedAt;
+    const providerAt = status?.providerAt ?? status?.lastProviderAt;
+    const stateText = status?.ok === true ? sourceIsStale(status) ? 'responding; last provider observation is stale' : 'responding' : status?.ok === false ? dataAvailableFor(sourceId) ? 'latest request failed; previous data retained' : 'no successful response yet' : 'checking';
+    return `${source?.name ?? sourceId}: ${stateText}${providerAt ? ` · provider time ${utcDateTime(providerAt)}` : ''}${fetchedAt ? ` · fetched ${utcDateTime(fetchedAt)}` : ''}`;
+  });
+  $('#thesisSourceStatus').innerHTML = observations.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+  $('#thesisPlainLanguage').textContent = THESIS_TEST_RECIPE.plainLanguage;
+  $('#thesisSourceQuery').textContent = THESIS_TEST_RECIPE.query;
+  $('#thesisMethodList').innerHTML = THESIS_TEST_RECIPE.method.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+  $('#thesisLimitations').innerHTML = THESIS_TEST_RECIPE.limitations.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+}
 function dataAvailableFor(sourceId) {
   return ({ 'near-rpc-finalized': Boolean(state.block), 'fastnear-neardata-block-transactions': Boolean(state.blockActivity), 'near-rpc-status': Boolean(state.rpcStatus), 'near-rpc-validators': Boolean(state.validators), 'coingecko-market': Boolean(state.market), 'coingecko-history': Boolean(state.marketChart), 'defillama-price': Boolean(state.llamaPrice), 'defillama-tvl': Boolean(state.tvlHistory?.rows?.length) })[sourceId] ?? false;
 }
-function renderSources() {
-  $('#sourceList').innerHTML = DATA_SOURCES.map((source) => {
-    const status = state.sourceStatuses.get(source.id);
-    let stateLabel = 'Not checked', pill = 'warn';
-    if (!source.connected) { stateLabel = 'Not connected'; pill = 'warn'; }
-    else if (status?.ok && sourceIsStale(status)) { stateLabel = 'Responding · observation stale'; pill = 'warn'; }
-    else if (status?.ok) { stateLabel = 'Responding'; pill = 'good'; }
-    else if (status && status.ok === false && dataAvailableFor(source.id)) { stateLabel = 'Request failed · last data retained'; pill = 'warn'; }
-    else if (status && status.ok === false) { stateLabel = 'Unavailable'; pill = 'bad'; }
-    const providerAt = status?.providerAt ?? status?.lastProviderAt;
-    const providerAge = providerAt ? ` · observation ${ago(providerAt)}` : '';
-    const freshnessLimit = source.staleAfterSeconds ? ` · stale after ${source.staleAfterSeconds < 60 ? `${source.staleAfterSeconds}s` : `${Math.round(source.staleAfterSeconds / 60)}m`}` : '';
-    const retry = status?.retryAt && Date.parse(status.retryAt) > Date.now() ? ` · next retry after ${utcDateTime(status.retryAt)}` : '';
-    const timestamp = status?.checkedAt ? `Checked ${utcDateTime(status.checkedAt)}${providerAt ? ` · provider time ${utcDateTime(providerAt)}` : ''}${providerAge}${freshnessLimit}${retry}${status.latencyMs !== null && status.latencyMs !== undefined ? ` · ${status.latencyMs} ms` : ''}` : source.connected ? 'Not fetched yet' : 'No request is made';
-    const statusDetail = status?.detail ? ` Latest request: ${status.detail}.` : '';
-    const endpointLink = `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${source.connected ? 'Live endpoint' : 'Candidate endpoint'}</a>`;
-    const docsLink = source.docUrl ? ` · <a href="${escapeHtml(source.docUrl)}" target="_blank" rel="noopener noreferrer">Documentation</a>` : '';
-    return `<article class="source-row"><div class="source-head"><b>${escapeHtml(source.name)}</b><span class="status-pill ${pill}">${escapeHtml(stateLabel)}</span></div><p><strong>Type:</strong> ${escapeHtml(source.kind)} · <strong>Fields:</strong> ${escapeHtml(source.fields)}</p><p><strong>Cadence:</strong> ${escapeHtml(source.cadence)}</p><p>${escapeHtml(source.caveat)}${escapeHtml(statusDetail)}</p><p class="timestamp">${escapeHtml(timestamp)}</p><p class="source-links">${endpointLink}${docsLink}</p></article>`;
-  }).join('');
+function renderAll() {
+  const renderers = {
+    overview: renderOverview,
+    'value-capture': renderValueCapture,
+    adoption: renderParticipation,
+    'risk-radar': renderRisks,
+    'capital-flows': renderCapital,
+    'thesis-challenge': renderHypothesis,
+  };
+  (renderers[resolveWorkspace(location.hash)] || renderOverview)();
+  updateHeader();
 }
-function renderAll() { renderOverview(); renderValueCapture(); renderParticipation(); renderRisks(); renderCapital(); renderHypothesis(); renderSources(); updateHeader(); }
 async function fetchAndApply(field, fetcher) {
   if (state.inFlight.has(field)) return null;
   const scheduledRetry = state.retryAt.get(field);
@@ -482,9 +492,10 @@ function exportEvidence() {
     onDemandAccountInspection: accountInspection,
     executionCostScenario: { gasTgas: Number($('#feeGasInput').value), gasPriceNearPerTgas: state.block?.gasPriceNearPerTgas ?? null, priceUsd: state.market?.priceUsd ?? state.llamaPrice?.priceUsd ?? null, estimate: estimateExecutionCost($('#feeGasInput').value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd) },
     chartQueryRecipes: CHART_QUERY_RECIPES,
+    thesisTestRecipe: THESIS_TEST_RECIPE,
     unexecutedBigQuery: { dataset: BIGQUERY_DATASET, inspectedTables: BIGQUERY_INSPECTED_TABLES, inspectedQueryFields: BIGQUERY_INSPECTED_FIELDS, sql: BIGQUERY_ACTIVITY_QUERY, status: 'Not connected; no query was submitted.' },
     sourceRegistry: DATA_SOURCES.map((source) => ({ ...source, status: state.sourceStatuses.get(source.id) ?? null })),
-    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction counts and contract activity remain unavailable; no BigQuery query was run.', 'BigQuery schemas were inspected, but no application credentials, cost-approved query or data result is connected.', 'No Intents Explorer JWT is configured and no canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'The NEAR Ecosystem Health Score is withheld because key evidence dimensions are missing.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
+    limitations: ['The sampled transaction count is for one finalized block and is not a daily series, unique-user count, retention measure or adoption trend.', 'Daily account cohorts, historical transaction counts and contract activity are not included; no BigQuery query was run.', 'BigQuery schemas were inspected, but no application credentials, cost-approved query or data result is connected.', 'No Intents Explorer JWT is configured and no canonical, deduplicated Intents or bridge net-flow history is connected.', 'Market volume is gross exchange activity; TVL is a USD stock; neither is net investment.', 'The hypothesis calculation is descriptive correlation only; it does not establish causation or statistical significance.', 'Local RPC observation history only accrues while this browser is open and is not a chain archive.'],
   };
   bundle.replayedChartInputs = replayChartInputs(bundle);
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
@@ -517,11 +528,12 @@ function navigateWorkspace(focus = false) {
   document.title = `${meta.title} | NEAR SIGNAL`;
   document.body.dataset.route = route; setMenuOpen(false);
   if (focus) { const section = document.getElementById(route); section.setAttribute('tabindex', '-1'); section.focus({ preventScroll: true }); window.scrollTo(0, 0); }
+  renderAll();
 }
 function renderFeeEstimate() {
   const result = estimateExecutionCost($('#feeGasInput')?.value, state.block?.gasPriceNearPerTgas, state.market?.priceUsd ?? state.llamaPrice?.priceUsd);
-  $('#feeEstimateNear').textContent = result ? `${result.near.toFixed(6)} Ⓝ` : 'Unavailable';
-  $('#feeEstimateUsd').textContent = result?.usd !== null && result?.usd !== undefined ? usd(result.usd, 6) : 'Unavailable';
+  $('#feeEstimateNear').textContent = result ? `${result.near.toFixed(6)} Ⓝ` : 'Waiting for live gas price';
+  $('#feeEstimateUsd').textContent = result?.usd !== null && result?.usd !== undefined ? usd(result.usd, 6) : 'Waiting for timestamped market price';
   $('#feeEstimateSource').textContent = state.block ? `Block ${state.block.height} · ${utcDateTime(state.block.timestamp)} · ${state.block.gasPriceNearPerTgas.toFixed(6)} Ⓝ/Tgas` : 'Waiting for live gas price';
   $('#feeCalculatorStatus').textContent = result ? 'Live gas price' : state.block ? 'Check gas budget' : 'Needs live gas price';
   $('#feeCalculatorFeedback').textContent = result ? `${result.gasTgas} Tgas × latest block gas price. USD equivalent uses a separately timestamped market price; storage and other charges are excluded.` : 'Enter a budget above 0 and no greater than 300 Tgas. A live gas price is required.';
@@ -543,7 +555,7 @@ async function inspectAccount(event) {
   const button = $('#inspectAccountButton'); button.disabled = true; $('#accountInspectorStatus').textContent = 'Reading mainnet';
   try {
     const response = await fetchAccountSnapshot(accountId);
-    if (!response.value) { accountInspection = null; $('#accountInspectorStatus').textContent = 'Unavailable'; $('#accountInspectorResult').textContent = `${response.status?.detail || 'Account lookup failed.'} No account value is inferred.`; return; }
+    if (!response.value) { accountInspection = null; $('#accountInspectorStatus').textContent = 'Read failed'; $('#accountInspectorResult').textContent = `${response.status?.detail || 'Account lookup failed.'} No account value is inferred.`; return; }
     accountInspection = response.value; const account = accountInspection;
     $('#accountInspectorStatus').textContent = 'Finalized account state';
     $('#accountInspectorResult').innerHTML = `<div style="width:100%"><div class="metric-row"><div class="metric-mini"><span>Account balance · NEAR</span><b>${escapeHtml(compact(account.balanceNear, 4))}</b><small>Includes storage backing; not a spendable-balance quote</small></div><div class="metric-mini"><span>Locked stake · NEAR</span><b>${escapeHtml(compact(account.lockedNear, 4))}</b><small>Account locked amount from RPC</small></div><div class="metric-mini"><span>Deployed contract</span><b>${account.hasContract ? 'Yes' : 'No code'}</b><small>${escapeHtml(compact(account.storageBytes, 0))} bytes storage used</small></div></div><p class="timestamp">${escapeHtml(account.accountId)} · finalized block ${account.blockHeight} · fetched ${escapeHtml(utcDateTime(account.fetchedAt))}</p><details class="chart-query"><summary>View account source request and raw response</summary><div class="query-content"><pre><code>${escapeHtml(JSON.stringify({ endpoint: 'https://free.rpc.fastnear.com', request: account.request, response: account.raw }, null, 2))}</code></pre></div></details></div>`;
@@ -553,7 +565,25 @@ function exportHypothesis() {
   const metricA = $('#metricA').value, metricB = $('#metricB').value;
   if (metricA === metricB) { announce('Choose distinct series before exporting a test.'); return; }
   const result = testHypothesis(hypothesisRows(), metricA, metricB, $('#hypothesisDirection').value, Number($('#hypothesisDays').value));
-  const bundle = { project: 'NEAR SIGNAL', exportedAt: new Date().toISOString(), hypothesis: $('#hypothesisLabel').value, metricA, metricB, direction: $('#hypothesisDirection').value, days: Number($('#hypothesisDays').value), result, dailyInputs: hypothesisRows(), rawCoinGeckoMarketChart: state.marketChart, rawTvlRows: state.tvlHistory?.rows ?? null, caveat: 'Descriptive correlation only. No causation, significance or forecast is established.' };
+  const sourceIds = ['coingecko-history', 'defillama-tvl'];
+  const sourceObservations = Object.fromEntries(sourceIds.map((sourceId) => {
+    const status = state.sourceStatuses.get(sourceId);
+    return [sourceId, { fetchedAt: sourceId === 'coingecko-history' ? state.marketChart?.fetchedAt ?? null : state.tvlHistory?.fetchedAt ?? null, providerAt: status?.providerAt ?? status?.lastProviderAt ?? null }];
+  }));
+  const bundle = createThesisTestEvidence({
+    hypothesis: $('#hypothesisLabel').value,
+    metricA,
+    metricB,
+    direction: $('#hypothesisDirection').value,
+    days: Number($('#hypothesisDays').value),
+    result,
+    dailyInputs: hypothesisRows(),
+    rawCoinGeckoMarketChart: state.marketChart ?? null,
+    rawTvlRows: state.tvlHistory?.rows ?? null,
+    sourceObservations,
+    sources: DATA_SOURCES.filter((source) => sourceIds.includes(source.id)),
+    sourceStatuses: sourceIds.map((sourceId) => state.sourceStatuses.get(sourceId) ?? { sourceId, ok: null, checkedAt: null, providerAt: null, detail: 'No completed source check is available.' }),
+  });
   downloadFile('near-signal-thesis-test.json', JSON.stringify(bundle, null, 2), 'application/json'); announce('Test result and sourced inputs exported.');
 }
 function setupWorkspaceControls() {
@@ -591,12 +621,11 @@ function setupInteractions() {
     document.querySelectorAll('[data-chart-metric]').forEach((node) => node.setAttribute('aria-pressed', String(node === button)));
     renderOverview();
   }));
-  ['metricA', 'metricB', 'hypothesisDirection', 'hypothesisDays', 'hypothesisLabel'].forEach((id) => $(`#${id}`).addEventListener('input', renderHypothesis));
+  $('#hypothesisLabel').addEventListener('input', renderHypothesis);
   ['metricA', 'metricB', 'hypothesisDirection', 'hypothesisDays'].forEach((id) => $(`#${id}`).addEventListener('change', renderHypothesis));
   $('#runHypothesisButton').addEventListener('click', renderHypothesis);
   $('#refreshButton').addEventListener('click', refreshEverything);
   $('#exportButton').addEventListener('click', exportEvidence);
-  $('#exportMethodButton').addEventListener('click', exportEvidence);
   setupWorkspaceControls();
 }
 
@@ -607,4 +636,5 @@ setInterval(() => { void refreshBlock(); }, FAST_INTERVAL_MS);
 setInterval(() => { void refreshDefiPrice(); }, DEFI_PRICE_INTERVAL_MS);
 setInterval(() => { void refreshSlowRpc(); }, SLOW_RPC_INTERVAL_MS);
 setInterval(() => { void refreshTvl(); }, TVL_INTERVAL_MS);
-setInterval(() => { renderBlockAge(); renderRisks(); }, 1000);
+setInterval(() => { if (document.body.dataset.route === 'overview') renderBlockAge(); }, 1000);
+setInterval(() => { if (document.body.dataset.route === 'risk-radar') renderRisks(); }, 10_000);

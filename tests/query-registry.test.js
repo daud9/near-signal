@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, CHART_QUERY_RECIPES } from '../src/query-registry.js';
+import { BIGQUERY_ACTIVITY_QUERY, BIGQUERY_DATASET, BIGQUERY_INSPECTED_FIELDS, BIGQUERY_INSPECTED_TABLES, CHART_QUERY_RECIPES, THESIS_TEST_RECIPE } from '../src/query-registry.js';
 
 const sqlFile = readFileSync(new URL('../sql/near-signal.sql', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -39,5 +39,17 @@ test('each dashboard chart exposes its query, rebuild rule and plain-language me
     assert.ok(html.includes(`id="${chartId}"`));
     assert.ok(app.includes('chartQueryDisclosure(container.id)'));
   }
-  for (const label of ['Organic Adoption Intelligence', 'Capital Flow Intelligence', 'NEAR Intents Explorer API']) assert.ok(html.includes(label));
+  for (const label of ['Network Activity &amp; Validators', 'Liquidity &amp; TVL Context']) assert.ok(html.includes(label));
+  assert.ok(!html.includes('NEAR Intents Explorer API'));
+  assert.ok(!html.includes('id="methodology"'));
+});
+
+test('Thesis Challenge source recipe is visible in the feature and included in its evidence export', () => {
+  assert.ok(THESIS_TEST_RECIPE.query.includes('api.coingecko.com'));
+  assert.ok(THESIS_TEST_RECIPE.query.includes('api.llama.fi'));
+  assert.ok(THESIS_TEST_RECIPE.method.length >= 3);
+  assert.ok(THESIS_TEST_RECIPE.limitations.length >= 3);
+  assert.ok(html.includes('id="thesisSourceQuery"'));
+  assert.ok(html.includes('id="thesisSourceStatus"'));
+  assert.ok(app.includes('createThesisTestEvidence'));
 });

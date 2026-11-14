@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WORKSPACES, resolveWorkspace, isNearAccountId, buildActivitySql, estimateExecutionCost, toCsv } from '../src/workspace.js';
 
-test('sidebar routes cover the five modules and resolve unknown hashes safely', () => {
-  assert.equal(Object.keys(WORKSPACES).length, 7);
+test('workspace routes prioritize thesis and risk, omit methodology, and resolve unknown hashes safely', () => {
+  assert.equal(Object.keys(WORKSPACES).length, 6);
+  assert.deepEqual(Object.keys(WORKSPACES).slice(1, 3), ['thesis-challenge', 'risk-radar']);
   for (const route of ['value-capture', 'adoption', 'risk-radar', 'capital-flows', 'thesis-challenge']) assert.equal(resolveWorkspace(`#${route}`), route);
+  assert.equal(resolveWorkspace('#methodology'), 'overview');
   assert.equal(resolveWorkspace('#unknown'), 'overview');
   assert.equal(resolveWorkspace('#__proto__'), 'overview');
 });

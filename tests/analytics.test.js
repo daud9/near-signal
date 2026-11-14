@@ -238,7 +238,7 @@ test('hypothesis test does not bridge missing dates to fill the selected window'
   assert.equal(result.verdict, 'Insufficient evidence');
 });
 
-test('risk threshold flags only the configured price/TVL signals and keeps missing domains unavailable', () => {
+test('risk threshold flags only configured live price/TVL signals and omits unobserved indicators', () => {
   const risks = assessLiveRisks({
     market: { priceChange24h: -21 },
     tvl7d: { changePct: -5, days: 7 },
@@ -248,27 +248,40 @@ test('risk threshold flags only the configured price/TVL signals and keeps missi
     rpcStatus: { chain_id: 'mainnet', syncing: false },
     declineThreshold: 20,
   });
-  assert.equal(risks.length, 6);
+  assert.equal(risks.length, 4);
   assert.equal(risks.find((item) => item.id === 'capital').state, 'Drawdown watch');
   assert.equal(risks.find((item) => item.id === 'economics').state, 'Price decline watch');
   assert.equal(risks.find((item) => item.id === 'infrastructure').state, 'Finalized block observed');
-  assert.equal(risks.find((item) => item.id === 'adoption').state, 'Not measured');
+  assert.equal(risks.some((item) => item.id === 'dependencies'), false);
   assert.ok(risks.every((item) => ['severity', 'trend', 'confidence', 'evidence', 'impact', 'next'].every((field) => typeof item[field] === 'string' && item[field].length > 0)));
 
   const gaps = assessLiveRisks({ market: null, tvl7d: null, tvl30d: null, validators: null, block: null, rpcStatus: null });
-  assert.equal(gaps.find((item) => item.id === 'capital').state, 'Daily TVL unavailable');
-  assert.equal(gaps.find((item) => item.id === 'infrastructure').state, 'RPC observation unavailable');
-  assert.equal(gaps.find((item) => item.id === 'economics').state, 'Market change unavailable');
+  assert.deepEqual(gaps, []);
+  const incompleteRpc = assessLiveRisks({ block: { height: 42 }, rpcStatus: { chain_id: 'mainnet' } });
+  assert.equal(incompleteRpc.some((item) => item.id === 'infrastructure'), false);
 });
 
-test('activity risk reports one block sample while withholding user adoption and retention claims', () => {
+test('activity context reports one verified block sample without claiming user adoption or retention', () => {
   const risks = assessLiveRisks({ blockActivity: { transactionCount: 12_345, blockHeight: 224_474_509, chunkCount: 10, blockTimestamp: '2026-11-14T06:11:00.000Z' } });
-  const adoption = risks.find((item) => item.id === 'adoption');
-  assert.match(adoption.state, /adoption unmeasured/);
-  assert.match(adoption.severity, /cannot establish user adoption/);
-  assert.match(adoption.trend, /no daily or unique-user trend/);
-  assert.match(adoption.evidence, /12,345 transactions/);
-  assert.match(adoption.confidence, /insufficient for adoption/);
+  const activity = risks.find((item) => item.id === 'activity');
+  assert.equal(activity.state, 'One finalized block observed');
+  assert.match(activity.severity, /not an adoption-risk score/);
+  assert.match(activity.trend, /no daily or unique-user trend/);
+  assert.match(activity.evidence, /12,345 transactions/);
+  assert.match(activity.confidence, /does not measure users/);
+});
+
+test('market watch evidence contains the actual price change and timestamp, not just gas context', () => {
+  const risks = assessLiveRisks({
+    market: { priceChange24h: -21.25, priceUsd: 3.12, timestamp: '2026-11-14T12:00:00.000Z' },
+    block: { height: 42, ageSeconds: 12, estimatedGasFeeNear: 0.001 },
+    rpcStatus: { chain_id: 'mainnet', syncing: false },
+  });
+  const market = risks.find((item) => item.id === 'economics');
+  assert.match(market.evidence, /CoinGecko reported NEAR at \$3\.1200 -21\.25% over 24 hours/);
+  assert.match(market.evidence, /2026-11-14T12:00:00\.000Z/);
+  assert.match(market.evidence, /separate execution-cost context/);
+  assert.doesNotMatch(market.evidence, /gas cost was.*only evidence/i);
 });
 
 test('signed percentage formatter preserves direction and reports missing values', () => {

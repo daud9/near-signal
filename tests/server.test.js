@@ -52,7 +52,8 @@ test('local server serves the dashboard with restrictive headers and no API prox
   assert.equal(page.headers.get('x-frame-options'), 'DENY');
   const html = await page.text();
   assert.match(html, /Transactions in latest complete sample/);
-  assert.match(html, /Daily account cohorts, returning-user retention, verified people/);
+  assert.match(html, /id="thesisProvenance"/);
+  assert.doesNotMatch(html, /id="methodology"/);
   assert.doesNotMatch(html, /PIKESPEAK_API_KEY/);
 
   const head = await fetch(`${base}/`, { method: 'HEAD' });

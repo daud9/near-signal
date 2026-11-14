@@ -272,6 +272,8 @@ body.workspace-app .shell { padding: 0; }
   line-height: 1.2;
 }
 .block-sub { max-width: 820px; margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.priority-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0 0 14px; padding: 11px 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; }
+.priority-actions > span { margin-right: 3px; color: var(--muted); font-size: 11px; font-weight: 720; letter-spacing: .06em; text-transform: uppercase; }
 .grid { display: grid; gap: 14px; }
 .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .card,
@@ -313,6 +315,8 @@ body.workspace-app .shell { padding: 0; }
 .risk-card h3 { color: var(--text); font-size: 14px; }
 .risk-card p { color: var(--muted); font-size: 12px; line-height: 1.55; }
 .risk-card .risk-next { color: var(--muted); font-size: 11px; }
+.risk-source-item { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 3px; }
+.risk-source-item small { color: var(--muted); font-size: 10px; }
 .status-pill,
 .module-badge,
 .route-status { display: inline-flex; align-items: center; min-height: 28px; padding: 5px 9px; color: var(--muted); background: var(--surface-3); border: 1px solid var(--line); border-radius: 999px; font-size: 10px; font-weight: 720; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-const routes = ['overview', 'value-capture', 'adoption', 'risk-radar', 'capital-flows', 'thesis-challenge', 'methodology'];
+const routes = ['overview', 'thesis-challenge', 'risk-radar', 'value-capture', 'adoption', 'capital-flows'];
 
 test('desktop workspace tools use live sources and all navigation/actions work end to end', async ({ page }) => {
   const errors = [], forbiddenRequests = [];
@@ -8,8 +8,6 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   page.on('request', (request) => { if (/bigquery\.googleapis|explorer\.near-intents\.org\/api/.test(request.url())) forbiddenRequests.push(request.url()); });
   await page.goto('/');
   await expect(page.locator('#finalizedBlock')).not.toHaveText('—');
-  await expect(page.locator('#sourceList .source-row').filter({ hasText: 'FastNEAR Neardata' }).locator('.status-pill')).toHaveText('Responding');
-  await expect(page.locator('#blockTxAsOf')).toContainText('new chunks');
   await expect(page.locator('#overviewChart svg')).toBeVisible();
   for (const route of routes) {
     await page.locator(`.nav a[href="#${route}"]`).click();
@@ -17,6 +15,7 @@ test('desktop workspace tools use live sources and all navigation/actions work e
     await expect(page.locator('main > section.block:visible')).toHaveCount(1);
     await expect(page.locator(`.nav a[href="#${route}"]`)).toHaveAttribute('aria-current', 'page');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (route === 'adoption') await expect(page.locator('#blockTxAsOf')).toContainText(/new chunks|Waiting for|Retrying/);
   }
   await page.locator('.nav a[href="#overview"]').click();
   await page.locator('#windowSelect').selectOption('7');
@@ -47,13 +46,21 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   expect(await readFile(await (await sqlDownload).path(), 'utf8')).toContain('block_date >= start_date AND block_date < end_date');
 
   await page.locator('.nav a[href="#risk-radar"]').click();
+  await expect(page.locator('#riskGrid')).toContainText('FastNEAR Neardata');
+  await expect(page.locator('#riskGrid .risk-source-item').filter({ hasText: 'FastNEAR Neardata' })).toContainText(/Responding|stale|retained/i);
+  await expect(page.locator('#riskGrid')).not.toContainText('Ecosystem dependencies');
+  const economics = page.locator('#riskGrid .risk-card').filter({ hasText: '24-hour NEAR market change' });
+  if (await economics.count()) {
+    await expect(economics.locator('.risk-source')).toContainText('CoinGecko');
+    await expect(economics.locator('p').filter({ hasText: 'Evidence:' })).toContainText(/CoinGecko reported NEAR.*% over 24 hours/);
+  }
   const riskThreshold = page.locator('#riskThreshold');
   await riskThreshold.focus();
   for (let index = 0; index < 6; index += 1) await riskThreshold.press('ArrowRight');
   await expect(page.locator('#riskThresholdOutput')).toHaveText('50%');
-  await page.locator('#riskFilter').selectOption('coverage');
-  await expect(page.locator('#riskFilterStatus')).toContainText('of 6 indicators');
-  await expect(page.locator('#riskGrid')).toContainText('Ecosystem dependencies');
+  await page.locator('#riskFilter').selectOption('alerts');
+  await expect(page.locator('#riskFilterStatus')).toContainText('live signals');
+  await expect(page.locator('#riskFilter')).not.toContainText('Evidence gaps');
 
   await page.locator('.nav a[href="#capital-flows"]').click();
   await page.locator('#capitalWindowSelect').selectOption('7');
@@ -65,9 +72,15 @@ test('desktop workspace tools use live sources and all navigation/actions work e
   await page.locator('#metricB').selectOption('tvlUsd');
   await page.locator('#runHypothesisButton').click();
   await expect(page.locator('#hypothesisSummary')).toContainText('Pearson r');
+  await page.locator('#thesisProvenance summary').click();
+  await expect(page.locator('#thesisSourceQuery')).toContainText('api.coingecko.com');
+  await expect(page.locator('#thesisMethodList')).toContainText('Pearson correlation');
+  await expect(page.locator('#thesisSourceStatus')).toContainText('DefiLlama');
   const thesisDownload = page.waitForEvent('download'); await page.locator('#exportHypothesisButton').click();
   const result = JSON.parse(await readFile(await (await thesisDownload).path(), 'utf8'));
-  expect(result.result.n).toBe(14); expect(result.rawCoinGeckoMarketChart.prices.length).toBeGreaterThan(14);
+  expect(result.result.n).toBe(14); expect(result.rawInputs.coinGeckoMarketChart.prices.length).toBeGreaterThan(14);
+  expect(result.provenance.recipe.query).toContain('api.coingecko.com');
+  expect(result.provenance.sourceStatuses).toHaveLength(2);
   const evidenceDownload = page.waitForEvent('download'); await page.locator('#exportButton').click();
   const evidence = JSON.parse(await readFile(await (await evidenceDownload).path(), 'utf8'));
   expect(evidence.onDemandAccountInspection.accountId).toBe('intents.near');

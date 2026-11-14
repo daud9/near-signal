@@ -88,3 +88,25 @@ export const CHART_QUERY_RECIPES = {
 };
 
 export const BIGQUERY_REBUILD_NOTE = 'The live dataset inventory and all three query-table schemas were inspected in the authenticated BigQuery console on 14 Nov 2026. Each table is partitioned on block_date (DATE). This SQL has not been executed or dry-run; no application credentials, query project or spending approval is configured. Set explicit date/contract parameters and review estimated bytes before running it. Receipt-day origin counts cover only mappings in the selected date range; unmatched mappings are reported separately.';
+
+export const THESIS_TEST_RECIPE = {
+  title: 'Thesis Challenge Engine — daily market/TVL co-movement test',
+  plainLanguage: 'This descriptive test checks whether daily percentage changes in two selected provider series moved together on the same UTC dates. It does not test causation, adoption, settlement or future returns.',
+  sources: [
+    'CoinGecko NEAR daily market history: https://api.coingecko.com/api/v3/coins/near/market_chart?vs_currency=usd&days=32&interval=daily',
+    'DefiLlama NEAR historical TVL: https://api.llama.fi/v2/historicalChainTvl/near',
+  ],
+  query: 'GET https://api.coingecko.com/api/v3/coins/near/market_chart?vs_currency=usd&days=32&interval=daily\nGET https://api.llama.fi/v2/historicalChainTvl/near',
+  method: [
+    'Convert provider timestamps to UTC calendar dates; exclude the current partial UTC date.',
+    'For each selected series, compute daily percentage change only where the previous observation is exactly one UTC day earlier; do not fill missing values or bridge gaps.',
+    'Match percentage changes by their UTC end date and use the latest complete consecutive window of exactly 7, 14 or 30 changes.',
+    'Calculate Pearson correlation r over that full selected window. The visible ±0.30 direction rule is a product threshold, not a statistical-significance test.',
+  ],
+  limitations: [
+    'Correlation describes co-movement only. No p-value, causal effect, independence claim or forecast is calculated.',
+    'Market price, market volume and USD TVL can share market-price effects; they are not independent measures of on-chain usage.',
+    'A result does not establish human users, organic adoption, retention, Intents settlement, net flows or protocol value capture.',
+    'If the selected complete consecutive window is not present, the result is insufficient evidence; no missing values are synthesized.',
+  ],
+};
